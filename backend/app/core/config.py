@@ -21,6 +21,7 @@ class Settings(BaseSettings):
 
     # External financial data
     alpha_vantage_key: str = ""
+    fmp_api_key: str = ""
 
 
 settings = Settings()

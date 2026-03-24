@@ -17,6 +17,7 @@ import math
 
 from app.agents.base import AgentBase
 from app.schemas.signals import AnalystSignal
+from app.services import fmp_service as fmp_svc
 from app.services import llm_service
 from app.services import yfinance_service as yf_svc
 
@@ -35,13 +36,32 @@ class ValuationAgent(AgentBase):
     agent_type = "valuation"
 
     async def fetch_data(self, symbol: str) -> dict:
-        info = await yf_svc.get_info(symbol)
-        history = await yf_svc.get_history(symbol, period="2y")
-        return {"symbol": symbol, "info": info, "history": history}
+        import asyncio
+        info, history, fmp_metrics, fmp_cashflow = await asyncio.gather(
+            yf_svc.get_info(symbol),
+            yf_svc.get_history(symbol, period="2y"),
+            fmp_svc.get_key_metrics(symbol, limit=1),
+            fmp_svc.get_cash_flow_statements(symbol, limit=3),
+        )
+        return {
+            "symbol": symbol,
+            "info": info,
+            "history": history,
+            "fmp_metrics": fmp_metrics,
+            "fmp_cashflow": fmp_cashflow,
+        }
 
     async def analyze(self, data: dict, prior_context: list[str]) -> dict:
         info = data["info"]
         symbol = data["symbol"]
+        fmp_metrics = data.get("fmp_metrics") or []
+        fmp_cashflow = data.get("fmp_cashflow") or []
+
+        # Use FMP FCF as fallback when yfinance freeCashflow is None
+        if not info.get("freeCashflow") and fmp_cashflow:
+            fmp_fcf = fmp_cashflow[0].get("freeCashFlow")
+            if fmp_fcf:
+                info = {**info, "freeCashflow": fmp_fcf}
 
         price = info.get("regularMarketPrice") or info.get("currentPrice") or 0.0
         shares = info.get("sharesOutstanding") or 1
