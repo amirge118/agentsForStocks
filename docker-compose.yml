@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: agentsforstocks_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-agentsforstocks}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  openviking:
+    image: ghcr.io/volcengine/openviking:main
+    container_name: openviking
+    ports:
+      - "1933:1933"
+    volumes:
+      - ./infra/openviking/ov.conf:/app/ov.conf
+      - openviking_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:1933/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
+  openviking-mcp:
+    image: ghcr.io/volcengine/openviking:main
+    container_name: openviking_mcp
+    command: ["uv", "run", "mcp_server.py", "--port", "2033", "--transport", "http"]
+    ports:
+      - "2033:2033"
+    volumes:
+      - ./infra/openviking/ov.conf:/app/ov.conf
+      - openviking_data:/app/data
+    depends_on:
+      openviking:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # backend and frontend added here when code is ready
+
+volumes:
+  postgres_data:
+  openviking_data:

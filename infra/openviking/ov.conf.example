@@ -1,0 +1,33 @@
+# OpenViking configuration
+# Copy to ov.conf and fill in your API keys. DO NOT commit ov.conf.
+
+[server]
+host = "0.0.0.0"
+port = 1933
+# root_api_key = ""   # uncomment to require auth (recommended for production)
+
+[llm]
+# Used for memory extraction and intent analysis (search() method)
+# We reuse ANTHROPIC_API_KEY via LiteLLM to avoid a second AI provider
+provider = "litellm"
+model = "anthropic/claude-haiku-4-5"    # cheap + fast for memory extraction
+api_key = "your_anthropic_api_key_here"
+
+[embedding]
+# Used for vector search (find() method)
+# Option A (free, local): Ollama with nomic-embed-text
+provider = "ollama"
+model = "nomic-embed-text"
+base_url = "http://host.docker.internal:11434"
+
+# Option B (API): OpenAI text-embedding-3-small
+# provider = "openai"
+# model = "text-embedding-3-small"
+# api_key = "your_openai_api_key_here"
+
+[memory]
+memory_window = 50      # extract learnings every N conversation turns
+max_patterns = 1000     # cap per symbol to avoid unbounded growth
+
+[storage]
+data_dir = "/app/data"

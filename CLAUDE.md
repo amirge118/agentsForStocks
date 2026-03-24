@@ -2,6 +2,12 @@
 
 > Canonical rules for Claude Code. Read this first on every session.
 
+## Language Rules
+
+Detailed coding standards are in `.claude/rules/` — Claude enforces these automatically:
+- Python: `.claude/rules/python.md` (types, logging, secrets, testing, bandit)
+- TypeScript: `.claude/rules/typescript.md` (Zod, no-any, repository pattern, no console.log)
+
 ## Quick Start
 
 ```bash
