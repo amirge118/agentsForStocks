@@ -236,3 +236,15 @@ def test_v2_prompts_keep_the_rules_the_contracts_and_compliance_rely_on() -> Non
     for name in ("moat_v2", "risk_v2", "broad_analysis_v2", "growth_v2"):
         text = load_prompt(name)
         assert "max 200 characters" in text and "below 50" in text  # length + missing-data rule
+
+
+@pytest.mark.unit
+def test_capture_writes_one_json_object_per_line(tmp_path) -> None:
+    out = tmp_path / "nested" / "ledger.jsonl"
+    capture.write_jsonl(out, [{"call_id": "c1"}, {"call_id": "c2", "expected": None}])
+
+    lines = out.read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line) for line in lines] == [
+        {"call_id": "c1"},
+        {"call_id": "c2", "expected": None},
+    ]
