@@ -48,7 +48,7 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Dependabot (pip, npm, github-actions) so pinned versions get security updates [PRIORITY: MED]
 - [ ] Pin GitHub Actions by commit SHA instead of major tag [PRIORITY: LOW]
 - [ ] Backend Dockerfile + deploy workflow (migrations on release) [PRIORITY: MED]
-- [ ] Structured JSON logging so `extra=` fields (symbol, run_id) reach the log output [PRIORITY: MED]
+- [x] Structured logging (`LOG_FORMAT=text|json`): `extra=` fields reach the output, secrets in URLs are scrubbed, httpx URL logging quieted
 
 ## API & Frontend
 - [x] REST endpoints under /api/v1: agents, symbols overview, latest recommendation, agent results, agent_runs, manual pipeline trigger (202, background)

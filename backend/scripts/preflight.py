@@ -10,6 +10,7 @@ import sys
 
 from app.container import build_container
 from app.core.config import settings
+from app.core.logging import configure_logging
 from app.db.session import AsyncSessionLocal
 from app.ops.preflight import ready, render, run_preflight
 
@@ -27,5 +28,5 @@ async def main() -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover
-    logging.basicConfig(level=logging.WARNING)
+    configure_logging(settings.log_format, "WARNING")
     sys.exit(asyncio.run(main()))

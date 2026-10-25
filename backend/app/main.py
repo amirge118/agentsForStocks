@@ -17,13 +17,11 @@ from app.agents.scheduler import create_scheduler
 from app.api.v1.router import api_router
 from app.container import build_container
 from app.core.config import settings
+from app.core.logging import configure_logging
 from app.db.session import AsyncSessionLocal
 from app.middleware.request_logging import RequestLoggingMiddleware
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-)
+configure_logging(settings.log_format, settings.log_level)
 logger = logging.getLogger(__name__)
 
 
