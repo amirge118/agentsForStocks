@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 
 from app.agents.base import AgentBase
-from app.schemas.signals import AnalystSignal
+from app.schemas.signals import LLMSignal
 from app.services import fmp_service as fmp_svc
 from app.services import llm_service
 from app.services import yfinance_service as yf_svc
@@ -82,7 +82,7 @@ Is smart money accumulating or distributing? Return JSON signal.
         result = await llm_service.call_claude(
             system_prompt=_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            response_model=AnalystSignal,
+            response_model=LLMSignal,
         )
 
         direction = "accumulating" if net_change > 0 else "distributing" if net_change < 0 else "flat"

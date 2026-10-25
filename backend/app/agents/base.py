@@ -11,11 +11,15 @@ Lifecycle per run:
 """
 import logging
 from abc import ABC, abstractmethod
-from datetime import date, datetime
+from collections.abc import Awaitable
 from uuid import uuid4
 
+from sqlalchemy import select
+from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import market_today, utcnow
+from app.models.agent_result import AgentResult
 from app.services.knowledge_service import KnowledgeService
 
 logger = logging.getLogger(__name__)
@@ -103,25 +107,28 @@ class AgentBase(ABC):
         Unique constraint: (agent_type, symbol, run_date) — re-runs replace, not duplicate.
         Subclasses can override to use a different model, but must preserve idempotency.
         """
-        from sqlalchemy.dialects.postgresql import insert
-        from app.models.agent_result import AgentResult  # imported lazily to avoid circular deps
+        # Pick the dialect-specific INSERT so the same upsert runs on Postgres
+        # (production) and SQLite (tests). Both support ON CONFLICT DO UPDATE.
+        dialect = self.db.get_bind().dialect.name
+        insert = sqlite.insert if dialect == "sqlite" else postgresql.insert
+        now = utcnow()
 
         stmt = (
             insert(AgentResult)
             .values(
                 agent_type=self.agent_type,
                 symbol=symbol,
-                run_date=date.today(),
+                run_date=market_today(),
                 run_id=run_id,
                 result_json=result,
-                updated_at=datetime.utcnow(),
+                updated_at=now,
             )
             .on_conflict_do_update(
                 index_elements=["agent_type", "symbol", "run_date"],
                 set_={
                     "result_json": result,
                     "run_id": run_id,
-                    "updated_at": datetime.utcnow(),
+                    "updated_at": now,
                 },
             )
         )
@@ -148,15 +155,22 @@ class AgentBase(ABC):
     # Internals
     # ------------------------------------------------------------------
 
-    async def _is_duplicate(self, symbol: str) -> bool:
-        """Return True if this agent already ran for symbol today."""
-        from sqlalchemy import select
-        from app.models.agent_result import AgentResult
+    async def _safe_write(self, write: Awaitable[None]) -> None:
+        """Await a knowledge-base write, swallowing any error (learnings are best-effort)."""
+        try:
+            await write
+        except Exception as exc:
+            logger.warning(
+                "Knowledge write failed",
+                extra={"agent": self.agent_type, "error": str(exc)},
+            )
 
+    async def _is_duplicate(self, symbol: str) -> bool:
+        """Return True if this agent already ran for symbol on the current market date."""
         stmt = select(AgentResult.id).where(
             AgentResult.agent_type == self.agent_type,
             AgentResult.symbol == symbol,
-            AgentResult.run_date == date.today(),
+            AgentResult.run_date == market_today(),
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none() is not None

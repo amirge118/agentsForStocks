@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 from app.agents.base import AgentBase
-from app.schemas.signals import AnalystSignal
+from app.schemas.signals import LLMSignal
 from app.services import llm_service
 from app.services import yfinance_service as yf_svc
 from app.services.technical_indicators import (
@@ -89,7 +89,7 @@ Produce the final signal JSON.
         result = await llm_service.call_claude(
             system_prompt=_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            response_model=AnalystSignal,
+            response_model=LLMSignal,
         )
 
         return {

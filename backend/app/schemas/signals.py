@@ -10,6 +10,20 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+Signal = Literal["bullish", "bearish", "neutral"]
+
+
+class LLMSignal(BaseModel):
+    """
+    The judgement Claude returns for an analyst agent.
+    Only the fields the model is asked to produce — agent_type and symbol are
+    attached by the agent, never expected from the LLM.
+    """
+    signal: Signal
+    confidence: float = Field(ge=0.0, le=100.0, description="0-100 confidence score")
+    reasoning: str = Field(description="Plain-English explanation of the signal")
+
+
 class AnalystSignal(BaseModel):
     """Output of a single analyst agent for one symbol."""
     signal: Literal["bullish", "bearish", "neutral"]

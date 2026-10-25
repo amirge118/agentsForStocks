@@ -9,6 +9,7 @@ from uuid import uuid4
 from sqlalchemy import Date, DateTime, JSON, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.clock import utcnow
 from app.models.base import Base
 
 
@@ -24,7 +25,9 @@ class AgentResult(Base):
     run_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     run_id: Mapped[str] = mapped_column(String, nullable=False)
     result_json: Mapped[dict] = mapped_column(JSON, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow
+    )
 
     def __repr__(self) -> str:
         return f"<AgentResult {self.agent_type}/{self.symbol} {self.run_date}>"

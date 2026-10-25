@@ -29,7 +29,7 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Ingest analyst estimate revisions as a scheduled data feed [PRIORITY: LOW]
 
 ## Infrastructure
-- [ ] Alembic migrations setup with auto-generate [PRIORITY: HIGH]
+- [x] Alembic migrations setup with auto-generate (backend/alembic, `alembic upgrade head`)
 - [ ] Prometheus metrics endpoint for agent run durations and failure rates [PRIORITY: MED]
 - [ ] Health check endpoint that validates DB + OpenViking connectivity [PRIORITY: HIGH]
 - [ ] Add Redis for task queue (Celery or ARQ) if APScheduler proves insufficient [PRIORITY: LOW]

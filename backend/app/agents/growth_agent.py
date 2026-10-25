@@ -13,7 +13,7 @@ import logging
 from datetime import datetime
 
 from app.agents.base import AgentBase
-from app.schemas.signals import AnalystSignal
+from app.schemas.signals import LLMSignal
 from app.services import fmp_service as fmp_svc
 from app.services import llm_service
 
@@ -92,7 +92,7 @@ Return JSON signal.
         result = await llm_service.call_claude(
             system_prompt=_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            response_model=AnalystSignal,
+            response_model=LLMSignal,
         )
 
         return {

@@ -14,13 +14,12 @@ Final output: BUY (score > +15), SELL (score < -15), HOLD (otherwise)
 from __future__ import annotations
 
 import logging
-from datetime import date
-
 from sqlalchemy import select
 
 from app.agents.base import AgentBase
+from app.core.clock import market_today
 from app.models.agent_result import AgentResult
-from app.schemas.signals import AnalystSignal
+from app.schemas.signals import LLMSignal
 from app.services import llm_service
 
 logger = logging.getLogger(__name__)
@@ -65,7 +64,7 @@ class RecommendationAgent(AgentBase):
 
     async def fetch_data(self, symbol: str) -> dict:
         """Query today's results from all Phase 1 agents."""
-        today = date.today()
+        today = market_today()
         agent_results: dict[str, dict] = {}
 
         for agent_type in _PHASE1_AGENTS:
@@ -133,7 +132,7 @@ Synthesize the agent signals into a final investment recommendation. Return JSON
         result = await llm_service.call_claude(
             system_prompt=_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            response_model=AnalystSignal,
+            response_model=LLMSignal,
             model="claude-sonnet-4-6",  # Use stronger model for final recommendation
         )
 
