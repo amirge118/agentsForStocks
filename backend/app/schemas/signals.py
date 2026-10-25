@@ -1,66 +1,16 @@
-"""
-Signal schemas — shared Pydantic models used by all analyst agents.
-Every agent produces an AnalystSignal. The signal_aggregator combines them
-into a ConsolidatedSignal per symbol.
-"""
-from __future__ import annotations
-
-from typing import Literal
+"""Signal schemas shared across layers."""
 
 from pydantic import BaseModel, Field
 
-
-Signal = Literal["bullish", "bearish", "neutral"]
+from app.domain.signals import SignalLabel
 
 
 class LLMSignal(BaseModel):
     """
-    The judgement Claude returns for an analyst agent.
-    Only the fields the model is asked to produce — agent_type and symbol are
-    attached by the agent, never expected from the LLM.
+    The judgement Claude returns for an analyst agent. Only the fields the model
+    is asked to produce — the agent attaches everything else.
     """
-    signal: Signal
+
+    signal: SignalLabel
     confidence: float = Field(ge=0.0, le=100.0, description="0-100 confidence score")
     reasoning: str = Field(description="Plain-English explanation of the signal")
-
-
-class AnalystSignal(BaseModel):
-    """Output of a single analyst agent for one symbol."""
-    signal: Literal["bullish", "bearish", "neutral"]
-    confidence: float = Field(ge=0.0, le=100.0, description="0-100 confidence score")
-    reasoning: str = Field(description="Plain-English explanation of the signal")
-    agent_type: str
-    symbol: str
-
-
-class SubSignal(BaseModel):
-    """A component signal within a multi-factor agent."""
-    name: str
-    signal: Literal["bullish", "bearish", "neutral"]
-    score: float = Field(ge=0.0, le=10.0, description="0-10 sub-score")
-    detail: str = ""
-
-
-class ConsolidatedSignal(BaseModel):
-    """
-    Aggregated result across multiple analyst agents for one symbol.
-    Produced by signal_aggregator.py.
-    """
-    symbol: str
-    signal: Literal["bullish", "bearish", "neutral"]
-    confidence: float = Field(ge=0.0, le=100.0)
-    bullish_count: int
-    bearish_count: int
-    neutral_count: int
-    agent_signals: list[AnalystSignal]
-    reasoning: str
-
-
-class PortfolioDecision(BaseModel):
-    """Trading decision produced by the portfolio manager (future)."""
-    symbol: str
-    action: Literal["buy", "sell", "hold", "short", "cover"]
-    quantity: int = 0
-    confidence: float = Field(ge=0.0, le=100.0)
-    reasoning: str
-    max_position_value: float = 0.0

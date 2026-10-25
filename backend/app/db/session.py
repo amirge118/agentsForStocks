@@ -3,6 +3,7 @@ Async SQLAlchemy session factory.
 Use get_db_session() as a FastAPI dependency — it yields an AsyncSession
 and commits/rolls back automatically.
 """
+
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine

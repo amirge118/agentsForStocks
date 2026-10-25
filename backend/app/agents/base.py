@@ -1,176 +1,130 @@
 """
-AgentBase — the contract every stock analysis agent must implement.
+Agent — the contract for every stock analysis agent.
 
-Lifecycle per run:
-  1. idempotency check          — skip if already ran for symbol + date
-  2. recall_context()           — pull relevant patterns from OpenViking
-  3. fetch_data(symbol)         — get raw data (yfinance, APIs)
-  4. analyze(data, context)     — generate result using Claude + recalled context
-  5. store_result()             — upsert to PostgreSQL
-  6. store_learnings()          — deposit patterns/cases to OpenViking (never raises)
+An agent only describes *what* to analyse:
+  fetch(symbol)                   — gather raw data through the providers (I/O only)
+  analyze(symbol, data, memory)   — compute with app.domain, ask Claude to judge,
+                                    return a typed AnalysisResult
+  learnings(symbol, result)       — what to remember in the knowledge base
+
+*How* a run happens (idempotency, logging, persistence, knowledge writes,
+error handling) lives in AgentRunner, so agents stay small and testable.
 """
+
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable
-from uuid import uuid4
+from dataclasses import dataclass
+from datetime import date
+from typing import Any, ClassVar, Generic, Protocol, TypeVar
 
-from sqlalchemy import select
-from sqlalchemy.dialects import postgresql, sqlite
-from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.clock import market_today, utcnow
-from app.models.agent_result import AgentResult
-from app.services.knowledge_service import KnowledgeService
+from app.domain.signals import SignalLabel
+from app.knowledge.store import Learning
+from app.llm.client import LLMClient, LLMError
+from app.llm.prompt_loader import load_prompt
+from app.providers.edgar import EdgarClient
+from app.providers.fmp import FmpClient
+from app.providers.yfinance import YFinanceClient
+from app.schemas.signals import LLMSignal
 
 logger = logging.getLogger(__name__)
 
 
-class AgentBase(ABC):
-    # Subclasses must set this — used in logs, DB records, and knowledge URIs
-    agent_type: str
+class AnalysisResult(BaseModel):
+    """Fields every agent result has. Agents subclass it to add their own metrics."""
 
-    def __init__(self, db: AsyncSession, knowledge: KnowledgeService) -> None:
-        self.db = db
-        self.knowledge = knowledge
+    model_config = ConfigDict(extra="forbid")
 
-    # ------------------------------------------------------------------
-    # Public entry point
-    # ------------------------------------------------------------------
+    signal: SignalLabel
+    confidence: float = Field(ge=0.0, le=100.0)
+    reasoning: str
+    summary: str
 
-    async def run(self, symbol: str) -> None:
-        run_id = str(uuid4())
-        log_ctx = {"agent": self.agent_type, "symbol": symbol, "run_id": run_id}
 
-        logger.info("Agent run started", extra=log_ctx)
+class ResultsReader(Protocol):
+    """Read access to stored results — used by agents that build on other agents."""
 
+    async def get_for_date(
+        self, symbol: str, run_date: date, agent_types: list[str]
+    ) -> dict[str, dict[str, Any]]: ...
+
+
+@dataclass(frozen=True)
+class AgentContext:
+    """Everything an agent may depend on. Built once in app.container."""
+
+    yfinance: YFinanceClient
+    fmp: FmpClient
+    edgar: EdgarClient
+    llm: LLMClient
+    results: ResultsReader
+    reasoning_model: str
+
+
+DataT = TypeVar("DataT")
+ResultT = TypeVar("ResultT", bound=AnalysisResult)
+
+
+class Agent(ABC, Generic[DataT, ResultT]):
+    # Set by @register_agent
+    name: ClassVar[str]
+    result_model: ClassVar[type[AnalysisResult]]
+
+    def __init__(self, ctx: AgentContext) -> None:
+        self.ctx = ctx
+
+    @abstractmethod
+    async def fetch(self, symbol: str, run_date: date) -> DataT:
+        """Gather raw data. No analysis here."""
+
+    @abstractmethod
+    async def analyze(self, symbol: str, data: DataT, memory: list[str]) -> ResultT:
+        """Turn data (+ recalled knowledge) into a result."""
+
+    def learnings(self, symbol: str, result: ResultT) -> list[Learning]:
+        """Default: remember the run summary as a case. Override to add patterns."""
+        return [Learning(kind="case", content=result.summary)]
+
+    async def judge(
+        self,
+        prompt: str,
+        *,
+        fallback: LLMSignal,
+        prompt_name: str | None = None,
+        model: str | None = None,
+    ) -> LLMSignal:
+        """
+        Ask Claude for the final signal using the agent's system prompt
+        (app/llm/prompts/<name>.md). If Claude is unavailable, return `fallback` —
+        usually the agent's own quantitative signal — so the run still completes.
+        """
         try:
-            if await self._is_duplicate(symbol):
-                logger.info("Agent run skipped — already ran today", extra=log_ctx)
-                return
-
-            # Step 2: recall relevant patterns before fetching data
-            prior_context: list[str] = await self.knowledge.recall_for_symbol(
-                symbol=symbol, agent_type=self.agent_type
+            return await self.ctx.llm.generate(
+                system=load_prompt(prompt_name or self.name),
+                prompt=prompt,
+                schema=LLMSignal,
+                model=model,
             )
-            if prior_context:
-                logger.debug(
-                    "Recalled %d context items from knowledge base",
-                    len(prior_context),
-                    extra=log_ctx,
-                )
-
-            # Steps 3 & 4: fetch then analyze
-            data = await self.fetch_data(symbol)
-            result = await self.analyze(data, prior_context=prior_context)
-
-            # Step 5: persist to PostgreSQL (source of truth)
-            await self.store_result(symbol=symbol, run_id=run_id, result=result)
-
-            # Step 6: deposit learnings (additive, never raises)
-            await self.store_learnings(symbol=symbol, result=result)
-
-            logger.info("Agent run completed", extra=log_ctx)
-
-        except Exception as exc:
-            logger.error(
-                "Agent run failed",
-                extra={**log_ctx, "error": str(exc)},
-                exc_info=True,
-            )
-            raise
-
-    # ------------------------------------------------------------------
-    # Abstract methods — subclasses must implement these
-    # ------------------------------------------------------------------
-
-    @abstractmethod
-    async def fetch_data(self, symbol: str) -> dict:
-        """Fetch raw data for the symbol (yfinance, APIs, etc.)."""
-        ...
-
-    @abstractmethod
-    async def analyze(self, data: dict, prior_context: list[str]) -> dict:
-        """
-        Produce the analysis result.
-        prior_context is a list of plain-text patterns recalled from OpenViking.
-        Inject them into the Claude prompt as additional context.
-        """
-        ...
-
-    # ------------------------------------------------------------------
-    # Hooks with default implementations — subclasses can override
-    # ------------------------------------------------------------------
-
-    async def store_result(self, symbol: str, run_id: str, result: dict) -> None:
-        """
-        Upsert result to PostgreSQL.
-        Unique constraint: (agent_type, symbol, run_date) — re-runs replace, not duplicate.
-        Subclasses can override to use a different model, but must preserve idempotency.
-        """
-        # Pick the dialect-specific INSERT so the same upsert runs on Postgres
-        # (production) and SQLite (tests). Both support ON CONFLICT DO UPDATE.
-        dialect = self.db.get_bind().dialect.name
-        insert = sqlite.insert if dialect == "sqlite" else postgresql.insert
-        now = utcnow()
-
-        stmt = (
-            insert(AgentResult)
-            .values(
-                agent_type=self.agent_type,
-                symbol=symbol,
-                run_date=market_today(),
-                run_id=run_id,
-                result_json=result,
-                updated_at=now,
-            )
-            .on_conflict_do_update(
-                index_elements=["agent_type", "symbol", "run_date"],
-                set_={
-                    "result_json": result,
-                    "run_id": run_id,
-                    "updated_at": now,
+        except LLMError as exc:
+            logger.warning(
+                "LLM judgement unavailable, using fallback",
+                extra={
+                    "agent": self.name,
+                    "error": str(exc),
                 },
             )
-        )
-        await self.db.execute(stmt)
-        await self.db.commit()
+            return fallback
 
-    async def store_learnings(self, symbol: str, result: dict) -> None:
-        """
-        Default: deposit the analysis summary as a Case in OpenViking.
-        Override in subclasses to additionally call self.knowledge.store_pattern()
-        when a noteworthy signal is detected.
 
-        This method MUST NOT raise. Wrap all logic in try/except if overriding.
-        """
-        summary = result.get("summary", "")
-        if summary:
-            await self.knowledge.store_analysis_result(
-                symbol=symbol,
-                summary=summary,
-                agent_type=self.agent_type,
-            )
+def neutral_fallback(reason: str = "LLM unavailable — no quantitative signal") -> LLMSignal:
+    return LLMSignal(signal="neutral", confidence=0.0, reasoning=reason)
 
-    # ------------------------------------------------------------------
-    # Internals
-    # ------------------------------------------------------------------
 
-    async def _safe_write(self, write: Awaitable[None]) -> None:
-        """Await a knowledge-base write, swallowing any error (learnings are best-effort)."""
-        try:
-            await write
-        except Exception as exc:
-            logger.warning(
-                "Knowledge write failed",
-                extra={"agent": self.agent_type, "error": str(exc)},
-            )
-
-    async def _is_duplicate(self, symbol: str) -> bool:
-        """Return True if this agent already ran for symbol on the current market date."""
-        stmt = select(AgentResult.id).where(
-            AgentResult.agent_type == self.agent_type,
-            AgentResult.symbol == symbol,
-            AgentResult.run_date == market_today(),
-        )
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none() is not None
+def quant_fallback(signal: SignalLabel, confidence: float, what: str) -> LLMSignal:
+    """Fallback that keeps the agent's computed signal when Claude is unavailable."""
+    return LLMSignal(
+        signal=signal,
+        confidence=min(max(confidence, 0.0), 100.0),
+        reasoning=f"LLM unavailable — {what}",
+    )

@@ -3,10 +3,11 @@ AgentResult — stores every agent run output.
 Unique constraint on (agent_type, symbol, run_date) enforces idempotency.
 Re-running an agent for the same symbol on the same day upserts, not duplicates.
 """
+
 from datetime import date, datetime
 from uuid import uuid4
 
-from sqlalchemy import Date, DateTime, JSON, String, UniqueConstraint
+from sqlalchemy import JSON, Date, DateTime, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.clock import utcnow

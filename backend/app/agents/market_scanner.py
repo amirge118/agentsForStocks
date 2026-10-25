@@ -1,134 +1,114 @@
-"""
-MarketScannerAgent — first concrete agent implementation.
+"""MarketScannerAgent — quick end-of-day scan: price change, SMA position, volume, multiples."""
 
-Runs weekdays at 18:30 ET (registered in scheduler.py).
-For each symbol: fetches price + technicals via yfinance,
-builds a Claude analysis prompt (injecting recalled OpenViking context),
-stores result in PostgreSQL, and deposits a Case in OpenViking.
+import asyncio
+from dataclasses import dataclass
+from datetime import date
+from typing import Literal
 
-Extend store_learnings() to detect and store specific patterns
-(e.g. unusual volume, breakouts) as they're identified.
-"""
-import logging
+import pandas as pd
+from pydantic import BaseModel, Field
 
-import anthropic
-
-from app.agents.base import AgentBase
-from app.core.config import settings
-from app.services import yfinance_service as yf_svc
-from app.services.external_api_base import with_retry
-
-logger = logging.getLogger(__name__)
-
-_claude = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-
-_SYSTEM_PROMPT = """\
-You are a quantitative stock analyst. Analyze the provided market data concisely.
-Structure your response as JSON with keys: summary, signals, risk_level, confidence.
-- summary: 2-3 sentence plain-English analysis
-- signals: list of bullish/bearish signals detected (strings)
-- risk_level: "low" | "medium" | "high"
-- confidence: float 0.0-1.0
-"""
+from app.agents.base import Agent, AnalysisResult
+from app.agents.formatting import memory_block
+from app.agents.registry import register_agent
+from app.domain.market_scan import ScanMetrics, scan_metrics
+from app.domain.signals import SignalLabel
+from app.knowledge.store import Learning
+from app.llm.client import LLMError
+from app.llm.prompt_loader import load_prompt
 
 
-class MarketScannerAgent(AgentBase):
-    agent_type = "market_scanner"
+class ScanJudgement(BaseModel):
+    signal: SignalLabel
+    confidence: float = Field(ge=0.0, le=100.0)
+    reasoning: str
+    observations: list[str]
+    risk_level: Literal["low", "medium", "high"]
 
-    async def fetch_data(self, symbol: str) -> dict:
-        info = await yf_svc.get_info(symbol)
-        history = await yf_svc.get_history(symbol, period="3mo")
 
-        price = info.get("regularMarketPrice")
-        prev_close = info.get("previousClose")
-        avg_volume = info.get("averageVolume")
-        volume = info.get("volume")
+class MarketScanResult(AnalysisResult):
+    observations: list[str]
+    risk_level: Literal["low", "medium", "high"]
+    metrics: dict[str, float | None]
 
-        # Simple technicals from history
-        technicals: dict = {}
-        if not history.empty:
-            closes = history["Close"]
-            technicals = {
-                "sma_20": round(closes.tail(20).mean(), 2),
-                "sma_50": round(closes.tail(50).mean(), 2) if len(closes) >= 50 else None,
-                "price_vs_sma20_pct": round(((price or 0) / closes.tail(20).mean() - 1) * 100, 2) if price else None,
-                "volume_ratio": round(volume / avg_volume, 2) if volume and avg_volume else None,
-            }
 
-        return {
-            "symbol": symbol,
-            "price": price,
-            "prev_close": prev_close,
-            "change_pct": round(((price / prev_close) - 1) * 100, 2) if price and prev_close else None,
-            "market_cap": info.get("marketCap"),
-            "sector": info.get("sector"),
-            "pe_trailing": info.get("trailingPE"),
-            "pe_forward": info.get("forwardPE"),
-            **technicals,
-        }
+@dataclass(frozen=True)
+class MarketScanData:
+    info: dict
+    history: pd.DataFrame
 
-    async def analyze(self, data: dict, prior_context: list[str]) -> dict:
-        symbol = data["symbol"]
 
-        context_block = ""
-        if prior_context:
-            context_block = "\n\nKnowledge base context for this symbol:\n" + "\n".join(
-                f"- {p}" for p in prior_context
-            )
+@register_agent("market_scanner", description="End-of-day price, trend and volume scan")
+class MarketScannerAgent(Agent[MarketScanData, MarketScanResult]):
+    result_model = MarketScanResult
 
-        user_prompt = f"""
-Symbol: {symbol}
-Price: ${data.get('price')} ({data.get('change_pct', 0):+.2f}% today)
-Sector: {data.get('sector', 'N/A')}
-Market Cap: ${data.get('market_cap', 0):,.0f}
-Trailing P/E: {data.get('pe_trailing', 'N/A')}
-Forward P/E: {data.get('pe_forward', 'N/A')}
-SMA20: {data.get('sma_20', 'N/A')} | Price vs SMA20: {data.get('price_vs_sma20_pct', 'N/A')}%
-SMA50: {data.get('sma_50', 'N/A')}
-Volume ratio (vs 30d avg): {data.get('volume_ratio', 'N/A')}x
-{context_block}
+    async def fetch(self, symbol: str, run_date: date) -> MarketScanData:
+        info, history = await asyncio.gather(
+            self.ctx.yfinance.get_info(symbol),
+            self.ctx.yfinance.get_history(symbol, period="3mo"),
+        )
+        return MarketScanData(info=info, history=history)
 
-Provide a concise market scan analysis. Return valid JSON only.
-"""
-
-        def _call_claude() -> dict:
-            import json
-            message = _claude.messages.create(
-                model="claude-haiku-4-5",
+    async def analyze(
+        self, symbol: str, data: MarketScanData, memory: list[str]
+    ) -> MarketScanResult:
+        m = scan_metrics(data.info, data.history)
+        try:
+            judgement = await self.ctx.llm.generate(
+                system=load_prompt(self.name),
+                prompt=_prompt(symbol, data.info, m, memory),
+                schema=ScanJudgement,
                 max_tokens=512,
-                system=_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_prompt}],
             )
-            text = message.content[0].text.strip()
-            # Strip markdown code fences if present
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-            return json.loads(text)
-
-        result = await with_retry(_call_claude, label=f"claude.market_scanner({symbol})")
-        result["symbol"] = symbol
-        result["raw_data"] = data
-        return result
-
-    async def store_learnings(self, symbol: str, result: dict) -> None:
-        """
-        Store analysis summary as Case + detect volume anomalies as Patterns.
-        Never raises — all knowledge writes are best-effort.
-        """
-        # Always store the analysis case
-        await self.knowledge.store_analysis_result(
-            symbol=symbol,
-            summary=result.get("summary", ""),
-            agent_type=self.agent_type,
+        except LLMError:
+            judgement = ScanJudgement(
+                signal="neutral",
+                confidence=0.0,
+                reasoning="LLM unavailable — scan metrics stored without judgement",
+                observations=["volume spike"] if m.volume_spike else [],
+                risk_level="medium",
+            )
+        return MarketScanResult(
+            signal=judgement.signal,
+            confidence=judgement.confidence,
+            reasoning=judgement.reasoning,
+            observations=judgement.observations,
+            risk_level=judgement.risk_level,
+            metrics={
+                "price": m.price,
+                "change_pct": m.change_pct,
+                "sma_20": m.sma_20,
+                "sma_50": m.sma_50,
+                "price_vs_sma20_pct": m.price_vs_sma20_pct,
+                "volume_ratio": m.volume_ratio,
+            },
+            summary=f"Market scan: {judgement.signal} ({judgement.confidence:.0f}%) "
+            f"risk={judgement.risk_level} — {judgement.reasoning}",
         )
 
-        # Store unusual volume as a pattern
-        volume_ratio = result.get("raw_data", {}).get("volume_ratio")
-        if volume_ratio and volume_ratio > 2.0:
-            await self.knowledge.store_pattern(
-                symbol=symbol,
-                pattern=f"Volume spike detected: {volume_ratio:.1f}x average. Signals: {result.get('signals', [])}",
-                tags=["volume", "anomaly"],
+    def learnings(self, symbol: str, result: MarketScanResult) -> list[Learning]:
+        learnings = super().learnings(symbol, result)
+        ratio = result.metrics.get("volume_ratio")
+        if ratio is not None and ratio > 2.0:
+            learnings.append(
+                Learning(
+                    kind="pattern",
+                    content=f"Volume spike {ratio:.1f}x average. Signals: {result.observations}",
+                    tags=("volume", "anomaly"),
+                )
             )
+        return learnings
+
+
+def _prompt(symbol: str, info: dict, m: ScanMetrics, memory: list[str]) -> str:
+    change = f"{m.change_pct:+.2f}%" if m.change_pct is not None else "N/A"
+    return f"""Symbol: {symbol}
+Price: {m.price} ({change} today)
+Sector: {info.get('sector') or 'N/A'}
+Market cap: {info.get('marketCap') or 'N/A'}
+Trailing P/E: {info.get('trailingPE') or 'N/A'} | Forward P/E: {info.get('forwardPE') or 'N/A'}
+SMA20: {m.sma_20} | Price vs SMA20: {m.price_vs_sma20_pct}% | SMA50: {m.sma_50}
+Volume vs average: {m.volume_ratio}x
+
+Knowledge base context:
+{memory_block(memory)}"""
