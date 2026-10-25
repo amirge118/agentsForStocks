@@ -21,6 +21,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/calls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Llm Calls */
+        get: operations["list_llm_calls_api_v1_llm_calls_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Llm Usage */
+        get: operations["llm_usage_api_v1_llm_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pipeline/runs": {
         parameters: {
             query?: never;
@@ -47,6 +81,23 @@ export interface paths {
         };
         /** List Runs */
         get: operations["list_runs_api_v1_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}/llm-calls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Run Llm Calls */
+        get: operations["run_llm_calls_api_v1_runs__run_id__llm_calls_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -169,13 +220,27 @@ export interface components {
         AgentRunOut: {
             /** Agent Type */
             agent_type: string;
+            /** Analyze Ms */
+            analyze_ms: number | null;
+            /** Cost Usd */
+            cost_usd: number | null;
             /** Error */
             error: string | null;
+            /** Fetch Ms */
+            fetch_ms: number | null;
             /**
              * Finished At
              * Format: date-time
              */
             finished_at: string;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Llm Calls */
+            llm_calls: number;
+            /** Llm Fallbacks */
+            llm_fallbacks: number;
+            /** Output Tokens */
+            output_tokens: number;
             /** Pipeline Run Id */
             pipeline_run_id: string | null;
             /**
@@ -245,6 +310,107 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * LLMCallOut
+         * @description One request to the model, with the exact text sent and received (when captured).
+         */
+        LLMCallOut: {
+            /** Agent */
+            agent: string | null;
+            /** Cache Read Tokens */
+            cache_read_tokens: number;
+            /** Cache Write Tokens */
+            cache_write_tokens: number;
+            /** Call Id */
+            call_id: string;
+            /** Cost Usd */
+            cost_usd: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Model */
+            model: string;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Pipeline Run Id */
+            pipeline_run_id: string | null;
+            /** Prompt */
+            prompt: string | null;
+            /** Prompt Name */
+            prompt_name: string | null;
+            /** Prompt Version */
+            prompt_version: string;
+            /** Response */
+            response: string | null;
+            /** Run Id */
+            run_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "error";
+            /** Stop Reason */
+            stop_reason: string | null;
+            /** Symbol */
+            symbol: string | null;
+            /** System Prompt */
+            system_prompt: string | null;
+        };
+        /** LLMUsageReport */
+        LLMUsageReport: {
+            /**
+             * Group By
+             * @enum {string}
+             */
+            group_by: "agent" | "model" | "day" | "prompt_version";
+            /** Rows */
+            rows: components["schemas"]["LLMUsageRow"][];
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /** Total Calls */
+            total_calls: number;
+            /** Total Cost Usd */
+            total_cost_usd: number;
+            /** Total Input Tokens */
+            total_input_tokens: number;
+            /** Total Output Tokens */
+            total_output_tokens: number;
+        };
+        /**
+         * LLMUsageRow
+         * @description Token and cost totals for one group (agent, model, day or prompt version).
+         */
+        LLMUsageRow: {
+            /** Avg Latency Ms */
+            avg_latency_ms: number;
+            /** Cache Read Tokens */
+            cache_read_tokens: number;
+            /** Cache Write Tokens */
+            cache_write_tokens: number;
+            /** Calls */
+            calls: number;
+            /** Cost Usd */
+            cost_usd: number;
+            /** Errors */
+            errors: number;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Key */
+            key: string;
+            /** Output Tokens */
+            output_tokens: number;
         };
         /** PipelineRunAccepted */
         PipelineRunAccepted: {
@@ -373,6 +539,72 @@ export interface operations {
             };
         };
     };
+    list_llm_calls_api_v1_llm_calls_get: {
+        parameters: {
+            query?: {
+                run_id?: string | null;
+                pipeline_run_id?: string | null;
+                agent?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LLMCallOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    llm_usage_api_v1_llm_usage_get: {
+        parameters: {
+            query?: {
+                days?: number;
+                group_by?: "agent" | "model" | "day" | "prompt_version";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LLMUsageReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     start_pipeline_run_api_v1_pipeline_runs_post: {
         parameters: {
             query?: never;
@@ -435,6 +667,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentRunOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_llm_calls_api_v1_runs__run_id__llm_calls_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LLMCallOut"][];
                 };
             };
             /** @description Validation Error */

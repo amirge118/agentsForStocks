@@ -180,3 +180,53 @@ async def test_trigger_defaults_to_watchlist_and_all_agents(api: httpx.AsyncClie
     assert body["symbols"] == ["AAPL", "MSFT"]
     assert body["agents"][-1] == "recommendation"
     assert app.state.container.launcher.active == 1
+
+
+@pytest.mark.integration
+async def test_llm_ledger_endpoints(api: httpx.AsyncClient, concurrent_session_factory) -> None:
+    from app.core.clock import utcnow
+    from app.llm.pricing import TokenUsage
+    from app.llm.recording import DbLLMCallRecorder, LLMCallRecord
+
+    recorder = DbLLMCallRecorder(concurrent_session_factory)
+    for call_id, agent, run_id in (
+        ("c1", "moat", "r1"),
+        ("c2", "moat", "r1"),
+        ("c3", "risk", "r2"),
+    ):
+        await recorder.record(
+            LLMCallRecord(
+                call_id=call_id,
+                created_at=utcnow(),
+                model="claude-haiku-4-5",
+                prompt_name=agent,
+                prompt_version="v1",
+                status="ok",
+                latency_ms=100,
+                usage=TokenUsage(input_tokens=1000, output_tokens=100),
+                cost_usd=0.0015,
+                run_id=run_id,
+                agent=agent,
+                symbol="AAPL",
+                system_prompt="You are a moat analyst.",
+                prompt="Symbol: AAPL",
+                response='{"signal":"bullish"}',
+            )
+        )
+
+    usage = (await api.get("/api/v1/llm/usage", params={"days": 7})).json()
+    assert usage["group_by"] == "agent"
+    assert [(r["key"], r["calls"]) for r in usage["rows"]] == [("moat", 2), ("risk", 1)]
+    assert usage["total_calls"] == 3
+    assert usage["total_input_tokens"] == 3000
+    assert usage["total_cost_usd"] == pytest.approx(0.0045)
+    by_model = (await api.get("/api/v1/llm/usage", params={"group_by": "model"})).json()
+    assert [r["key"] for r in by_model["rows"]] == ["claude-haiku-4-5"]
+    bad = await api.get("/api/v1/llm/usage", params={"group_by": "nope"})
+    assert bad.status_code == 422
+
+    calls = (await api.get("/api/v1/runs/r1/llm-calls")).json()
+    assert [c["call_id"] for c in calls] == ["c1", "c2"]  # in call order
+    assert calls[0]["system_prompt"] == "You are a moat analyst."
+    listed = (await api.get("/api/v1/llm/calls", params={"agent": "risk"})).json()
+    assert [c["call_id"] for c in listed] == ["c3"]

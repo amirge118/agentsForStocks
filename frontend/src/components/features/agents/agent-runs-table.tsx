@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -11,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { RunFilters } from "@/lib/api/repositories"
-import { formatDateTime } from "@/lib/format"
+import { formatCost, formatDateTime, formatTokens } from "@/lib/format"
 import { useRuns } from "@/lib/hooks/queries"
 import type { RunStatus } from "@/types/api"
 
@@ -46,6 +48,8 @@ export function AgentRunsTable({ filters = {} }: { filters?: RunFilters }) {
           <TableHead>Symbol</TableHead>
           <TableHead>Agent</TableHead>
           <TableHead>Status</TableHead>
+          <TableHead className="hidden text-right md:table-cell">Tokens</TableHead>
+          <TableHead className="hidden text-right md:table-cell">Cost</TableHead>
           <TableHead className="hidden md:table-cell">Error</TableHead>
         </TableRow>
       </TableHeader>
@@ -57,6 +61,23 @@ export function AgentRunsTable({ filters = {} }: { filters?: RunFilters }) {
             <TableCell>{run.agent_type.replaceAll("_", " ")}</TableCell>
             <TableCell>
               <Badge variant={STATUS_VARIANT[run.status]}>{run.status}</Badge>
+              {run.llm_fallbacks > 0 && (
+                <Badge variant="outline" className="ml-2" title="Claude was unavailable — the agent used its own quantitative signal">
+                  fallback
+                </Badge>
+              )}
+            </TableCell>
+            <TableCell className="hidden text-right font-mono tabular-nums md:table-cell">
+              {run.llm_calls > 0 ? (
+                <Link href={`/runs/${encodeURIComponent(run.run_id)}`} className="hover:text-zinc-50 hover:underline">
+                  {formatTokens(run.input_tokens)} / {formatTokens(run.output_tokens)}
+                </Link>
+              ) : (
+                <span className="text-zinc-400">—</span>
+              )}
+            </TableCell>
+            <TableCell className="hidden text-right font-mono tabular-nums md:table-cell">
+              {run.llm_calls > 0 ? formatCost(run.cost_usd) : ""}
             </TableCell>
             <TableCell className="hidden max-w-md truncate text-red-400 md:table-cell">
               {run.error}

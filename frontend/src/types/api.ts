@@ -88,6 +88,57 @@ export const AgentRunSchema = z.object({
   error: z.string().nullable(),
   started_at: z.string(),
   finished_at: z.string(),
+  fetch_ms: z.number().nullable(),
+  analyze_ms: z.number().nullable(),
+  llm_calls: z.number(),
+  input_tokens: z.number(),
+  output_tokens: z.number(),
+  cost_usd: z.number().nullable(),
+  llm_fallbacks: z.number(),
+})
+export const UsageGroupSchema = z.enum(["agent", "model", "day", "prompt_version"])
+export const LLMCallSchema = z.object({
+  call_id: z.string(),
+  created_at: z.string(),
+  pipeline_run_id: z.string().nullable(),
+  run_id: z.string().nullable(),
+  agent: z.string().nullable(),
+  symbol: z.string().nullable(),
+  model: z.string(),
+  prompt_name: z.string().nullable(),
+  prompt_version: z.string(),
+  status: z.enum(["ok", "error"]),
+  stop_reason: z.string().nullable(),
+  error: z.string().nullable(),
+  latency_ms: z.number(),
+  input_tokens: z.number(),
+  output_tokens: z.number(),
+  cache_read_tokens: z.number(),
+  cache_write_tokens: z.number(),
+  cost_usd: z.number().nullable(),
+  system_prompt: z.string().nullable(),
+  prompt: z.string().nullable(),
+  response: z.string().nullable(),
+})
+export const LLMUsageRowSchema = z.object({
+  key: z.string(),
+  calls: z.number(),
+  errors: z.number(),
+  input_tokens: z.number(),
+  output_tokens: z.number(),
+  cache_read_tokens: z.number(),
+  cache_write_tokens: z.number(),
+  cost_usd: z.number(),
+  avg_latency_ms: z.number(),
+})
+export const LLMUsageReportSchema = z.object({
+  since: z.string(),
+  group_by: UsageGroupSchema,
+  rows: z.array(LLMUsageRowSchema),
+  total_calls: z.number(),
+  total_input_tokens: z.number(),
+  total_output_tokens: z.number(),
+  total_cost_usd: z.number(),
 })
 
 export const PipelineRunAcceptedSchema = z.object({
@@ -112,6 +163,10 @@ export type AgentResult = z.infer<typeof AgentResultSchema>
 export type AgentRun = z.infer<typeof AgentRunSchema>
 export type PipelineRunAccepted = z.infer<typeof PipelineRunAcceptedSchema>
 export type PipelineRunRequest = Schemas["PipelineRunRequest"]
+export type UsageGroup = z.infer<typeof UsageGroupSchema>
+export type LLMCall = z.infer<typeof LLMCallSchema>
+export type LLMUsageRow = z.infer<typeof LLMUsageRowSchema>
+export type LLMUsageReport = z.infer<typeof LLMUsageReportSchema>
 
 // ---------------------------------------------------------------------------
 // Compile-time contract checks: Zod schema type === generated OpenAPI type
@@ -129,4 +184,7 @@ export type ContractChecks = [
   Assert<Exact<AgentResult, Schemas["AgentResultOut"]>>,
   Assert<Exact<AgentRun, Schemas["AgentRunOut"]>>,
   Assert<Exact<PipelineRunAccepted, Schemas["PipelineRunAccepted"]>>,
+  Assert<Exact<LLMCall, Schemas["LLMCallOut"]>>,
+  Assert<Exact<LLMUsageRow, Schemas["LLMUsageRow"]>>,
+  Assert<Exact<LLMUsageReport, Schemas["LLMUsageReport"]>>,
 ]

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from app.agents.base import Agent, AnalysisResult, quant_fallback
 from app.agents.formatting import memory_block
 from app.agents.registry import register_agent
+from app.core.context import note_fallback
 from app.domain.sentiment import SentimentScore, blend, headlines, score_insider_trades
 from app.domain.signals import SignalLabel
 from app.llm.client import LLMError
@@ -78,8 +79,10 @@ Knowledge base context:
                 prompt=f"Company: {symbol}\nHeadlines:\n{bullet_list}",
                 schema=_NewsSentiment,
                 max_tokens=256,
+                prompt_name="news_sentiment",
             )
         except LLMError:
+            note_fallback()
             return SentimentScore("neutral", 50.0, "News classification unavailable")
         return SentimentScore(result.signal, result.confidence, f"{len(titles)} headlines analyzed")
 

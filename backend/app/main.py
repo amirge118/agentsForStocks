@@ -7,13 +7,14 @@ pipeline scheduler (in production it runs in its own process: app/worker.py).
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from functools import partial
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from app.agents.scheduler import create_scheduler
+from app.agents.scheduler import create_scheduler, prune_llm_calls
 from app.api.v1.router import api_router
 from app.container import build_container
 from app.core.config import settings
@@ -33,7 +34,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.container = container
     app.state.scheduler = None
     if settings.run_scheduler:
-        app.state.scheduler = create_scheduler(container.orchestrator, settings.watchlist_symbols)
+        app.state.scheduler = create_scheduler(
+            container.orchestrator,
+            settings.watchlist_symbols,
+            maintenance=partial(
+                prune_llm_calls, container.session_factory, settings.llm_call_retention_days
+            ),
+        )
         app.state.scheduler.start()
         logger.info("Agent scheduler started in the API process")
     yield

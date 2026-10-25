@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from "@playwright/test"
 
-import { overview, recommendation, runs } from "../src/test/fixtures"
+import { llmCalls, llmUsage, overview, recommendation, runs } from "../src/test/fixtures"
 
 const API = "**/api/backend"
 
@@ -20,6 +20,9 @@ async function mockApi(page: Page): Promise<string[]> {
     json(route, { detail: "No recommendation for MSFT yet" }, 404),
   )
   await page.route(`${API}/runs**`, (route) => json(route, runs))
+  // Registered after /runs** so it takes precedence for a run's LLM calls
+  await page.route(`${API}/runs/*/llm-calls`, (route) => json(route, llmCalls))
+  await page.route(`${API}/llm/usage**`, (route) => json(route, llmUsage))
   await page.route(`${API}/pipeline/runs`, async (route) => {
     posted.push(route.request().postData() ?? "")
     return json(
@@ -72,4 +75,19 @@ test("dashboard requires the password", async ({ browser, baseURL }) => {
   const proxied = await anonymous.request.get(`${baseURL}/api/backend/symbols`)
   expect(proxied.status()).toBe(401)  // the backend proxy is protected too
   await anonymous.close()
+})
+
+test("token usage page and a run's prompts", async ({ page }) => {
+  await mockApi(page)
+  await page.goto("/runs")
+  await page.getByRole("link", { name: "1,850 / 96" }).click()
+  await expect(page).toHaveURL(/\/runs\/r1$/)
+  const calls = page.getByRole("list", { name: "LLM calls" })
+  await expect(calls).toContainText("claude-haiku-4-5")
+  await calls.getByText("System prompt").click()
+  await expect(calls.getByText(/five years of financial statements/)).toBeVisible()
+
+  await page.getByRole("link", { name: "Tokens & cost" }).click()
+  await expect(page.getByRole("table", { name: "LLM usage" })).toContainText("19,800")
+  await expect(page.getByLabel("Totals")).toContainText("$0.0288")
 })

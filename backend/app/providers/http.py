@@ -7,6 +7,7 @@ TTL cache. Provider clients build URLs; this class decides how they are fetched.
 
 import json
 import logging
+import time
 from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlsplit
@@ -58,9 +59,18 @@ class HttpClient:
         cache hit) — providers use it to count calls against a quota.
         """
         key = (url, tuple(sorted((params or {}).items())))
-        return await self._cache.get_or_load(
-            key, lambda: self._fetch(url, params or {}, headers or {}, on_request)
-        )
+        fetched = False
+
+        async def _load() -> str:
+            nonlocal fetched
+            fetched = True
+            return await self._fetch(url, params or {}, headers or {}, on_request)
+
+        text = await self._cache.get_or_load(key, _load)
+        if not fetched:
+            parts = urlsplit(url)
+            logger.debug("Provider cache hit", extra={"domain": parts.netloc, "path": parts.path})
+        return text
 
     async def _fetch(
         self,
@@ -70,15 +80,30 @@ class HttpClient:
         on_request: Callable[[], None] | None,
     ) -> str:
         domain = urlsplit(url).netloc
+        path = urlsplit(url).path  # never the query string: FMP sends its key there
+        attempts = 0
 
         async def _attempt() -> str:
+            nonlocal attempts
+            attempts += 1
             if on_request is not None:
                 on_request()
             await self._rate_limiter.acquire(domain)
+            started = time.perf_counter()
             try:
                 resp = await self._client.get(url, params=params, headers=headers)
             except (httpx.TimeoutException, httpx.TransportError) as exc:
                 raise RetryableError(f"{type(exc).__name__} for {domain}") from exc
+            logger.info(
+                "Provider request",
+                extra={
+                    "domain": domain,
+                    "path": path,
+                    "status": resp.status_code,
+                    "duration_ms": round((time.perf_counter() - started) * 1000),
+                    "attempt": attempts,
+                },
+            )
             if resp.status_code in _RETRYABLE_STATUS:
                 raise RetryableError(f"HTTP {resp.status_code} from {domain}")
             if resp.status_code >= 400:

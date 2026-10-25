@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     llm_default_model: str = "claude-haiku-4-5"
     llm_reasoning_model: str = "claude-sonnet-4-6"
     llm_timeout_seconds: float = 30.0
+    # Ledger (llm_calls): keep the exact prompt and reply text of every call, for review
+    # and evals; rows older than the retention window are deleted daily by the worker
+    llm_capture_content: bool = True
+    llm_call_retention_days: int = 90
 
     # OpenViking — knowledge/memory layer
     openviking_url: str = "http://localhost:1933"

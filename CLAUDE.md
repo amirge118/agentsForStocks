@@ -32,6 +32,9 @@ cd backend && python -m scripts.preflight
 # Run the pipeline once, now (all agents, or a subset)
 cd backend && python -m scripts.run_pipeline AAPL MSFT [--agents technicals valuation] [--force]
 
+# Token usage and cost per agent / model / day / prompt version (from the llm_calls ledger)
+cd backend && python -m scripts.token_report [--days 30] [--by model]
+
 # Production scheduler: API processes with RUN_SCHEDULER=false + exactly one worker
 cd backend && python -m app.worker
 
@@ -69,6 +72,12 @@ All calls to `yfinance`, financial APIs, or any external service MUST go through
 - Per-domain rate limiting (`RateLimiter`, limits in `app/container.py`)
 - Timeout of 10s max per request, plus a TTL cache shared by all agents
 FMP calls also count against `DailyCallBudget` (free tier = 250/day). Claude is called only through `app/llm/client.py` (structured outputs).
+
+### 11. Every LLM Call Is Measured — Keep It That Way
+`LLMClient.generate` records each request (success or failure) in `llm_calls`: tokens, cost (`app/llm/pricing.py` — add a price when you add a model), latency, `prompt_version` (hash of the system prompt) and, with `LLM_CAPTURE_CONTENT=true`, the exact prompt and reply. Always pass `prompt_name=`; agents go through `Agent.judge()`, which does. On `LLMError`, call `note_fallback()` so the run's `llm_fallbacks` is counted.
+
+### 12. Run Context in Logs
+`AgentRunner` and `PipelineOrchestrator` bind `pipeline_run_id` / `run_id` / `agent` / `symbol` in contextvars (`app/core/context.py`); `ContextFilter` adds them to every log line. Don't pass these ids through `extra=` by hand. Log extras are redacted by whole word (`api_key`, `access_token`), so `input_tokens` stays readable.
 
 ### 6. TanStack Query v5 Patterns
 Use `isPending` for loading skeletons (NOT `isLoading` — that's v4). Get query client via `useQueryClient()` hook. On mutation success: `invalidateQueries`. On mutation error: `toast({ variant: "destructive" })`.

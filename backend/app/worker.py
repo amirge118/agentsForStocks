@@ -9,10 +9,11 @@ worker wastes API calls but never corrupts or duplicates results.
 import asyncio
 import logging
 import signal
+from functools import partial
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.agents.scheduler import create_scheduler
+from app.agents.scheduler import create_scheduler, prune_llm_calls
 from app.container import build_container
 from app.core.config import Settings
 
@@ -26,7 +27,11 @@ async def run_worker(
 ) -> None:
     """Start the scheduler and keep it running until `stop` is set."""
     container = build_container(settings, session_factory)
-    scheduler = create_scheduler(container.orchestrator, settings.watchlist_symbols)
+    scheduler = create_scheduler(
+        container.orchestrator,
+        settings.watchlist_symbols,
+        maintenance=partial(prune_llm_calls, session_factory, settings.llm_call_retention_days),
+    )
     scheduler.start()
     logger.info("Scheduler worker started", extra={"symbols": settings.watchlist_symbols})
     try:

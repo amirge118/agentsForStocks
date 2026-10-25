@@ -70,7 +70,11 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Move to Next.js 16 when CLAUDE.md allows — Next 15 bundles a vulnerable postcss, currently forced to 8.5.31 via npm overrides [PRIORITY: MED]
 
 ## LLM
-- [ ] Upgrade the `anthropic` SDK pin (0.40) so structured outputs use the typed `output_config` parameter instead of `extra_body` [PRIORITY: MED]
+- [x] Upgrade the `anthropic` SDK pin 0.40 → 1.17 (typed `output_config`, usage fields, built-in OpenTelemetry spans)
+- [ ] Move to `anthropic` 2.x — it switches the API version to 2026-10-21 and sends the key as `Authorization: Bearer`; follow the api-version migration guide [PRIORITY: LOW]
+- [x] LLM ledger (`llm_calls`): tokens, cost, latency, prompt version and exact text of every call; `/api/v1/llm/usage`, Tokens & cost page, `scripts.token_report`
+- [ ] Per-day LLM cost budget (like the FMP DailyCallBudget) that stops new calls and alerts when exceeded [PRIORITY: MED]
+- [ ] Load model prices from config instead of `app/llm/pricing.py`, so a price change needs no deploy [PRIORITY: LOW]
 - [ ] Evaluate newer models (claude-haiku-5-5 / claude-sonnet-5-5) for agent judgements via LLM_DEFAULT_MODEL / LLM_REASONING_MODEL — needs an eval set first [PRIORITY: MED]
 
 ## MCP Data Sources (Claude for Financial Advisors plugin)

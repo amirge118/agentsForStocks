@@ -3,13 +3,14 @@ from datetime import date
 import pytest
 from sqlalchemy import select
 
-from app.agents.base import Agent, AnalysisResult
+from app.agents.base import Agent, AnalysisResult, quant_fallback
 from app.agents.runner import AgentRunner, SessionResultsReader
+from app.core.context import current_usage
 from app.knowledge.store import Learning
 from app.models.agent_result import AgentResult
 from app.models.agent_run import AgentRun
 from app.repositories.agent_results import AgentResultRepository
-from tests.factories import make_context
+from tests.factories import FakeLLM, make_context
 
 RUN_DATE = date(2026, 10, 23)
 
@@ -176,3 +177,74 @@ async def test_database_outage_is_reported_not_raised() -> None:
     outcome = await runner.run(_StubAgent(make_context()), "AAPL", RUN_DATE)
     assert outcome.status == "failed"
     assert "db gone" in outcome.error  # the audit write failed too, but was only logged
+
+
+class _LLMStubAgent(_StubAgent):
+    """Calls the (fake) LLM through judge(), like the real agents do."""
+
+    async def analyze(self, symbol: str, data: dict, memory: list[str]) -> _Result:
+        judgement = await self.judge(
+            "prompt", fallback=quant_fallback("neutral", 10, "quant"), prompt_name="technicals"
+        )
+        return _Result(
+            signal=judgement.signal,
+            confidence=judgement.confidence,
+            reasoning=judgement.reasoning,
+            summary="s",
+            score=data["score"],
+        )
+
+
+class _UsageLLM(FakeLLM):
+    """FakeLLM that also reports usage the way LLMClient does."""
+
+    async def generate(self, **kwargs):
+        usage = current_usage()
+        if usage is not None and not self.fail:
+            usage.llm_calls += 1
+            usage.input_tokens += 1500
+            usage.output_tokens += 90
+            usage.cost_usd += 0.002
+        return await super().generate(**kwargs)
+
+
+@pytest.mark.unit
+async def test_agent_run_records_timings_and_llm_usage(session_factory, db_session) -> None:
+    agent = _LLMStubAgent(make_context(llm=_UsageLLM()), reasoning="x")
+    outcome = await AgentRunner(session_factory, _RecordingKnowledge()).run(
+        agent, "AAPL", RUN_DATE, pipeline_run_id="p1"
+    )
+    run = (await db_session.execute(select(AgentRun))).scalar_one()
+    assert (run.llm_calls, run.input_tokens, run.output_tokens) == (1, 1500, 90)
+    assert run.cost_usd == pytest.approx(0.002)
+    assert run.llm_fallbacks == 0
+    assert run.fetch_ms is not None and run.analyze_ms is not None
+    assert outcome.usage is not None and outcome.usage.llm_calls == 1
+
+
+@pytest.mark.unit
+async def test_llm_fallback_is_counted(session_factory, db_session) -> None:
+    agent = _LLMStubAgent(make_context(llm=FakeLLM(fail=True)), reasoning="x")
+    outcome = await AgentRunner(session_factory, _RecordingKnowledge()).run(agent, "AAPL", RUN_DATE)
+    assert outcome.result is not None and outcome.result.signal == "neutral"
+    run = (await db_session.execute(select(AgentRun))).scalar_one()
+    assert (run.llm_fallbacks, run.llm_calls) == (1, 0)
+
+
+@pytest.mark.unit
+async def test_run_logs_carry_the_run_context(session_factory, caplog) -> None:
+    import logging
+
+    from app.core.logging import ContextFilter
+
+    caplog.handler.addFilter(ContextFilter())
+    caplog.set_level(logging.INFO, logger="app.agents.runner")
+    outcome = await AgentRunner(session_factory, _RecordingKnowledge()).run(
+        _StubAgent(make_context()), "AAPL", RUN_DATE, pipeline_run_id="p1"
+    )
+    records = [r for r in caplog.records if r.name == "app.agents.runner"]
+    assert [r.message for r in records] == ["Agent run started", "Agent run completed"]
+    for record in records:
+        assert (record.run_id, record.pipeline_run_id) == (outcome.run_id, "p1")
+        assert (record.agent, record.symbol) == ("stub", "AAPL")
+    assert records[-1].duration_ms >= 0
