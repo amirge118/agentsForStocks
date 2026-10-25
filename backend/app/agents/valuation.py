@@ -7,7 +7,12 @@ from datetime import date
 from app.agents.base import Agent, AnalysisResult, quant_fallback
 from app.agents.formatting import billions, memory_block
 from app.agents.registry import register_agent
-from app.domain.valuation import ValuationSummary, summarize, with_fcf_fallback
+from app.domain.valuation import (
+    MARGIN_OF_SAFETY_THRESHOLD,
+    ValuationSummary,
+    summarize,
+    with_fcf_fallback,
+)
 
 
 class ValuationResult(AnalysisResult):
@@ -25,10 +30,23 @@ class ValuationData:
     fmp_cash_flow: list[dict]
 
 
+def _signal_matches_margin_of_safety(data: object, result: "ValuationResult") -> str | None:
+    """The prompt's rule: bullish only with a clear margin of safety, bearish when overvalued."""
+    if result.avg_intrinsic_value <= 0:
+        return None  # nothing to compare against — covered by data gaps
+    mos = result.margin_of_safety
+    if result.signal == "bullish" and mos <= MARGIN_OF_SAFETY_THRESHOLD:
+        return f"bullish with a margin of safety of {mos:+.0%} (rule: > +20%)"
+    if result.signal == "bearish" and mos > 0:
+        return f"bearish although intrinsic value is above market cap (margin {mos:+.0%})"
+    return None
+
+
 @register_agent(
     "valuation",
     description="Multi-method intrinsic value and margin of safety",
     recommendation_weight=20,
+    invariants=(_signal_matches_margin_of_safety,),
 )
 class ValuationAgent(Agent[ValuationData, ValuationResult]):
     result_model = ValuationResult

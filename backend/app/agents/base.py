@@ -54,7 +54,11 @@ class AnalysisResult(BaseModel):
     confidence: float = Field(ge=0.0, le=100.0)
     reasoning: str
     summary: str
-    # Set by AgentRunner (app/agents/compliance.py) before the result is stored
+    # Set by AgentRunner before the result is stored:
+    # inputs that came back empty, and broken contract rules (app/agents/contracts.py)
+    data_gaps: list[str] = Field(default_factory=list)
+    contract_violations: list[str] = Field(default_factory=list)
+    # ... and the compliance review of the reasoning (app/agents/compliance.py)
     compliance: ComplianceView | None = None
 
 
@@ -86,9 +90,13 @@ class Agent(ABC, Generic[DataT, ResultT]):
     # Set by @register_agent
     name: ClassVar[str]
     result_model: ClassVar[type[AnalysisResult]]
+    invariants: ClassVar[tuple[Any, ...]] = ()
 
     def __init__(self, ctx: AgentContext) -> None:
         self.ctx = ctx
+        # Inputs that came back empty — set by AgentRunner before analyze(); judge()
+        # tells Claude about them so it doesn't judge missing data as if it were there
+        self.data_gaps: list[str] = []
 
     @abstractmethod
     async def fetch(self, symbol: str, run_date: date) -> DataT:
@@ -101,6 +109,16 @@ class Agent(ABC, Generic[DataT, ResultT]):
     def learnings(self, symbol: str, result: ResultT) -> list[Learning]:
         """Default: remember the run summary as a case. Override to add patterns."""
         return [Learning(kind="case", content=result.summary)]
+
+    def with_data_gaps(self, prompt: str) -> str:
+        """Append a note naming the inputs that came back empty (no-op when none did)."""
+        if not self.data_gaps:
+            return prompt
+        return (
+            f"{prompt}\n\nMissing inputs (the data sources returned nothing): "
+            f"{', '.join(self.data_gaps)}. Judge only what is present above and lower your "
+            "confidence accordingly; with no usable data, answer neutral."
+        )
 
     async def judge(
         self,
@@ -116,6 +134,7 @@ class Agent(ABC, Generic[DataT, ResultT]):
         (app/llm/prompts/<name>.md). If Claude is unavailable, return `fallback` —
         usually the agent's own quantitative signal — so the run still completes.
         """
+        prompt = self.with_data_gaps(prompt)
         try:
             name = prompt_name or self.name
             return await self.ctx.llm.generate(

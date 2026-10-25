@@ -80,6 +80,9 @@ FMP calls also count against `DailyCallBudget` (free tier = 250/day). Claude is 
 ### 11. Every LLM Call Is Measured — Keep It That Way
 `LLMClient.generate` records each request (success or failure) in `llm_calls`: tokens, cost (`app/llm/pricing.py` — add a price when you add a model), latency, `prompt_version` (hash of the system prompt) and, with `LLM_CAPTURE_CONTENT=true`, the exact prompt and reply. Always pass `prompt_name=`; agents go through `Agent.judge()`, which does. On `LLMError`, call `note_fallback()` so the run's `llm_fallbacks` is counted.
 
+### 14. Agent Contracts and Prompt Snapshots
+`AgentRunner` checks every result (`app/agents/contracts.py`): `data_gaps` lists inputs that came back empty (and `judge()` tells Claude about them), confidence is capped at 25% when *all* inputs are empty, and per-agent rules declared with `@register_agent(invariants=...)` are recorded in `contract_violations`. When a prompt states a rule, add an invariant for it. Hard business rules (the risk cap on the recommendation) are enforced in code, not left to the prompt. Prompts are snapshotted in `tests/snapshots/prompts/`; after an intended prompt change run `UPDATE_SNAPSHOTS=1 pytest tests/unit/agents/test_prompt_snapshots.py` and commit the diff. Golden scenarios (company archetypes) live in `tests/scenarios.py`.
+
 ### 13. Observability (OpenTelemetry)
 `app/observability/telemetry.py` installs tracing, metrics and log export only when `OTEL_ENABLED=true`; otherwise every span and metric is a no-op, so tests need nothing. New long-running work → wrap it in `tracer.start_as_current_span(...)`; new counters/histograms go in `app/observability/metrics.py`. Exact figures (tokens, cost, run counts) come from the DB ledger, not from Prometheus: `increase()` drops a series' first sample.
 

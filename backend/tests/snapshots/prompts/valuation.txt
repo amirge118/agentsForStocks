@@ -1,0 +1,23 @@
+### call 1: prompt_name=valuation model=default
+--- system
+You are a quantitative valuation analyst. You receive intrinsic value estimates from several
+methods and the current market capitalisation. Be conservative: only signal bullish when there
+is a clear margin of safety (> 20%), bearish when the market value clearly exceeds intrinsic value.
+Confidence is 0-100; keep the reasoning under 200 characters.
+--- user
+Symbol: AAPL
+Current market cap: $2000.00B
+
+Intrinsic value estimates:
+  DCF bear: $903.20B  (low growth, high WACC)
+  DCF base: $1469.51B  (consensus assumptions)
+  DCF bull: $2363.10B  (high growth, expanding margins)
+  Owner earnings: $1080.00B
+  EV/EBITDA method: $2560.00B
+
+Average intrinsic value: $1703.17B
+Margin of safety: -14.8% (positive = undervalued)
+Rule-based signal: neutral (50%)
+
+Knowledge base context:
+- Earlier run: steady margins

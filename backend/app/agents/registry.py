@@ -31,11 +31,15 @@ class AgentRegistry:
         description: str,
         depends_on: Iterable[str] = (),
         recommendation_weight: float = 0.0,
+        invariants: Iterable[Any] = (),
     ) -> Any:
+        """invariants: contract rules checked on every result (app/agents/contracts.py)."""
+
         def decorator(cls: type[Any]) -> type[Any]:
             if name in self._specs:
                 raise ValueError(f"Agent {name!r} registered twice")
             cls.name = name
+            cls.invariants = tuple(invariants)
             self._specs[name] = AgentSpec(
                 name=name,
                 agent_cls=cls,

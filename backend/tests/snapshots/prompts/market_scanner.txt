@@ -1,0 +1,21 @@
+### call 1: prompt_name=market_scanner model=default
+--- system
+You are a quantitative stock analyst running a quick end-of-day market scan.
+Judge the day's price action, trend versus moving averages, valuation multiples and volume.
+
+- signal: bullish, bearish or neutral for the next few weeks
+- confidence: 0-100
+- reasoning: one or two sentences (max 200 characters) naming the decisive factor
+- observations: short bullet-style strings for each notable signal you see
+- risk_level: low, medium or high
+--- user
+Symbol: AAPL
+Price: 150.0 (+1.35% today)
+Sector: Technology
+Market cap: 2000000000000.0
+Trailing P/E: 28.0 | Forward P/E: 25.0
+SMA20: 206.28 | Price vs SMA20: -27.28% | SMA50: 201.49
+Volume vs average: 3.0x
+
+Knowledge base context:
+- Earlier run: steady margins

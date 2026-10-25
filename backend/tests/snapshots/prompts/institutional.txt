@@ -1,0 +1,24 @@
+### call 1: prompt_name=institutional model=default
+--- system
+You are a buy-side analyst reviewing institutional investor activity from 13F filings.
+Judge whether large institutions are accumulating or distributing: net change in shares held,
+new positions and the quarterly trend. Confidence is 0-100; the reasoning (max 200 characters)
+focuses on the net institutional direction.
+--- user
+Symbol: AAPL
+
+Institutional ownership: 60.0% of shares outstanding
+Net change across top holders: +8,000,000 shares (accumulating)
+Top-5 holder concentration: 100.0% of institutional holdings
+
+Top institutional holders:
+Holder | Shares | Change
+Vanguard | 1,300,000,000 | +10,000,000
+BlackRock | 1,000,000,000 | -2,000,000
+
+Quarterly 13F ownership trend:
+Date | Investor | Shares | Change
+2026-06-30 | Vanguard | 1,300,000,000 | +10,000,000
+
+Knowledge base context:
+- Earlier run: steady margins

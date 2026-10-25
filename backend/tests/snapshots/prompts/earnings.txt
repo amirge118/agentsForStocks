@@ -1,0 +1,25 @@
+### call 1: prompt_name=earnings model=default
+--- system
+You are an earnings-quality analyst. Assess the company's record of beating estimates and how the
+stock reacts after reports.
+
+Bullish = consistent beats, positive market reaction, improving guidance.
+Bearish = frequent misses, negative market reaction, guidance cuts.
+Confidence is 0-100; the reasoning (max 200 characters) covers beat rate, surprise size and reaction.
+--- user
+Symbol: AAPL
+
+Earnings surprise history (last 8 quarters, most recent first):
+Date | Actual EPS | Est. EPS | Surprise
+2025-10-30 | $1.600 | $1.500 | +6.7%
+2025-10-30 | $1.600 | $1.500 | +6.7%
+2025-10-30 | $1.600 | $1.500 | +6.7%
+2025-10-30 | $1.600 | $1.500 | +6.7%
+
+Beat rate: 100% (4/4 quarters)
+Average surprise: +6.7%
+Average post-earnings return: 1 day +0.2%, 3 days +0.3%
+Next earnings date: 2098-10-30
+
+Knowledge base context:
+- Earlier run: steady margins

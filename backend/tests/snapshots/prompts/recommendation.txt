@@ -1,0 +1,34 @@
+### call 1: prompt_name=recommendation model=reasoning-model
+--- system
+You are a portfolio manager making the final investment recommendation for one stock.
+You receive weighted scores from independent analyst agents, a rule-based base recommendation
+and any missing analysts.
+
+Bullish = strong buy thesis. Bearish = avoid / sell. Neutral = hold, insufficient conviction.
+Respect a risk override when one was applied. Confidence is 0-100; the reasoning
+(max 200 characters) cites the two or three most important signals.
+
+Keep the reasoning fair and balanced: for a bullish call, name the main risk too.
+Never use promissory or absolute language (e.g. "guaranteed", "risk-free", "can't lose",
+"sure thing") or hype ("no-brainer", "can't miss", "to the moon").
+--- user
+Symbol: AAPL
+
+Weighted score: +70.0 (BUY > +15, SELL < -15)
+Rule-based recommendation: bullish (90%)
+Risk override applied: no
+
+Agent | Signal | Confidence | Weight | Contribution
+broad_analysis     | bullish  |  70% |   10 | +7.00
+earnings           | bullish  |  70% |    5 | +3.50
+financial_history  | bullish  |  70% |   20 | +14.00
+growth             | bullish  |  70% |   10 | +7.00
+institutional      | bullish  |  70% |    5 | +3.50
+moat               | bullish  |  70% |   15 | +10.50
+risk               | bullish  |  70% |   15 | +10.50
+valuation          | bullish  |  70% |   20 | +14.00
+
+Missing analysts: none
+
+Knowledge base context:
+- Earlier run: steady margins

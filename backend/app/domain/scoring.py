@@ -85,14 +85,7 @@ def weighted_score(
         base = "neutral"
     confidence = min(abs(total) * 3, 90.0)
 
-    risk = results.get(risk_agent) or {}
-    override = (
-        base == "bullish"
-        and risk.get("signal") == "bearish"
-        and float(risk.get("confidence") or 0) >= RISK_OVERRIDE_CONFIDENCE
-    )
-    if override:
-        base, confidence = "neutral", min(confidence, RISK_OVERRIDE_MAX_CONFIDENCE)
+    base, confidence, override = risk_capped(base, confidence, results, risk_agent)
 
     return WeightedScore(
         score=total,
@@ -102,6 +95,27 @@ def weighted_score(
         base_confidence=confidence,
         risk_override_applied=override,
     )
+
+
+def risk_capped(
+    signal: SignalLabel,
+    confidence: float,
+    results: dict[str, dict[str, Any]],
+    risk_agent: str = "risk",
+) -> tuple[SignalLabel, float, bool]:
+    """
+    A high-confidence bearish risk call caps a bullish signal at neutral (HOLD).
+    Returns (signal, confidence, capped). Applied to the rule-based score and again
+    to the final judgement, so the cap holds whatever the model answers.
+    """
+    risk = results.get(risk_agent) or {}
+    if (
+        signal == "bullish"
+        and risk.get("signal") == "bearish"
+        and float(risk.get("confidence") or 0) >= RISK_OVERRIDE_CONFIDENCE
+    ):
+        return "neutral", min(confidence, RISK_OVERRIDE_MAX_CONFIDENCE), True
+    return signal, confidence, False
 
 
 def to_action(signal: str) -> Action:

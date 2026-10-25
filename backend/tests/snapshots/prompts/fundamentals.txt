@@ -1,0 +1,19 @@
+### call 1: prompt_name=fundamentals model=default
+--- system
+You are a fundamental stock analyst. You receive quantitative scores for four dimensions
+(profitability, growth, financial health, valuation) and their majority vote.
+Base the signal strictly on the scores provided; confidence is 0-100.
+Keep the reasoning under 200 characters.
+--- user
+Symbol: AAPL
+Factor scores:
+  profitability     bullish  score=10.0  ROE=90.0% NM=25.0% OM=30.0%
+  growth            bullish  score=6.7  Rev=8.0% Earn=12.0%
+  financial_health  neutral  score=5.0  CR=1.1 D/E=150% FCF=pos
+  valuation         bearish  score=2.0  P/E=28.0 P/B=40.0 P/S=7.0
+
+Majority vote: bullish (2/4 agree)
+Base confidence: 50%
+
+Knowledge base context:
+- Earlier run: steady margins

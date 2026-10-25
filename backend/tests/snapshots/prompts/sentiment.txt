@@ -1,0 +1,24 @@
+### call 1: prompt_name=news_sentiment model=default
+--- system
+You are a financial news sentiment classifier. Classify the overall sentiment of the
+headlines for the given company as bullish, bearish or neutral, with a 0-100 confidence.
+Reasoning: one short sentence.
+--- user
+Company: AAPL
+Headlines:
+- Record iPhone sales
+- New AI features
+
+### call 2: prompt_name=sentiment model=default
+--- system
+You are a market sentiment analyst. You receive insider-trading and news-sentiment scores
+and their weighted composite. Produce the final signal with a 0-100 confidence.
+Keep the reasoning under 200 characters.
+--- user
+Symbol: AAPL
+Insider trading: bullish (90%) — buys=3 sells=0 (100% buy rate, 90d)
+News sentiment:  bullish (70%) — 2 headlines analyzed
+Weighted composite (insider 30% / news 70%): bullish (95%)
+
+Knowledge base context:
+- Earlier run: steady margins

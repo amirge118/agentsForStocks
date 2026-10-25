@@ -1,0 +1,46 @@
+### call 1: prompt_name=financial_history model=default
+--- system
+You are a financial analyst reviewing five years of financial statements.
+Assess revenue growth, profitability trends, free-cash-flow quality and balance-sheet strength.
+Confidence is 0-100; the reasoning (max 200 characters) names the dominant trend behind the signal.
+--- user
+Symbol: AAPL
+
+Income statement (most recent first):
+Year | Revenue | Gross profit | Net income | EBITDA
+2025 | $400.00B | $180.00B | $100.00B | $130.00B
+2024 | $370.37B | $180.00B | $90.91B | $130.00B
+2023 | $342.94B | $180.00B | $82.64B | $130.00B
+2022 | $317.53B | $180.00B | $75.13B | $130.00B
+2021 | $294.01B | $180.00B | $68.30B | $130.00B
+
+Balance sheet:
+Year | Total debt | Cash | Equity
+2025 | $100.00B | $60.00B | $70.00B
+2024 | $100.00B | $55.00B | $70.00B
+2023 | $100.00B | $50.00B | $70.00B
+2022 | $100.00B | $45.00B | $70.00B
+2021 | $100.00B | $40.00B | $70.00B
+
+Cash flow:
+Year | Operating CF | CapEx | Free CF
+2025 | $110.00B | $-10.00B | $100.00B
+2024 | $110.00B | $-10.00B | $95.24B
+2023 | $110.00B | $-10.00B | $90.70B
+2022 | $110.00B | $-10.00B | $86.38B
+2021 | $110.00B | $-10.00B | $82.27B
+
+Margins and returns:
+Year | Gross margin | Net margin | Op margin | ROE
+2025 | 45.0% | 25.0% | 30.0% | 150.0%
+2024 | 45.0% | 25.0% | 30.0% | 150.0%
+2023 | 45.0% | 25.0% | 30.0% | 150.0%
+2022 | 45.0% | 25.0% | 30.0% | 150.0%
+2021 | 45.0% | 25.0% | 30.0% | 150.0%
+
+Five-year CAGRs (0% when not computable):
+  Revenue: +8.0% | FCF: +5.0%
+  Net income: +10.0%
+
+Knowledge base context:
+- Earlier run: steady margins

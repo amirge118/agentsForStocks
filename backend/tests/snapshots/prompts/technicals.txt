@@ -1,0 +1,17 @@
+### call 1: prompt_name=technicals model=default
+--- system
+You are a quantitative technical analyst. You receive five strategy signals on a -1 (bearish)
+to +1 (bullish) scale and their weighted composite. Produce the final signal with a 0-100
+confidence. Keep the reasoning under 200 characters.
+--- user
+Symbol: AAPL
+Strategy signals (-1 = bearish, +1 = bullish):
+  trend (weight=25%): +1.000
+  mean_rev (weight=20%): -0.994
+  momentum (weight=25%): +1.000
+  volatility (weight=15%): +0.300
+  stat_arb (weight=15%): +0.357
+Composite weighted signal: +0.400 → bullish
+
+Knowledge base context:
+- Earlier run: steady margins
