@@ -6,7 +6,7 @@ import { LLMCallsList } from "@/components/features/llm/llm-calls-list"
 import { UsageTable } from "@/components/features/llm/usage-table"
 import type { LLMRepository, RunRepository } from "@/lib/api/repositories"
 import { formatCost, formatTokens } from "@/lib/format"
-import { llmCalls, llmUsage, runs } from "@/test/fixtures"
+import { completedRun, failedRun, llmCall, llmCalls, llmUsage } from "@/test/fixtures"
 import { pending, renderWithProviders } from "@/test/render"
 
 function llm(overrides: Partial<LLMRepository> = {}): LLMRepository {
@@ -69,7 +69,7 @@ describe("LLMCallsList", () => {
   })
 
   it("says when content was not captured, and when there were no calls", async () => {
-    const hidden = { ...llmCalls[0], system_prompt: null, prompt: null, response: null }
+    const hidden = { ...llmCall, system_prompt: null, prompt: null, response: null }
     renderWithProviders(<LLMCallsList runId="r1" />, {
       llm: llm({ getRunCalls: jest.fn(async () => [hidden]) }),
     })
@@ -84,8 +84,8 @@ describe("LLMCallsList", () => {
 
 describe("AgentRunsTable LLM columns", () => {
   it("links runs that called the model to their prompts and marks fallbacks", async () => {
-    const withFallback = { ...runs[1], run_id: "r3", status: "completed" as const, llm_fallbacks: 1 }
-    const repo: RunRepository = { getAll: jest.fn(async () => [runs[0], withFallback]), create: jest.fn() }
+    const withFallback = { ...failedRun, run_id: "r3", status: "completed" as const, llm_fallbacks: 1 }
+    const repo: RunRepository = { getAll: jest.fn(async () => [completedRun, withFallback]), create: jest.fn() }
     renderWithProviders(<AgentRunsTable />, { runs: repo })
 
     const link = await screen.findByRole("link", { name: "1,850 / 96" })
