@@ -22,9 +22,10 @@ from app.agents.base import AgentBase
 from app.schemas.signals import LLMSignal
 from app.services import llm_service
 from app.services import yfinance_service as yf_svc
-from app.services.technical_indicators import (
+from app.domain.signals import label_from_score as signal_to_label
+from app.domain.indicators import (
     adx, atr, bollinger_bands, ema, historical_volatility,
-    hurst_exponent, price_returns, rsi, signal_to_label,
+    hurst_exponent, price_returns, rsi,
     weighted_signal, z_score,
 )
 
