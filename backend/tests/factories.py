@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.agents.base import AgentContext
 from app.llm.client import LLMError
+from app.llm.profiles import ProfileBook
 
 
 def price_history(days: int = 250, drift: float = 0.003, seed: int = 3) -> pd.DataFrame:
@@ -221,7 +222,12 @@ class FakeEdgar:
 
 
 class FakeLLM:
-    """Returns `reply` (dict of fields) validated against the requested schema."""
+    """
+    Stands in for the LLMRouter: returns `reply` (dict of fields) validated against
+    the requested schema, and records every call (including the provider asked for).
+    """
+
+    default_provider = "anthropic"
 
     def __init__(self, reply: dict | None = None, fail: bool = False) -> None:
         self.reply = reply or {"signal": "bullish", "confidence": 70.0, "reasoning": "LLM says so"}
@@ -238,6 +244,7 @@ class FakeLLM:
         max_tokens: int = 1024,
         mcp_servers: Any = None,
         prompt_name: str | None = None,
+        provider: str | None = None,
     ) -> BaseModel:
         self.calls.append(
             {
@@ -247,6 +254,8 @@ class FakeLLM:
                 "model": model,
                 "mcp_servers": mcp_servers,
                 "prompt_name": prompt_name,
+                "provider": provider,
+                "max_tokens": max_tokens,
             }
         )
         if self.fail:
@@ -256,6 +265,9 @@ class FakeLLM:
             fields.setdefault("observations", ["breakout"])
             fields.setdefault("risk_level", "low")
         return schema.model_validate(fields)
+
+    def default_model(self, provider: str | None = None) -> str:
+        return "fake-model"
 
     async def aclose(self) -> None:
         return None
@@ -276,6 +288,7 @@ def make_context(
     edgar: Any = None,
     llm: Any = None,
     results: Any = None,
+    profiles: ProfileBook | None = None,
 ) -> AgentContext:
     return AgentContext(
         yfinance=yfinance or FakeYFinance(),
@@ -284,4 +297,5 @@ def make_context(
         llm=llm or FakeLLM(),
         results=results or FakeResults(),
         reasoning_model="reasoning-model",
+        profiles=profiles or ProfileBook(),
     )

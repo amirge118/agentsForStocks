@@ -40,6 +40,7 @@ async def test_everything_ok(migrated) -> None:
     assert {n: r.status for n, r in results.items()} == {
         "database": "ok",
         "claude": "ok",
+        "alt-llm": "ok",  # not configured and not required
         "fmp": "ok",
         "yahoo_finance": "ok",
         "sec_edgar": "ok",
@@ -120,3 +121,24 @@ def test_explain_shows_the_root_cause() -> None:
         text_ = _explain(exc)
     assert text_.startswith("ProviderError: yfinance.info(AAPL) failed after 3 attempts")
     assert text_.endswith("← ConnectionError: Tunnel connection failed: 403 Forbidden")
+
+
+@pytest.mark.unit
+async def test_alt_provider_is_checked_and_required_when_it_is_the_default(migrated) -> None:
+    llm = FakeLLM()
+    alt = _settings(
+        llm_provider="alt",
+        llm_alt_base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+        llm_alt_model="gemini-flash-lite",
+        anthropic_api_key="",
+    )
+    results = await _preflight(migrated, alt, llm=llm)
+    assert results["alt-llm"].status == "ok"
+    assert results["alt-llm"].required is True
+    assert results["claude"].required is False  # Claude isn't the default any more
+    assert [c["provider"] for c in llm.calls] == ["alt"]
+    assert ready(list(results.values()))
+
+    unconfigured = await _preflight(migrated, _settings(llm_provider="alt"))
+    assert unconfigured["alt-llm"].status == "missing"
+    assert not ready(list(unconfigured.values()))

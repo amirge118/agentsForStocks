@@ -13,7 +13,7 @@ error handling) lives in AgentRunner, so agents stay small and testable.
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, ClassVar, Generic, Literal, Protocol, TypeVar
 
@@ -22,9 +22,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.context import note_fallback
 from app.domain.signals import SignalLabel
 from app.knowledge.store import Learning
-from app.llm.client import LLMClient, LLMError
+from app.llm.client import LLMError
 from app.llm.mcp import McpServer
-from app.llm.prompt_loader import load_prompt
+from app.llm.profiles import AgentProfile, ProfileBook
+from app.llm.router import ANTHROPIC, LLMRouter
+from app.llm.skills import compose_system, prompt_label
 from app.providers.edgar import EdgarClient
 from app.providers.fmp import FmpClient
 from app.providers.yfinance import YFinanceClient
@@ -77,13 +79,16 @@ class AgentContext:
     yfinance: YFinanceClient
     fmp: FmpClient
     edgar: EdgarClient
-    llm: LLMClient
+    llm: LLMRouter
     results: ResultsReader
     reasoning_model: str
+    # Per-prompt model/provider/skill configuration (app/llm/profiles.py)
+    profiles: ProfileBook = field(default_factory=ProfileBook)
 
 
 DataT = TypeVar("DataT")
 ResultT = TypeVar("ResultT", bound=AnalysisResult)
+T = TypeVar("T", bound=BaseModel)
 
 
 class Agent(ABC, Generic[DataT, ResultT]):
@@ -91,6 +96,7 @@ class Agent(ABC, Generic[DataT, ResultT]):
     name: ClassVar[str]
     result_model: ClassVar[type[AnalysisResult]]
     invariants: ClassVar[tuple[Any, ...]] = ()
+    default_profile: ClassVar[AgentProfile] = AgentProfile()
 
     def __init__(self, ctx: AgentContext) -> None:
         self.ctx = ctx
@@ -120,6 +126,55 @@ class Agent(ABC, Generic[DataT, ResultT]):
             "confidence accordingly; with no usable data, answer neutral."
         )
 
+    @property
+    def profile(self) -> AgentProfile:
+        """The effective profile of the agent's main prompt (defaults + configuration)."""
+        return self.ctx.profiles.resolve(self.name, type(self).default_profile)
+
+    async def ask(
+        self,
+        prompt: str,
+        *,
+        schema: type[T],
+        fallback: T,
+        prompt_name: str | None = None,
+        model: str | None = None,
+        max_tokens: int = 1024,
+        mcp_servers: list[McpServer] | None = None,
+    ) -> T:
+        """
+        The one way agents call a model. The prompt's profile decides provider,
+        model, skills and budget; missing inputs are named in the prompt. When the
+        model is unavailable — or switched off by the profile — return `fallback`,
+        so the run still completes.
+        """
+        name = prompt_name or self.name
+        profile = self.ctx.profiles.resolve(name, type(self).default_profile)
+        if not profile.use_llm:
+            return fallback
+        provider = profile.provider or self.ctx.llm.default_provider
+        # A model hint (e.g. the reasoning model) names a Claude model, so it only
+        # applies when the call goes to Claude
+        chosen = profile.model or (model if provider == ANTHROPIC else None)
+        try:
+            return await self.ctx.llm.generate(
+                system=compose_system(profile.prompt or name, profile.skills),
+                prompt=self.with_data_gaps(prompt),
+                schema=schema,
+                model=chosen,
+                max_tokens=profile.max_tokens or max_tokens,
+                mcp_servers=mcp_servers,
+                prompt_name=prompt_label(profile.prompt or name, profile.skills),
+                provider=provider,
+            )
+        except LLMError as exc:
+            note_fallback()
+            logger.warning(
+                "LLM judgement unavailable, using fallback",
+                extra={"agent": self.name, "prompt_name": name, "error": str(exc)},
+            )
+            return fallback
+
     async def judge(
         self,
         prompt: str,
@@ -130,31 +185,27 @@ class Agent(ABC, Generic[DataT, ResultT]):
         mcp_servers: list[McpServer] | None = None,
     ) -> LLMSignal:
         """
-        Ask Claude for the final signal using the agent's system prompt
-        (app/llm/prompts/<name>.md). If Claude is unavailable, return `fallback` —
-        usually the agent's own quantitative signal — so the run still completes.
+        Ask the model for the final signal with the agent's system prompt
+        (app/llm/prompts/<name>.md). The fallback is usually the agent's own
+        quantitative signal.
         """
-        prompt = self.with_data_gaps(prompt)
-        try:
-            name = prompt_name or self.name
-            return await self.ctx.llm.generate(
-                system=load_prompt(name),
-                prompt=prompt,
-                schema=LLMSignal,
-                model=model,
-                mcp_servers=mcp_servers,
-                prompt_name=name,
+        profile = self.ctx.profiles.resolve(prompt_name or self.name, type(self).default_profile)
+        if not profile.use_llm:
+            return fallback.model_copy(
+                update={"reasoning": fallback.reasoning.replace(_UNAVAILABLE, _RULE_BASED, 1)}
             )
-        except LLMError as exc:
-            note_fallback()
-            logger.warning(
-                "LLM judgement unavailable, using fallback",
-                extra={
-                    "agent": self.name,
-                    "error": str(exc),
-                },
-            )
-            return fallback
+        return await self.ask(
+            prompt,
+            schema=LLMSignal,
+            fallback=fallback,
+            prompt_name=prompt_name,
+            model=model,
+            mcp_servers=mcp_servers,
+        )
+
+
+_UNAVAILABLE = "LLM unavailable"
+_RULE_BASED = "Rule-based (LLM off for this agent)"
 
 
 def neutral_fallback(reason: str = "LLM unavailable — no quantitative signal") -> LLMSignal:

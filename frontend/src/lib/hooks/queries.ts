@@ -10,6 +10,7 @@ import type { PipelineRunRequest, UsageGroup } from "@/types/api"
 
 export const queryKeys = {
   symbols: ["symbols"] as const,
+  agents: ["agents"] as const,
   recommendation: (symbol: string) => ["symbols", symbol, "recommendation"] as const,
   runs: (filters: RunFilters) => ["runs", filters] as const,
   llmUsage: (days: number, groupBy: UsageGroup) => ["llm", "usage", days, groupBy] as const,
@@ -19,6 +20,11 @@ export const queryKeys = {
 export function useSymbols() {
   const { symbols } = useRepositories()
   return useQuery({ queryKey: queryKeys.symbols, queryFn: () => symbols.getAll() })
+}
+
+export function useAgents() {
+  const { agents } = useRepositories()
+  return useQuery({ queryKey: queryKeys.agents, queryFn: () => agents.getAll() })
 }
 
 export function useRecommendation(symbol: string) {

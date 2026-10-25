@@ -9,11 +9,8 @@ from pydantic import BaseModel, Field
 from app.agents.base import Agent, AnalysisResult, quant_fallback
 from app.agents.formatting import memory_block
 from app.agents.registry import register_agent
-from app.core.context import note_fallback
 from app.domain.sentiment import SentimentScore, blend, headlines, score_insider_trades
 from app.domain.signals import SignalLabel
-from app.llm.client import LLMError
-from app.llm.prompt_loader import load_prompt
 
 
 class ComponentView(BaseModel):
@@ -73,16 +70,15 @@ Knowledge base context:
         if not titles:
             return SentimentScore("neutral", 50.0, "No news available")
         bullet_list = "\n".join(f"- {t}" for t in titles)
-        try:
-            result = await self.ctx.llm.generate(
-                system=load_prompt("news_sentiment"),
-                prompt=f"Company: {symbol}\nHeadlines:\n{bullet_list}",
-                schema=_NewsSentiment,
-                max_tokens=256,
-                prompt_name="news_sentiment",
-            )
-        except LLMError:
-            note_fallback()
+        unavailable = _NewsSentiment(signal="neutral", confidence=50.0, reasoning="unavailable")
+        result = await self.ask(
+            f"Company: {symbol}\nHeadlines:\n{bullet_list}",
+            schema=_NewsSentiment,
+            fallback=unavailable,
+            prompt_name="news_sentiment",
+            max_tokens=256,
+        )
+        if result is unavailable:
             return SentimentScore("neutral", 50.0, "News classification unavailable")
         return SentimentScore(result.signal, result.confidence, f"{len(titles)} headlines analyzed")
 

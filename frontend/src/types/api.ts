@@ -62,11 +62,18 @@ export const SymbolOverviewSchema = z.object({
   recommendation: RecommendationSchema.nullable(),
 })
 
+export const AgentProfileSchema = z.object({
+  provider: z.string(),
+  model: z.string().nullable(),
+  skills: z.array(z.string()),
+  use_llm: z.boolean(),
+})
 export const AgentInfoSchema = z.object({
   name: z.string(),
   description: z.string(),
   depends_on: z.array(z.string()),
   recommendation_weight: z.number(),
+  profile: AgentProfileSchema,
 })
 
 export const AgentResultSchema = z.object({

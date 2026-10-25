@@ -76,6 +76,10 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Move to Next.js 16 when CLAUDE.md allows — Next 15 bundles a vulnerable postcss, currently forced to 8.5.31 via npm overrides [PRIORITY: MED]
 
 ## LLM
+- [x] Agent profiles (provider, model, skills, max_tokens, use_llm, prompt variant) with AGENT_PROFILES overrides; skills in app/llm/skills; OpenAI-compatible second provider; every call through Agent.ask()
+- [ ] Decide which skills become defaults per agent — from eval results, not intuition [PRIORITY: MED]
+- [ ] Skills with data hooks (e.g. comparable_companies fetching peers) instead of text-only guidance [PRIORITY: LOW]
+- [ ] Automatic failover: on an Anthropic outage, retry the prompt on the alt provider before falling back to the quant signal [PRIORITY: LOW]
 - [x] Upgrade the `anthropic` SDK pin 0.40 → 2.3.0 (API version 2026-10-21); `output_config` / `mcp_servers` are now typed parameters
 - [ ] After deploying the SDK 2.x upgrade, run `python -m scripts.preflight` with the real ANTHROPIC_API_KEY to confirm a live request on API version 2026-10-21 [PRIORITY: HIGH]
 - [x] LLM ledger (`llm_calls`): tokens, cost, latency, prompt version and exact text of every call; `/api/v1/llm/usage`, Tokens & cost page, `scripts.token_report`

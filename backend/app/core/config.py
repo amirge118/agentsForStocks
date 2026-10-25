@@ -35,6 +35,24 @@ class Settings(BaseSettings):
     llm_default_model: str = "claude-haiku-4-5"
     llm_reasoning_model: str = "claude-sonnet-4-6"
     llm_timeout_seconds: float = 30.0
+    # Default provider for every agent prompt: "anthropic" (Claude) or "alt" (below).
+    # Per-agent choices go in AGENT_PROFILES — see app/llm/profiles.py
+    llm_provider: Literal["anthropic", "alt"] = "anthropic"
+
+    # A second, cheaper provider: any OpenAI-compatible chat-completions API with
+    # JSON-schema outputs (Gemini, OpenRouter, DeepSeek, a local Ollama, …)
+    llm_alt_base_url: str = ""
+    llm_alt_api_key: str = ""
+    llm_alt_model: str = ""
+    # USD per million tokens, for the ledger's cost column (0 = free tier / local)
+    llm_alt_input_price: float = 0.0
+    llm_alt_output_price: float = 0.0
+    llm_alt_timeout_seconds: float = 60.0
+
+    # Agent profile overrides (JSON, inline and/or a file) — provider, model, skills,
+    # max_tokens, use_llm per prompt. Example: {"news_sentiment": {"provider": "alt"}}
+    agent_profiles: str = ""
+    agent_profiles_file: str = ""
     # Ledger (llm_calls): keep the exact prompt and reply text of every call, for review
     # and evals; rows older than the retention window are deleted daily by the worker
     llm_capture_content: bool = True
@@ -75,6 +93,10 @@ class Settings(BaseSettings):
     @property
     def api_key_list(self) -> list[str]:
         return [k.strip() for k in self.api_keys.split(",") if k.strip()]
+
+    @property
+    def alt_llm_configured(self) -> bool:
+        return bool(self.llm_alt_base_url and self.llm_alt_model)
 
     @property
     def auth_enabled(self) -> bool:

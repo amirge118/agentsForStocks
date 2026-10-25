@@ -190,8 +190,26 @@ export interface components {
             description: string;
             /** Name */
             name: string;
+            profile: components["schemas"]["AgentProfileOut"];
             /** Recommendation Weight */
             recommendation_weight: number;
+        };
+        /**
+         * AgentProfileOut
+         * @description How the agent's main judgement is made (defaults + AGENT_PROFILES overrides).
+         */
+        AgentProfileOut: {
+            /**
+             * Model
+             * @description None = the agent's own default (e.g. reasoning model)
+             */
+            model: string | null;
+            /** Provider */
+            provider: string;
+            /** Skills */
+            skills: string[];
+            /** Use Llm */
+            use_llm: boolean;
         };
         /** AgentResultOut */
         AgentResultOut: {
