@@ -10,11 +10,11 @@ Run `python -m scripts.preflight` first.
 
 import argparse
 import asyncio
-import logging
 import sys
 
 from app.container import build_container
 from app.core.config import settings
+from app.core.logging import configure_logging
 from app.db.session import AsyncSessionLocal
 from app.ops.manual_run import render_report
 
@@ -38,5 +38,5 @@ async def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    configure_logging(settings.log_format, settings.log_level)
     sys.exit(asyncio.run(main(sys.argv[1:])))

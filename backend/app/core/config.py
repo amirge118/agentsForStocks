@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # Generate one with: python -c "import secrets; print(secrets.token_urlsafe(32))"
     api_keys: str = ""
 
+    # Logging: "text" for development, "json" (one object per line) for production
+    log_format: Literal["text", "json"] = "text"
+    log_level: str = "INFO"
+
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/agentsforstocks"
 

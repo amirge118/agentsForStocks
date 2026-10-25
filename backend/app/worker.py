@@ -49,5 +49,8 @@ async def _main() -> None:
 
 
 if __name__ == "__main__":  # pragma: no cover — process entrypoint
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    from app.core.config import settings as _settings
+    from app.core.logging import configure_logging
+
+    configure_logging(_settings.log_format, _settings.log_level)
     asyncio.run(_main())
