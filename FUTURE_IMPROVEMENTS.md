@@ -22,10 +22,13 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 
 ## Data
 - [ ] Add Alpha Vantage as fallback data source when yfinance is unavailable [PRIORITY: MED]
-- [ ] Cache yfinance + FMP responses in Redis to reduce API calls for same-day reruns [PRIORITY: MED]
-- [ ] FMP rate limit counter — free tier is 250 calls/day; add Redis counter + warning when near limit [PRIORITY: HIGH]
+- [x] Cache yfinance + FMP responses for same-day reruns (in-process TTL cache in app/providers/cache.py)
+- [ ] Move the provider cache to Redis so it is shared across processes/restarts [PRIORITY: MED]
+- [x] FMP daily call budget with warning at 80% (app/providers/fmp.py DailyCallBudget, in-process)
+- [ ] Persist the FMP call counter in Redis/DB so restarts don't reset it [PRIORITY: MED]
 - [ ] Reduce FMP calls during dev: use only 5 symbols in DEFAULT_SYMBOLS until Redis caching is in place [PRIORITY: MED]
-- [ ] EDGAR section extraction improvement — try multiple regex variants + HTML entity decoding for edge cases [PRIORITY: MED]
+- [x] EDGAR extraction: HTML entity decoding + skip table-of-contents matches
+- [ ] EDGAR: parse iXBRL/HTML structure instead of regex for unusual 10-K layouts [PRIORITY: LOW]
 - [ ] Ingest analyst estimate revisions as a scheduled data feed [PRIORITY: LOW]
 
 ## Infrastructure
@@ -33,3 +36,7 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Prometheus metrics endpoint for agent run durations and failure rates [PRIORITY: MED]
 - [ ] Health check endpoint that validates DB + OpenViking connectivity [PRIORITY: HIGH]
 - [ ] Add Redis for task queue (Celery or ARQ) if APScheduler proves insufficient [PRIORITY: LOW]
+
+## LLM
+- [ ] Upgrade the `anthropic` SDK pin (0.40) so structured outputs use the typed `output_config` parameter instead of `extra_body` [PRIORITY: MED]
+- [ ] Evaluate newer models (claude-haiku-5-5 / claude-sonnet-5-5) for agent judgements via LLM_DEFAULT_MODEL / LLM_REASONING_MODEL — needs an eval set first [PRIORITY: MED]

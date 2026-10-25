@@ -2,6 +2,7 @@
 Shared fixtures. The test DB is an in-memory SQLite database (sqlite+aiosqlite),
 created fresh for every test — never assume PostgreSQL here.
 """
+
 import os
 
 os.environ.setdefault("OPENVIKING_ENABLED", "false")
