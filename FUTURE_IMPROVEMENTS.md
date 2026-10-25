@@ -49,7 +49,12 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Rate-limit or de-duplicate manual pipeline triggers (one active run per symbol) [PRIORITY: MED]
 - [ ] Cursor pagination for /runs and /symbols/{symbol}/results instead of limit-only [PRIORITY: LOW]
 - [ ] Manage the watchlist through the API (DB table) instead of the WATCHLIST env var [PRIORITY: MED]
-- [ ] Next.js frontend per CLAUDE.md; generate TS types from FastAPI OpenAPI (openapi-typescript) + Zod at the boundary [PRIORITY: HIGH]
+- [x] Next.js frontend: watchlist, symbol detail, run history; types generated from OpenAPI + Zod validated and checked against them
+- [ ] Symbol detail: per-agent result panels (valuation DCF scenarios, technical strategies, moat keywords) from /symbols/{symbol}/results [PRIORITY: MED]
+- [ ] Charts: recommendation score history and price history per symbol [PRIORITY: MED]
+- [ ] Agents page from GET /api/v1/agents (dependency graph + weights) [PRIORITY: LOW]
+- [ ] shadcn CLI was unreachable from the build environment — primitives in src/components/ui were written from the shadcn source; re-sync with `npx shadcn add` when online [PRIORITY: LOW]
+- [ ] Move to Next.js 16 when CLAUDE.md allows — Next 15 bundles a vulnerable postcss, currently forced to 8.5.31 via npm overrides [PRIORITY: MED]
 
 ## LLM
 - [ ] Upgrade the `anthropic` SDK pin (0.40) so structured outputs use the typed `output_config` parameter instead of `extra_body` [PRIORITY: MED]

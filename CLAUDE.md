@@ -23,8 +23,8 @@ cd backend && alembic upgrade head
 # Run all backend tests (coverage gate: 80%)
 cd backend && pytest
 
-# Run all frontend tests
-cd frontend && npm test
+# Run all frontend tests (type-check, lint, unit)
+cd frontend && npm run typecheck && npm run lint && npm test
 
 # Run E2E tests
 cd frontend && npm run test:e2e
@@ -60,6 +60,9 @@ Use `isPending` for loading skeletons (NOT `isLoading` — that's v4). Get query
 
 ### 7. No Direct `fetch` in Components
 Use `get`/`post`/`put`/`del` from `@/lib/api/client.ts`. Never call `fetch()` directly from components or hooks.
+
+### 9. API Contract Workflow
+After changing a backend schema or route: `cd backend && python -m scripts.export_openapi`, then `cd frontend && npm run generate:api`. `tests/integration/test_openapi_contract.py` fails while `frontend/openapi.json` is stale, and `npm run typecheck` fails while a Zod schema in `src/types/api.ts` no longer matches the generated types.
 
 ### 8. Finance Number Formatting
 - Currency: `toLocaleString("en-US", { style: "currency", currency: "USD" })`
@@ -112,14 +115,17 @@ backend/
     integration/      # pytest integration tests (test API endpoints)
 
 frontend/
-  app/                # Next.js App Router pages (keep thin)
-  components/
-    features/         # Domain components (agents/, stocks/, dashboard/)
-    ui/               # Shadcn primitives (never hand-roll)
-  lib/
-    api/              # client.ts base + per-domain query files
-    hooks/            # Custom React hooks
-  types/              # TypeScript interfaces for API responses
+  openapi.json        # API contract, exported from the backend (python -m scripts.export_openapi)
+  src/
+    app/              # Next.js App Router pages (keep thin)
+    components/
+      features/       # Domain components (agents/, stocks/, dashboard/)
+      ui/             # Shadcn primitives (never hand-roll)
+    lib/
+      api/            # client.ts (only place with fetch) + repositories.ts + repository-context
+      hooks/          # TanStack Query hooks (queries.ts) + use-toast
+    types/            # openapi.d.ts (generated) + api.ts (Zod schemas, checked against it)
+  e2e/                # Playwright specs (API mocked with page.route)
 ```
 
 ## Dark Theme Tokens
