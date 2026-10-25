@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.domain.compliance import ComplianceFinding, review_recommendation
+from app.domain.compliance import ComplianceFinding, review_recommendation, review_text
 
 
 @pytest.mark.unit
@@ -62,3 +62,16 @@ def test_findings_report_the_matched_phrase() -> None:
     review = review_recommendation("Guaranteed winner.", "bullish")
     assert review.status == "fail"
     assert ComplianceFinding("promissory_language", "fail", "Guaranteed") in review.findings
+
+
+@pytest.mark.unit
+def test_balance_rule_is_opt_in_for_single_analyst_text() -> None:
+    text = "Great growth and strong margins."
+    assert review_text(text, "bullish", require_risk_discussion=False).status == "pass"
+    assert review_text(text, "bullish", require_risk_discussion=True).status == "flag"
+
+
+@pytest.mark.unit
+def test_promissory_language_fails_without_balance_rule() -> None:
+    review = review_text("Returns are guaranteed.", "bearish", require_risk_discussion=False)
+    assert review.status == "fail"

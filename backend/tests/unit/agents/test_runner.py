@@ -22,10 +22,13 @@ class _StubAgent(Agent[dict, _Result]):
     name = "stub"
     result_model = _Result
 
-    def __init__(self, ctx, *, fail_on: str | None = None, signal: str = "bullish") -> None:
+    def __init__(
+        self, ctx, *, fail_on: str | None = None, signal: str = "bullish", reasoning: str = "r"
+    ) -> None:
         super().__init__(ctx)
         self.fail_on = fail_on
         self.signal = signal
+        self.reasoning = reasoning
         self.memory_seen: list[str] | None = None
         self.fetches = 0
 
@@ -40,8 +43,8 @@ class _StubAgent(Agent[dict, _Result]):
         return _Result(
             signal=self.signal,
             confidence=60,
-            reasoning="r",
-            summary="stub summary",
+            reasoning=self.reasoning,
+            summary=f"stub summary — {self.reasoning}" if self.reasoning != "r" else "stub summary",
             score=data["score"],
         )
 
@@ -75,9 +78,31 @@ async def test_run_persists_result_and_learnings(session_factory, db_session) ->
         "reasoning": "r",
         "summary": "stub summary",
         "score": 1.5,
+        "compliance": {"status": "pass", "findings": [], "original_reasoning": None},
     }
     assert row.run_id == outcome.run_id
     assert [lr.kind for lr in knowledge.stored] == ["case", "pattern"]
+
+
+@pytest.mark.unit
+async def test_promissory_reasoning_is_replaced_before_storage_and_learnings(
+    session_factory, db_session
+) -> None:
+    knowledge = _RecordingKnowledge()
+    text = "Guaranteed upside from here."
+    agent = _StubAgent(make_context(), reasoning=text)
+
+    outcome = await AgentRunner(session_factory, knowledge).run(agent, "AAPL", RUN_DATE)
+
+    row = (await db_session.execute(select(AgentResult))).scalar_one()
+    stored = row.result_json
+    assert stored["compliance"]["status"] == "fail"
+    assert stored["compliance"]["original_reasoning"] == text
+    assert "Guaranteed" not in stored["reasoning"]
+    assert "Guaranteed" not in stored["summary"]
+    assert outcome.result is not None and outcome.result.reasoning == stored["reasoning"]
+    # The knowledge base only ever sees the reviewed text
+    assert all("Guaranteed" not in lr.content for lr in knowledge.stored)
 
 
 @pytest.mark.unit

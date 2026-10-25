@@ -13,11 +13,17 @@ kept in compliance.original_reasoning for audit. Every result carries a disclaim
 import logging
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel
 
-from app.agents.base import Agent, AnalysisResult, quant_fallback
+from app.agents.base import (
+    Agent,
+    AnalysisResult,
+    ComplianceFindingView,
+    ComplianceView,
+    quant_fallback,
+)
 from app.agents.formatting import memory_block
 from app.agents.registry import register_agent, registry
 from app.domain.compliance import DISCLAIMER, review_recommendation
@@ -40,18 +46,6 @@ INPUT_AGENTS = (
 _MIN_AGENTS_FOR_CONVICTION = 4
 
 logger = logging.getLogger(__name__)
-
-
-class ComplianceFindingView(BaseModel):
-    rule: str
-    severity: Literal["flag", "fail"]
-    phrase: str
-
-
-class ComplianceView(BaseModel):
-    status: Literal["pass", "flag", "fail"]
-    findings: list[ComplianceFindingView]
-    original_reasoning: str | None = None
 
 
 class ContributionView(BaseModel):
