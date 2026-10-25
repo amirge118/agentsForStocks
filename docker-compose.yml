@@ -1,6 +1,9 @@
 # Full stack:            docker compose up --build
 # Database only (dev):   docker compose up -d db
 # With knowledge layer:  docker compose --profile knowledge up --build
+# With monitoring:       OTEL_ENABLED=true in .env, then
+#                        docker compose --profile observability up --build
+#                        → Grafana (traces, metrics, logs, dashboard) at http://localhost:3001
 #
 # Settings come from .env (see .env.example). API_KEYS, BACKEND_API_KEY and
 # DASHBOARD_PASSWORD are required — the containers run in production mode.
@@ -20,6 +23,9 @@ x-backend: &backend
     API_KEYS: ${API_KEYS:?Set API_KEYS in .env}
     OPENVIKING_ENABLED: ${OPENVIKING_ENABLED:-false}
     OPENVIKING_URL: http://openviking:1933
+    # OpenTelemetry → the `observability` profile's collector (off unless OTEL_ENABLED=true)
+    OTEL_ENABLED: ${OTEL_ENABLED:-false}
+    OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability:4318}
   restart: unless-stopped
 
 services:
@@ -88,6 +94,32 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ---- optional monitoring (profile "observability") ----------------------------
+  # Grafana + OpenTelemetry collector + Tempo (traces) + Loki (logs) + Prometheus
+  # (metrics) in one container, with the agentsForStocks dashboard provisioned.
+  # Local use only: Grafana runs with anonymous admin access, so it binds to localhost.
+  observability:
+    image: grafana/otel-lgtm:0.36.0
+    profiles: ["observability"]
+    environment:
+      # The dashboard's token / cost panels query the app database (llm_calls, agent_runs)
+      AFS_DB_HOST: db:5432
+      AFS_DB_USER: ${POSTGRES_USER:-postgres}
+      AFS_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      AFS_DB_NAME: ${POSTGRES_DB:-agentsforstocks}
+    ports:
+      - "127.0.0.1:3001:3000" # Grafana
+      - "127.0.0.1:4318:4318" # OTLP/HTTP, for a backend running on the host
+    volumes:
+      - ./infra/grafana/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/agentsforstocks.yaml:ro
+      - ./infra/grafana/datasources.yaml:/otel-lgtm/grafana/conf/provisioning/datasources/agentsforstocks.yaml:ro
+      - ./infra/grafana/dashboards:/otel-lgtm/agentsforstocks-dashboards:ro
+      - observability_data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   # ---- optional knowledge layer (profile "knowledge") --------------------------
   openviking:
     image: ghcr.io/volcengine/openviking:main
@@ -126,3 +158,4 @@ services:
 volumes:
   postgres_data:
   openviking_data:
+  observability_data:

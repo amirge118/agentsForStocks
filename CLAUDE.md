@@ -14,6 +14,10 @@ Detailed coding standards are in `.claude/rules/` — Claude enforces these auto
 # Whole stack in Docker (db → migrate → api + worker → frontend); needs .env
 docker compose up --build
 
+# ... plus monitoring: Grafana with traces, metrics, logs and the agents dashboard (:3001)
+# (set OTEL_ENABLED=true in .env)
+docker compose --profile observability up --build
+
 # Backend dependencies (runtime + test/lint tools; add requirements-knowledge.txt for OpenViking)
 cd backend && pip install -r requirements-dev.txt
 
@@ -75,6 +79,9 @@ FMP calls also count against `DailyCallBudget` (free tier = 250/day). Claude is 
 
 ### 11. Every LLM Call Is Measured — Keep It That Way
 `LLMClient.generate` records each request (success or failure) in `llm_calls`: tokens, cost (`app/llm/pricing.py` — add a price when you add a model), latency, `prompt_version` (hash of the system prompt) and, with `LLM_CAPTURE_CONTENT=true`, the exact prompt and reply. Always pass `prompt_name=`; agents go through `Agent.judge()`, which does. On `LLMError`, call `note_fallback()` so the run's `llm_fallbacks` is counted.
+
+### 13. Observability (OpenTelemetry)
+`app/observability/telemetry.py` installs tracing, metrics and log export only when `OTEL_ENABLED=true`; otherwise every span and metric is a no-op, so tests need nothing. New long-running work → wrap it in `tracer.start_as_current_span(...)`; new counters/histograms go in `app/observability/metrics.py`. Exact figures (tokens, cost, run counts) come from the DB ledger, not from Prometheus: `increase()` drops a series' first sample.
 
 ### 12. Run Context in Logs
 `AgentRunner` and `PipelineOrchestrator` bind `pipeline_run_id` / `run_id` / `agent` / `symbol` in contextvars (`app/core/context.py`); `ContextFilter` adds them to every log line. Don't pass these ids through `extra=` by hand. Log extras are redacted by whole word (`api_key`, `access_token`), so `input_tokens` stays readable.

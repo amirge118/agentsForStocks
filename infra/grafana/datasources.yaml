@@ -1,0 +1,16 @@
+# The app's own database as a Grafana datasource: token, cost and run figures on
+# the dashboard come from the llm_calls / agent_runs ledger (exact), not from
+# sampled metrics. Values are read from the grafana service's environment.
+apiVersion: 1
+datasources:
+  - name: agentsForStocks DB
+    type: grafana-postgresql-datasource
+    uid: agentsforstocks-db
+    url: ${AFS_DB_HOST}
+    user: ${AFS_DB_USER}
+    jsonData:
+      database: ${AFS_DB_NAME}
+      sslmode: disable
+      postgresVersion: 1600
+    secureJsonData:
+      password: ${AFS_DB_PASSWORD}

@@ -56,6 +56,12 @@ async def _main() -> None:
 if __name__ == "__main__":  # pragma: no cover — process entrypoint
     from app.core.config import settings as _settings
     from app.core.logging import configure_logging
+    from app.db.session import engine
+    from app.observability.telemetry import configure_telemetry
 
     configure_logging(_settings.log_format, _settings.log_level)
-    asyncio.run(_main())
+    telemetry = configure_telemetry(_settings, service_name="agentsforstocks-worker", engine=engine)
+    try:
+        asyncio.run(_main())
+    finally:
+        telemetry.shutdown()

@@ -19,8 +19,9 @@ from app.api.v1.router import api_router
 from app.container import build_container
 from app.core.config import settings
 from app.core.logging import configure_logging
-from app.db.session import AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, engine
 from app.middleware.request_logging import RequestLoggingMiddleware
+from app.observability.telemetry import configure_telemetry
 
 configure_logging(settings.log_format, settings.log_level)
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.scheduler.shutdown(wait=False)
         logger.info("Agent scheduler stopped")
     await container.aclose()
+    telemetry.shutdown()
 
 
 app = FastAPI(title="agentsForStocks", version="0.3.0", lifespan=lifespan)
@@ -61,6 +63,9 @@ app.add_middleware(
 )
 app.add_middleware(RequestLoggingMiddleware)
 app.include_router(api_router)
+telemetry = configure_telemetry(
+    settings, service_name="agentsforstocks-api", app=app, engine=engine
+)
 
 
 @app.get("/health")

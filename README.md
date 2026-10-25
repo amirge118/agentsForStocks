@@ -213,6 +213,7 @@ python -m scripts.run_pipeline AAPL --agents technicals valuation --force
 |---|---|
 | Check readiness (DB, Claude, FMP, Yahoo, SEC) | `python -m scripts.preflight` |
 | Run the pipeline now | `python -m scripts.run_pipeline AAPL [--agents …] [--force]` |
+| Monitoring: traces, metrics, logs, dashboard | `OTEL_ENABLED=true` in `.env`, then `docker compose --profile observability up` → Grafana at `localhost:3001` |
 | Tokens and cost per agent / model / day | `python -m scripts.token_report [--days 30] [--by model]` — also on the dashboard's **Tokens & cost** page |
 | Production scheduler | API with `RUN_SCHEDULER=false` + **one** `python -m app.worker` (the `worker` service in Docker Compose) |
 | Migrations | `alembic upgrade head` |

@@ -13,14 +13,17 @@ from typing import Any, TypeVar
 
 import pandas as pd
 import yfinance as yf
+from opentelemetry import trace
 
 from app.core.symbols import validate_symbol
+from app.observability import metrics
 from app.providers.cache import TTLCache
 from app.providers.errors import RetryableError
 from app.providers.rate_limit import RateLimiter
 from app.providers.retry import RetryPolicy, with_retry
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 T = TypeVar("T")
 
@@ -47,15 +50,18 @@ class YFinanceClient:
         async def _attempt() -> T:
             await self._rate_limiter.acquire(_DOMAIN)
             started = time.perf_counter()
-            try:
-                value = await asyncio.to_thread(fn)
-            except Exception as exc:
-                # yfinance surfaces network trouble as assorted exception types
-                raise RetryableError(f"yfinance {key[0]}: {exc}") from exc
-            logger.info(
-                "Provider request",
-                extra={**log_ctx, "duration_ms": round((time.perf_counter() - started) * 1000)},
-            )
+            # yfinance does its own HTTP (not httpx), so it gets a span of its own
+            with tracer.start_as_current_span(
+                f"yfinance.{key[0]}", attributes={"symbol": str(key[1])}
+            ):
+                try:
+                    value = await asyncio.to_thread(fn)
+                except Exception as exc:
+                    # yfinance surfaces network trouble as assorted exception types
+                    raise RetryableError(f"yfinance {key[0]}: {exc}") from exc
+            duration_ms = round((time.perf_counter() - started) * 1000)
+            metrics.provider_duration.record(duration_ms, {"domain": _DOMAIN})
+            logger.info("Provider request", extra={**log_ctx, "duration_ms": duration_ms})
             return value
 
         async def _load() -> T:
@@ -64,6 +70,9 @@ class YFinanceClient:
             return await with_retry(_attempt, self._retry, label=f"yfinance.{key[0]}({key[1]})")
 
         value = await self._cache.get_or_load(("yfinance", *key), _load)
+        metrics.provider_requests.add(
+            1, {"domain": _DOMAIN, "outcome": "fetched" if fetched else "cache_hit"}
+        )
         if not fetched:
             logger.debug("Provider cache hit", extra=log_ctx)
         return value

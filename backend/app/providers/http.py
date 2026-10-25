@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from app.observability import metrics
 from app.providers.cache import TTLCache
 from app.providers.errors import ProviderError, RetryableError
 from app.providers.rate_limit import RateLimiter
@@ -67,8 +68,11 @@ class HttpClient:
             return await self._fetch(url, params or {}, headers or {}, on_request)
 
         text = await self._cache.get_or_load(key, _load)
+        parts = urlsplit(url)
+        metrics.provider_requests.add(
+            1, {"domain": parts.netloc, "outcome": "fetched" if fetched else "cache_hit"}
+        )
         if not fetched:
-            parts = urlsplit(url)
             logger.debug("Provider cache hit", extra={"domain": parts.netloc, "path": parts.path})
         return text
 
@@ -94,13 +98,15 @@ class HttpClient:
                 resp = await self._client.get(url, params=params, headers=headers)
             except (httpx.TimeoutException, httpx.TransportError) as exc:
                 raise RetryableError(f"{type(exc).__name__} for {domain}") from exc
+            duration_ms = round((time.perf_counter() - started) * 1000)
+            metrics.provider_duration.record(duration_ms, {"domain": domain})
             logger.info(
                 "Provider request",
                 extra={
                     "domain": domain,
                     "path": path,
                     "status": resp.status_code,
-                    "duration_ms": round((time.perf_counter() - started) * 1000),
+                    "duration_ms": duration_ms,
                     "attempt": attempts,
                 },
             )
