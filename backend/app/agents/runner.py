@@ -3,7 +3,7 @@ AgentRunner — executes one agent for one symbol with the cross-cutting rules:
 
   1. idempotency — skip if a result already exists for (agent, symbol, market date)
   2. recall      — pull relevant memory from the knowledge store
-  3. fetch → analyze
+  3. fetch → analyze → compliance review of the reasoning (app/agents/compliance.py)
   4. persist     — upsert the typed result (re-runs replace, never duplicate)
   5. learnings   — best-effort knowledge writes (never fail the run)
   6. audit       — every outcome, failures included, is recorded in agent_runs
@@ -20,6 +20,7 @@ from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agents.base import Agent, AnalysisResult
+from app.agents.compliance import apply_compliance
 from app.core.clock import utcnow
 from app.knowledge.store import KnowledgeStore
 from app.models.agent_run import AgentRun
@@ -91,7 +92,9 @@ class AgentRunner:
 
                 memory = await self._knowledge.recall(symbol, agent.name)
                 data = await agent.fetch(symbol, run_date)
-                result = await agent.analyze(symbol, data, memory)
+                result = apply_compliance(
+                    agent.name, symbol, await agent.analyze(symbol, data, memory)
+                )
 
                 await repo.upsert(
                     agent_type=agent.name,

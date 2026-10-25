@@ -15,7 +15,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, ClassVar, Generic, Protocol, TypeVar
+from typing import Any, ClassVar, Generic, Literal, Protocol, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,6 +32,18 @@ from app.schemas.signals import LLMSignal
 logger = logging.getLogger(__name__)
 
 
+class ComplianceFindingView(BaseModel):
+    rule: str
+    severity: Literal["flag", "fail"]
+    phrase: str
+
+
+class ComplianceView(BaseModel):
+    status: Literal["pass", "flag", "fail"]
+    findings: list[ComplianceFindingView]
+    original_reasoning: str | None = None
+
+
 class AnalysisResult(BaseModel):
     """Fields every agent result has. Agents subclass it to add their own metrics."""
 
@@ -41,6 +53,8 @@ class AnalysisResult(BaseModel):
     confidence: float = Field(ge=0.0, le=100.0)
     reasoning: str
     summary: str
+    # Set by AgentRunner (app/agents/compliance.py) before the result is stored
+    compliance: ComplianceView | None = None
 
 
 class ResultsReader(Protocol):

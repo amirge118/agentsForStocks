@@ -1,12 +1,14 @@
 """
-Compliance — rule-based review of client-facing recommendation text.
+Compliance — rule-based review of client-facing analysis text.
 
 Rules adapted from the SEC Marketing Rule / antifraud checklist in the
 "Claude for Financial Advisors" plugin (Apache-2.0):
   - No promissory or absolute language ("guaranteed", "risk-free", ...)  → fail
   - No exaggerated / hype claims ("can't miss", "to the moon", ...)       → flag
   - A bullish call must mention risk or limitations (fair and balanced)   → flag
-Every recommendation carries a standard disclaimer.
+Every recommendation carries a standard disclaimer. The balance rule applies to
+the final recommendation only; single-analyst reasoning (e.g. a technicals read)
+is reviewed for promissory and exaggerated language.
 
 Deterministic on purpose: no LLM call, so re-runs give identical results.
 """
@@ -76,6 +78,11 @@ class ComplianceReview:
 
 def review_recommendation(text: str, signal: str) -> ComplianceReview:
     """Review recommendation text. signal is "bullish" | "bearish" | "neutral"."""
+    return review_text(text, signal, require_risk_discussion=True)
+
+
+def review_text(text: str, signal: str, *, require_risk_discussion: bool) -> ComplianceReview:
+    """Review any client-facing text; the fair-and-balanced rule is opt-in."""
     findings: list[ComplianceFinding] = []
 
     for pattern in _PROMISSORY_RE:
@@ -87,7 +94,7 @@ def review_recommendation(text: str, signal: str) -> ComplianceReview:
         for match in pattern.finditer(text):
             findings.append(ComplianceFinding("exaggerated_claim", "flag", match.group()))
 
-    if signal == "bullish" and not _RISK_TERMS.search(text):
+    if require_risk_discussion and signal == "bullish" and not _RISK_TERMS.search(text):
         findings.append(ComplianceFinding("missing_risk_discussion", "flag", ""))
 
     if any(f.severity == "fail" for f in findings):
