@@ -10,6 +10,7 @@ venv
 .env
 .env.*
 tests
+evals
 requirements-dev.txt
 requirements-knowledge.txt
 pyproject.toml

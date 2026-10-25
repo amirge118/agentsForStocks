@@ -76,6 +76,10 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Move to Next.js 16 when CLAUDE.md allows — Next 15 bundles a vulnerable postcss, currently forced to 8.5.31 via npm overrides [PRIORITY: MED]
 
 ## LLM
+- [x] Eval harness (evals/): scenario + ledger-replay suites; label accuracy, confidence limits, stability across repeats, LLM-as-judge faithfulness, contract violations, tokens and cost; cost estimate before every run; reports + compare
+- [ ] Run the first live eval baseline (needs ANTHROPIC_API_KEY): current models vs claude-haiku-5-5 / claude-sonnet-5-5, with and without skills [PRIORITY: HIGH]
+- [ ] Optional weekly eval in GitHub Actions with a key secret, posting the report as an artifact [PRIORITY: LOW]
+- [ ] Outcome evals: did the signals predict 1 / 4 / 12-week returns vs SPY (needs stored recommendations + price history) [PRIORITY: HIGH]
 - [x] Agent profiles (provider, model, skills, max_tokens, use_llm, prompt variant) with AGENT_PROFILES overrides; skills in app/llm/skills; OpenAI-compatible second provider; every call through Agent.ask()
 - [ ] Decide which skills become defaults per agent — from eval results, not intuition [PRIORITY: MED]
 - [ ] Skills with data hooks (e.g. comparable_companies fetching peers) instead of text-only guidance [PRIORITY: LOW]
