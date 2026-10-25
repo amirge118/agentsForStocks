@@ -71,7 +71,7 @@ export function WatchlistTable() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <ActionBadge action={rec.action} />
-                      <ComplianceMarker status={rec.compliance.status} />
+                      <ComplianceMarker status={rec.compliance.status} findings={rec.compliance.findings} />
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-mono">

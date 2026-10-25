@@ -32,7 +32,7 @@ export function AgentBreakdownTable({ breakdown }: { breakdown: readonly Contrib
             <TableCell>
               <div className="flex items-center gap-2">
                 <SignalText signal={c.signal} />
-                <ComplianceMarker status={c.compliance_status} />
+                <ComplianceMarker status={c.compliance_status} findings={c.compliance_findings} />
               </div>
             </TableCell>
             <TableCell className="text-right font-mono">

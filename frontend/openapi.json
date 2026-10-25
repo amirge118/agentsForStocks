@@ -218,6 +218,13 @@
             "title": "Agent",
             "type": "string"
           },
+          "compliance_findings": {
+            "items": {
+              "$ref": "#/components/schemas/ComplianceFindingView"
+            },
+            "title": "Compliance Findings",
+            "type": "array"
+          },
           "compliance_status": {
             "anyOf": [
               {

@@ -226,6 +226,8 @@ export interface components {
         ContributionView: {
             /** Agent */
             agent: string;
+            /** Compliance Findings */
+            compliance_findings?: components["schemas"]["ComplianceFindingView"][];
             /** Compliance Status */
             compliance_status?: ("pass" | "flag" | "fail") | null;
             /** Confidence */

@@ -16,6 +16,12 @@ export const ActionSchema = z.enum(["BUY", "SELL", "HOLD"])
 export const RunStatusSchema = z.enum(["completed", "skipped", "failed"])
 export const ComplianceStatusSchema = z.enum(["pass", "flag", "fail"])
 
+export const ComplianceFindingSchema = z.object({
+  rule: z.string(),
+  severity: z.enum(["flag", "fail"]),
+  phrase: z.string(),
+})
+
 export const ContributionSchema = z.object({
   agent: z.string(),
   signal: z.string(),
@@ -24,13 +30,12 @@ export const ContributionSchema = z.object({
   contribution: z.number(),
   reasoning: z.string(),
   compliance_status: ComplianceStatusSchema.nullish(),
+  compliance_findings: z.array(ComplianceFindingSchema).optional(),
 })
 
 export const ComplianceSchema = z.object({
   status: ComplianceStatusSchema,
-  findings: z.array(
-    z.object({ rule: z.string(), severity: z.enum(["flag", "fail"]), phrase: z.string() }),
-  ),
+  findings: z.array(ComplianceFindingSchema),
   original_reasoning: z.string().nullish(),
 })
 
@@ -99,6 +104,7 @@ export type RunStatus = z.infer<typeof RunStatusSchema>
 export type Contribution = z.infer<typeof ContributionSchema>
 export type Compliance = z.infer<typeof ComplianceSchema>
 export type ComplianceStatus = z.infer<typeof ComplianceStatusSchema>
+export type ComplianceFinding = z.infer<typeof ComplianceFindingSchema>
 export type Recommendation = z.infer<typeof RecommendationSchema>
 export type SymbolOverview = z.infer<typeof SymbolOverviewSchema>
 export type AgentInfo = z.infer<typeof AgentInfoSchema>
@@ -116,6 +122,7 @@ type Assert<T extends true> = T
 export type ContractChecks = [
   Assert<Exact<Contribution, Schemas["ContributionView"]>>,
   Assert<Exact<Compliance, Schemas["ComplianceView"]>>,
+  Assert<Exact<ComplianceFinding, Schemas["ComplianceFindingView"]>>,
   Assert<Exact<Recommendation, Schemas["Recommendation"]>>,
   Assert<Exact<SymbolOverview, Schemas["SymbolOverview"]>>,
   Assert<Exact<AgentInfo, Schemas["AgentInfo"]>>,

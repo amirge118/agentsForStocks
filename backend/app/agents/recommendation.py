@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.agents.base import (
     Agent,
@@ -32,6 +32,7 @@ from app.domain.scoring import (
     SELL_THRESHOLD,
     Action,
     ComplianceStatus,
+    Contribution,
     WeightedScore,
     to_action,
 )
@@ -63,6 +64,7 @@ class ContributionView(BaseModel):
     contribution: float
     reasoning: str
     compliance_status: ComplianceStatus | None = None
+    compliance_findings: list[ComplianceFindingView] = Field(default_factory=list)
 
 
 class RecommendationResult(AnalysisResult):
@@ -122,7 +124,7 @@ class RecommendationAgent(Agent[RecommendationData, RecommendationResult]):
             reasoning=reasoning,
             action=action,
             weighted_score=score.score,
-            agent_breakdown=[ContributionView(**vars(c)) for c in score.contributions],
+            agent_breakdown=[_contribution_view(c) for c in score.contributions],
             agents_available=available,
             agents_missing=list(score.missing),
             risk_override_applied=score.risk_override_applied,
@@ -131,6 +133,17 @@ class RecommendationAgent(Agent[RecommendationData, RecommendationResult]):
             summary=f"RECOMMENDATION: {action} ({judgement.confidence:.0f}%) "
             f"score={score.score:+.1f} — {reasoning}",
         )
+
+
+def _contribution_view(c: Contribution) -> ContributionView:
+    return ContributionView(
+        **{
+            **vars(c),
+            "compliance_findings": [
+                ComplianceFindingView(**vars(f)) for f in c.compliance_findings
+            ],
+        }
+    )
 
 
 def _reviewed_reasoning(
