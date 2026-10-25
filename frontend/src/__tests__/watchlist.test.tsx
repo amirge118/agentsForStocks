@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event"
 import { RunPipelineButton } from "@/components/features/dashboard/run-pipeline-button"
 import { WatchlistTable } from "@/components/features/dashboard/watchlist-table"
 import type { RunRepository, SymbolRepository } from "@/lib/api/repositories"
-import { overview } from "@/test/fixtures"
+import { overview, recommendation } from "@/test/fixtures"
 import { pending, renderWithProviders } from "@/test/render"
 
 function symbols(getAll: SymbolRepository["getAll"]): SymbolRepository {
@@ -39,6 +39,38 @@ describe("WatchlistTable", () => {
     expect(screen.getByText("72%")).toBeInTheDocument()
     expect(screen.getByText("Oct 23, 2026")).toBeInTheDocument()
     expect(screen.getByText("Not analysed yet")).toBeInTheDocument()
+  })
+
+  it("shows the disclaimer once and no compliance marker when the review passed", async () => {
+    renderWithProviders(<WatchlistTable />, { symbols: symbols(async () => overview) })
+
+    expect(await screen.findByText(recommendation.disclaimer)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Compliance:/)).not.toBeInTheDocument()
+  })
+
+  it("marks rows whose reasoning was flagged or replaced", async () => {
+    const finding = { rule: "promissory_language", severity: "fail" as const, phrase: "guaranteed" }
+    const failed = { ...recommendation, compliance: { status: "fail" as const, findings: [finding] } }
+    const flagged = { ...recommendation, symbol: "MSFT", compliance: { status: "flag" as const, findings: [] } }
+    renderWithProviders(<WatchlistTable />, {
+      symbols: symbols(async () => [
+        { symbol: "AAPL", recommendation: failed },
+        { symbol: "MSFT", recommendation: flagged },
+      ]),
+    })
+
+    expect(await screen.findByLabelText("Compliance: original reasoning replaced")).toHaveTextContent("Replaced")
+    expect(screen.getByLabelText("Compliance: flagged")).toHaveTextContent("Flagged")
+    expect(screen.getAllByText(recommendation.disclaimer)).toHaveLength(1)
+  })
+
+  it("shows no disclaimer when nothing has been analysed", async () => {
+    renderWithProviders(<WatchlistTable />, {
+      symbols: symbols(async () => [{ symbol: "MSFT", recommendation: null }]),
+    })
+
+    expect(await screen.findByText("Not analysed yet")).toBeInTheDocument()
+    expect(screen.queryByText(recommendation.disclaimer)).not.toBeInTheDocument()
   })
 })
 
