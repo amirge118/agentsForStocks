@@ -7,6 +7,7 @@ from app.agents.base import Agent, AnalysisResult
 from app.agents.runner import AgentRunner, SessionResultsReader
 from app.knowledge.store import Learning
 from app.models.agent_result import AgentResult
+from app.models.agent_run import AgentRun
 from app.repositories.agent_results import AgentResultRepository
 from tests.factories import make_context
 
@@ -119,3 +120,34 @@ async def test_session_results_reader(session_factory, db_session) -> None:
     await db_session.commit()
     reader = SessionResultsReader(session_factory)
     assert await reader.get_for_date("AAPL", RUN_DATE, ["moat", "risk"]) == {"moat": {"a": 1}}
+
+
+@pytest.mark.unit
+async def test_every_outcome_is_recorded_in_agent_runs(session_factory, db_session) -> None:
+    runner = AgentRunner(session_factory, _RecordingKnowledge())
+    await runner.run(_StubAgent(make_context()), "AAPL", RUN_DATE, pipeline_run_id="p1")
+    await runner.run(_StubAgent(make_context()), "AAPL", RUN_DATE, pipeline_run_id="p1")
+    await runner.run(_StubAgent(make_context(), fail_on="fetch"), "MSFT", RUN_DATE)
+
+    runs = (
+        (await db_session.execute(select(AgentRun).order_by(AgentRun.started_at))).scalars().all()
+    )
+    assert [(r.symbol, r.status) for r in runs] == [
+        ("AAPL", "completed"),
+        ("AAPL", "skipped"),
+        ("MSFT", "failed"),
+    ]
+    assert runs[0].pipeline_run_id == "p1"
+    assert runs[2].error == "provider down"
+    assert all(r.finished_at >= r.started_at for r in runs)
+
+
+@pytest.mark.unit
+async def test_database_outage_is_reported_not_raised() -> None:
+    def broken_session_factory():
+        raise RuntimeError("db gone")
+
+    runner = AgentRunner(broken_session_factory, _RecordingKnowledge())
+    outcome = await runner.run(_StubAgent(make_context()), "AAPL", RUN_DATE)
+    assert outcome.status == "failed"
+    assert "db gone" in outcome.error  # the audit write failed too, but was only logged

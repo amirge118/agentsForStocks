@@ -18,6 +18,7 @@ from app.core.config import Settings
 from app.knowledge.openviking_store import OpenVikingStore
 from app.knowledge.store import KnowledgeStore, NullKnowledgeStore
 from app.llm.client import LLMClient
+from app.pipeline.orchestrator import PipelineOrchestrator
 from app.providers.cache import TTLCache
 from app.providers.edgar import EdgarClient
 from app.providers.fmp import DailyCallBudget, FmpClient
@@ -41,6 +42,8 @@ class Container:
     agent_context: AgentContext
     knowledge: KnowledgeStore
     runner: AgentRunner
+    orchestrator: PipelineOrchestrator
+    session_factory: async_sessionmaker[AsyncSession]
     http: HttpClient
     llm: LLMClient
 
@@ -79,12 +82,23 @@ def build_container(
         results=SessionResultsReader(session_factory),
         reasoning_model=settings.llm_reasoning_model,
     )
+    registry = load_agents()
+    runner = AgentRunner(session_factory, knowledge)
+    orchestrator = PipelineOrchestrator(
+        runner,
+        registry,
+        build_agent=lambda name: registry.get(name).agent_cls(context),
+        max_concurrent_symbols=settings.max_concurrent_symbols,
+        max_concurrent_agents=settings.max_concurrent_agents,
+    )
     return Container(
         settings=settings,
-        registry=load_agents(),
+        registry=registry,
         agent_context=context,
         knowledge=knowledge,
-        runner=AgentRunner(session_factory, knowledge),
+        runner=runner,
+        orchestrator=orchestrator,
+        session_factory=session_factory,
         http=http,
         llm=llm,
     )

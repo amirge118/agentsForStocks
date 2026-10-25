@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.pool import StaticPool  # noqa: E402
+from sqlalchemy.pool import NullPool, StaticPool  # noqa: E402
 
 from app.models import Base  # noqa: E402
 
@@ -46,3 +46,22 @@ async def db_session(
 ) -> AsyncIterator[AsyncSession]:
     async with session_factory() as session:
         yield session
+
+
+@pytest.fixture
+async def concurrent_session_factory(tmp_path) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """
+    For tests that run agents concurrently. The in-memory DB above shares ONE
+    connection between sessions (StaticPool), so concurrent sessions would commit
+    or roll back each other's work. A temp-file SQLite DB gives every session its
+    own connection, like Postgres does in production.
+    """
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{tmp_path / 'test.db'}",
+        connect_args={"timeout": 30},
+        poolclass=NullPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield async_sessionmaker(engine, expire_on_commit=False)
+    await engine.dispose()

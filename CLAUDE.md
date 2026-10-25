@@ -17,7 +17,10 @@ cd backend && uvicorn app.main:app --reload
 # Frontend (Next.js on :3000)
 cd frontend && npm run dev
 
-# Run all backend tests
+# Apply DB migrations
+cd backend && alembic upgrade head
+
+# Run all backend tests (coverage gate: 80%)
 cd backend && pytest
 
 # Run all frontend tests
@@ -29,7 +32,7 @@ cd frontend && npm run test:e2e
 
 ## Architecture in One Paragraph
 
-Frontend (Next.js 15 App Router) talks to Backend (FastAPI) via JSON REST under `/api/v1/`. Frontend has zero business logic and zero direct DB access. Backend layers: HTTP router → Pydantic schemas → Services → Agent Orchestrator → Data Pipeline → Models/DB/external APIs. Stock data comes from `yfinance`. AI analysis uses Anthropic Claude via `anthropic` SDK. Agents are scheduled tasks that are idempotent, store all results in PostgreSQL, and expose their output via REST endpoints.
+Frontend (Next.js 15 App Router) talks to Backend (FastAPI) via JSON REST under `/api/v1/`. Frontend has zero business logic and zero direct DB access. Backend layers: HTTP router → Pydantic schemas → `pipeline/` orchestrator → `agents/` (via `AgentRunner`) → `domain/` (pure financial logic) + `providers/` (yfinance, FMP, SEC EDGAR) + `llm/` (Claude) → `repositories/` → models/DB. Dependencies are wired once in `app/container.py` and injected through `AgentContext`. Agents run once per weekday as a dependency graph (registry), are idempotent, and store typed results in PostgreSQL.
 
 ## Non-Obvious Gotchas (Read Before Writing Code)
 
@@ -43,14 +46,14 @@ For every feature request, improvement idea, or "nice to have" identified during
 Use `select()` (not `query()`). Use `AsyncSession` injected via `Depends(get_db_session)`. Use `selectinload`/`joinedload` for eager loading. **Test DB uses `sqlite+aiosqlite:///:memory:`** — do NOT assume PostgreSQL in tests. See `backend/tests/conftest.py` for fixture pattern.
 
 ### 4. Agent Idempotency — Non-Negotiable
-Every agent run MUST be idempotent. Use `upsert` (insert-or-update) patterns when writing results to DB. Agents must not duplicate records if re-run for the same symbol + date. Store `run_id`, `agent_type`, `symbol`, `run_at` on every result row.
+Every agent run MUST be idempotent. `AgentRunner` enforces it: it skips an (agent, symbol, market date) that already has a result and writes through `AgentResultRepository.upsert`. Never write results from inside an agent. Every execution (including failures) is also recorded in `agent_runs`. Use `market_today()` from `app/core/clock.py`, never `date.today()`.
 
 ### 5. External API Rate Limiting
-All calls to `yfinance`, financial APIs, or any external service MUST go through a wrapper with:
-- Exponential backoff + retry (3 attempts, 1s/2s/4s)
-- Per-domain rate limiting
-- Timeout of 10s max per request
-Reference: `backend/app/services/external_api_base.py` (create this early, reuse everywhere).
+All calls to `yfinance`, financial APIs, or any external service MUST go through `app/providers/` (`HttpClient` / `YFinanceClient`), which provide:
+- Exponential backoff + retry on transient errors only (3 attempts, 1s/2s/4s)
+- Per-domain rate limiting (`RateLimiter`, limits in `app/container.py`)
+- Timeout of 10s max per request, plus a TTL cache shared by all agents
+FMP calls also count against `DailyCallBudget` (free tier = 250/day). Claude is called only through `app/llm/client.py` (structured outputs).
 
 ### 6. TanStack Query v5 Patterns
 Use `isPending` for loading skeletons (NOT `isLoading` — that's v4). Get query client via `useQueryClient()` hook. On mutation success: `invalidateQueries`. On mutation error: `toast({ variant: "destructive" })`.
@@ -68,9 +71,16 @@ Use `get`/`post`/`put`/`del` from `@/lib/api/client.ts`. Never call `fetch()` di
 
 | What you need | Where |
 |---|---|
-| Agent orchestration logic | `backend/app/agents/` |
-| Agent base class + idempotency helpers | `backend/app/agents/base.py` |
-| External API wrapper (rate limit, retry) | `backend/app/services/external_api_base.py` |
+| Agent classes (one file per agent) | `backend/app/agents/` — register in `agents/catalog.py` |
+| Agent contract / run lifecycle | `backend/app/agents/base.py` / `backend/app/agents/runner.py` |
+| Agent registry (deps, weights, order) | `backend/app/agents/registry.py` |
+| Pipeline orchestration + scheduler | `backend/app/pipeline/orchestrator.py`, `backend/app/agents/scheduler.py` |
+| Pure financial logic | `backend/app/domain/` |
+| External data clients (rate limit, retry, cache) | `backend/app/providers/` |
+| Claude client + system prompts | `backend/app/llm/client.py`, `backend/app/llm/prompts/*.md` |
+| DB access | `backend/app/repositories/` |
+| Dependency wiring | `backend/app/container.py` |
+| Migrations | `backend/alembic/` (`alembic upgrade head`) |
 | FastAPI routers | `backend/app/api/v1/endpoints/` |
 | Pydantic schemas | `backend/app/schemas/` |
 | SQLAlchemy models | `backend/app/models/` |
@@ -84,14 +94,18 @@ Use `get`/`post`/`put`/`del` from `@/lib/api/client.ts`. Never call `fetch()` di
 ```
 backend/
   app/
-    agents/           # Agent classes (one file per agent type)
-      base.py         # AgentBase: run(), store_result(), idempotency check
-      scheduler.py    # APScheduler or similar — registers and triggers agents
+    agents/           # One file per agent + base.py, runner.py, registry.py, catalog.py, scheduler.py
+    pipeline/         # orchestrator.py — runs the agent dependency graph per symbol
+    domain/           # Pure functions: valuation, technicals, scoring, ... (no I/O)
+    providers/        # yfinance / FMP / EDGAR clients + http, retry, rate_limit, cache
+    llm/              # LLMClient + prompts/<agent>.md
+    knowledge/        # KnowledgeStore protocol, OpenViking + null implementations
+    repositories/     # SQL lives here only
     api/v1/endpoints/ # FastAPI routers
-    services/         # Business logic + external_api_base.py
     schemas/          # Pydantic request/response models
-    models/           # SQLAlchemy models (include AgentRun, AgentResult)
-    middleware/       # request_logging.py, error_handler.py
+    models/           # SQLAlchemy models (AgentResult, AgentRun)
+    middleware/       # request_logging.py
+    container.py      # Composition root
   tests/
     unit/             # pytest unit tests (mock all external deps)
     integration/      # pytest integration tests (test API endpoints)
@@ -129,7 +143,8 @@ Card pattern: `rounded-xl border border-zinc-800 bg-zinc-900`
 - Every new file under `backend/app/` MUST have a corresponding test file before merging.
 - Coverage must remain ≥ 80% (enforced by `--cov-fail-under=80`).
 - Never mark a feature complete without tests.
-- Agent tests: mock the scheduler and assert on DB state after `agent.run()`.
+- Agent tests: build agents with `tests/factories.make_context()` (fake providers + `FakeLLM`); test the run lifecycle through `AgentRunner` and assert on DB state.
+- Concurrent pipeline tests must use the `concurrent_session_factory` fixture (the in-memory DB shares one connection between sessions).
 
 ## Commit Format
 

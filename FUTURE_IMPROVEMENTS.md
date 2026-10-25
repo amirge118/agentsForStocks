@@ -36,8 +36,16 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 ## Infrastructure
 - [x] Alembic migrations setup with auto-generate (backend/alembic, `alembic upgrade head`)
 - [ ] Prometheus metrics endpoint for agent run durations and failure rates [PRIORITY: MED]
-- [ ] Health check endpoint that validates DB + OpenViking connectivity [PRIORITY: HIGH]
+- [x] Health check endpoint validating DB connectivity + scheduler state (`/health`, 503 when degraded)
+- [ ] Add OpenViking connectivity to /health (only when OPENVIKING_ENABLED) [PRIORITY: LOW]
 - [ ] Add Redis for task queue (Celery or ARQ) if APScheduler proves insufficient [PRIORITY: LOW]
+- [ ] Run the scheduler in a single dedicated worker process — with several uvicorn workers each would start its own scheduler [PRIORITY: HIGH]
+- [ ] Add CI (GitHub Actions): ruff, black --check, bandit, pytest with coverage gate [PRIORITY: HIGH]
+- [ ] Structured JSON logging so `extra=` fields (symbol, run_id) reach the log output [PRIORITY: MED]
+
+## API & Frontend
+- [ ] REST endpoints under /api/v1: symbols, latest recommendation, agent results, agent_runs, manual pipeline trigger [PRIORITY: HIGH]
+- [ ] Next.js frontend per CLAUDE.md; generate TS types from FastAPI OpenAPI (openapi-typescript) + Zod at the boundary [PRIORITY: HIGH]
 
 ## LLM
 - [ ] Upgrade the `anthropic` SDK pin (0.40) so structured outputs use the typed `output_config` parameter instead of `extra_body` [PRIORITY: MED]
