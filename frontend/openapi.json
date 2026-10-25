@@ -18,6 +18,9 @@
             "title": "Name",
             "type": "string"
           },
+          "profile": {
+            "$ref": "#/components/schemas/AgentProfileOut"
+          },
           "recommendation_weight": {
             "title": "Recommendation Weight",
             "type": "number"
@@ -27,9 +30,50 @@
           "name",
           "description",
           "depends_on",
-          "recommendation_weight"
+          "recommendation_weight",
+          "profile"
         ],
         "title": "AgentInfo",
+        "type": "object"
+      },
+      "AgentProfileOut": {
+        "description": "How the agent's main judgement is made (defaults + AGENT_PROFILES overrides).",
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "None = the agent's own default (e.g. reasoning model)",
+            "title": "Model"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
+          "use_llm": {
+            "title": "Use Llm",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "skills",
+          "use_llm"
+        ],
+        "title": "AgentProfileOut",
         "type": "object"
       },
       "AgentResultOut": {

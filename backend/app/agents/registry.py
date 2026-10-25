@@ -32,14 +32,20 @@ class AgentRegistry:
         depends_on: Iterable[str] = (),
         recommendation_weight: float = 0.0,
         invariants: Iterable[Any] = (),
+        profile: Any = None,
     ) -> Any:
-        """invariants: contract rules checked on every result (app/agents/contracts.py)."""
+        """
+        invariants: contract rules checked on every result (app/agents/contracts.py).
+        profile: the agent's default AgentProfile (app/llm/profiles.py).
+        """
 
         def decorator(cls: type[Any]) -> type[Any]:
             if name in self._specs:
                 raise ValueError(f"Agent {name!r} registered twice")
             cls.name = name
             cls.invariants = tuple(invariants)
+            if profile is not None:
+                cls.default_profile = profile
             self._specs[name] = AgentSpec(
                 name=name,
                 agent_cls=cls,

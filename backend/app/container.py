@@ -18,7 +18,11 @@ from app.core.config import Settings
 from app.knowledge.openviking_store import OpenVikingStore
 from app.knowledge.store import KnowledgeStore, NullKnowledgeStore
 from app.llm.client import LLMClient
-from app.llm.recording import DbLLMCallRecorder
+from app.llm.openai_compat import OpenAICompatibleClient
+from app.llm.pricing import Price
+from app.llm.profiles import ProfileBook
+from app.llm.recording import DbLLMCallRecorder, LLMCallRecorder
+from app.llm.router import ALT, ANTHROPIC, LLMProvider, LLMRouter
 from app.pipeline.launcher import PipelineLauncher
 from app.pipeline.orchestrator import PipelineOrchestrator
 from app.providers.cache import TTLCache
@@ -48,7 +52,7 @@ class Container:
     launcher: PipelineLauncher
     session_factory: async_sessionmaker[AsyncSession]
     http: HttpClient
-    llm: LLMClient
+    llm: LLMRouter
 
     def build_agent(self, name: str) -> Agent:
         return self.registry.get(name).agent_cls(self.agent_context)
@@ -59,22 +63,46 @@ class Container:
         await self.llm.aclose()
 
 
+def build_llm_router(settings: Settings, recorder: LLMCallRecorder) -> LLMRouter:
+    """Claude always; the OpenAI-compatible provider when LLM_ALT_* is configured."""
+    providers: dict[str, LLMProvider] = {
+        ANTHROPIC: LLMClient(
+            anthropic.AsyncAnthropic(
+                api_key=settings.anthropic_api_key or None,
+                timeout=settings.llm_timeout_seconds,
+                max_retries=2,  # SDK retries 429/5xx/connection errors with backoff
+            ),
+            default_model=settings.llm_default_model,
+            recorder=recorder,
+            capture_content=settings.llm_capture_content,
+        )
+    }
+    if settings.alt_llm_configured:
+        price = Price(
+            input=settings.llm_alt_input_price,
+            output=settings.llm_alt_output_price,
+            cache_read=settings.llm_alt_input_price,
+            cache_write=settings.llm_alt_input_price,
+        )
+        providers[ALT] = OpenAICompatibleClient(
+            base_url=settings.llm_alt_base_url,
+            api_key=settings.llm_alt_api_key,
+            default_model=settings.llm_alt_model,
+            recorder=recorder,
+            capture_content=settings.llm_capture_content,
+            prices={settings.llm_alt_model: price},
+            timeout_seconds=settings.llm_alt_timeout_seconds,
+        )
+    return LLMRouter(providers, default_provider=settings.llm_provider)
+
+
 def build_container(
     settings: Settings, session_factory: async_sessionmaker[AsyncSession]
 ) -> Container:
     rate_limiter = RateLimiter(_RATE_LIMITS)
     cache = TTLCache(ttl_seconds=settings.provider_cache_ttl_seconds)
     http = HttpClient(rate_limiter=rate_limiter, cache=cache)
-    llm = LLMClient(
-        anthropic.AsyncAnthropic(
-            api_key=settings.anthropic_api_key or None,
-            timeout=settings.llm_timeout_seconds,
-            max_retries=2,  # SDK retries 429/5xx/connection errors with backoff
-        ),
-        default_model=settings.llm_default_model,
-        recorder=DbLLMCallRecorder(session_factory),
-        capture_content=settings.llm_capture_content,
-    )
+    llm = build_llm_router(settings, DbLLMCallRecorder(session_factory))
     knowledge: KnowledgeStore = (
         OpenVikingStore(settings.openviking_url, settings.openviking_api_key or None)
         if settings.openviking_enabled
@@ -87,6 +115,7 @@ def build_container(
         llm=llm,
         results=SessionResultsReader(session_factory),
         reasoning_model=settings.llm_reasoning_model,
+        profiles=ProfileBook.from_config(settings.agent_profiles, settings.agent_profiles_file),
     )
     registry = load_agents()
     runner = AgentRunner(session_factory, knowledge)

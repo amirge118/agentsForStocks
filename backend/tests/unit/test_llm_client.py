@@ -325,7 +325,7 @@ async def test_unpriced_model_marks_run_cost_incomplete() -> None:
 async def test_calls_are_logged_with_token_counts(caplog) -> None:
     import logging
 
-    caplog.set_level(logging.INFO, logger="app.llm.client")
+    caplog.set_level(logging.INFO, logger="app.llm.tracking")
     llm, _ = _recording_client(
         _usage_message('{"signal":"neutral","confidence":1,"reasoning":"r"}')
     )

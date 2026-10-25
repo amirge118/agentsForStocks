@@ -230,3 +230,14 @@ async def test_llm_ledger_endpoints(api: httpx.AsyncClient, concurrent_session_f
     assert calls[0]["system_prompt"] == "You are a moat analyst."
     listed = (await api.get("/api/v1/llm/calls", params={"agent": "risk"})).json()
     assert [c["call_id"] for c in listed] == ["c3"]
+
+
+@pytest.mark.integration
+async def test_agents_show_their_effective_profile(api: httpx.AsyncClient) -> None:
+    agents = {a["name"]: a for a in (await api.get("/api/v1/agents")).json()}
+    assert agents["moat"]["profile"] == {
+        "provider": "anthropic",
+        "model": None,
+        "skills": [],
+        "use_llm": True,
+    }

@@ -99,20 +99,32 @@ async def check_fmp(container: Container, settings: Settings) -> CheckResult:
     return await _guard("fmp", probe)
 
 
+async def _probe_llm(container: Container, provider: str) -> str:
+    reply = await container.llm.generate(
+        provider=provider,
+        system="You are a health check. Answer with a neutral signal.",
+        prompt="Reply with signal=neutral, confidence=0 and reasoning='ok'.",
+        schema=LLMSignal,
+        max_tokens=100,
+        prompt_name="preflight",
+    )
+    model = container.llm.default_model(provider)
+    return f"{model} structured output ok (signal={reply.signal})"
+
+
 async def check_llm(container: Container, settings: Settings) -> CheckResult:
+    required = settings.llm_provider == "anthropic"
     if not settings.anthropic_api_key:
-        return CheckResult("claude", "missing", "ANTHROPIC_API_KEY is not set")
+        return CheckResult("claude", "missing", "ANTHROPIC_API_KEY is not set", required=required)
+    return await _guard("claude", lambda: _probe_llm(container, "anthropic"), required=required)
 
-    async def probe() -> str:
-        reply = await container.llm.generate(
-            system="You are a health check. Answer with a neutral signal.",
-            prompt="Reply with signal=neutral, confidence=0 and reasoning='ok'.",
-            schema=LLMSignal,
-            max_tokens=100,
-        )
-        return f"{settings.llm_default_model} structured output ok (signal={reply.signal})"
 
-    return await _guard("claude", probe)
+async def check_alt_llm(container: Container, settings: Settings) -> CheckResult:
+    required = settings.llm_provider == "alt"
+    if not settings.alt_llm_configured:
+        detail = "not configured (LLM_ALT_BASE_URL / LLM_ALT_MODEL)"
+        return CheckResult("alt-llm", "missing" if required else "ok", detail, required=required)
+    return await _guard("alt-llm", lambda: _probe_llm(container, "alt"), required=required)
 
 
 async def check_knowledge(container: Container, settings: Settings) -> CheckResult:
@@ -137,6 +149,7 @@ async def run_preflight(
         await asyncio.gather(
             check_database(session_factory),
             check_llm(container, settings),
+            check_alt_llm(container, settings),
             check_fmp(container, settings),
             check_yahoo(container),
             check_edgar(container),

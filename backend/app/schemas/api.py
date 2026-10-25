@@ -10,11 +10,21 @@ from app.domain.scoring import Action
 from app.domain.signals import SignalLabel
 
 
+class AgentProfileOut(BaseModel):
+    """How the agent's main judgement is made (defaults + AGENT_PROFILES overrides)."""
+
+    provider: str
+    model: str | None = Field(description="None = the agent's own default (e.g. reasoning model)")
+    skills: list[str]
+    use_llm: bool
+
+
 class AgentInfo(BaseModel):
     name: str
     description: str
     depends_on: list[str]
     recommendation_weight: float
+    profile: AgentProfileOut
 
 
 class AgentResultOut(BaseModel):

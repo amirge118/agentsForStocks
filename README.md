@@ -103,7 +103,7 @@ execution order are derived from the registry's dependency graph.
 |---|---|
 | Web API | **FastAPI** 0.162 · Starlette 1.10 · Uvicorn |
 | Database | **PostgreSQL 16** · SQLAlchemy 2.0 (async) · asyncpg · **Alembic** migrations |
-| AI | **Anthropic Claude** (`anthropic` SDK) with structured outputs; Haiku for agent judgements, Sonnet for the final recommendation (configurable) |
+| AI | **Anthropic Claude** (`anthropic` SDK) with structured outputs; Haiku for agent judgements, Sonnet for the final recommendation. Optional second provider: any OpenAI-compatible API (Gemini, OpenRouter, DeepSeek, local Ollama). Per-agent profiles choose provider, model and **skills** without code changes |
 | Market data | **yfinance**, Financial Modeling Prep REST API, SEC EDGAR REST API (via `httpx`) |
 | Analysis | pandas, NumPy |
 | Scheduling | APScheduler (in-process for development, dedicated worker process in production) |

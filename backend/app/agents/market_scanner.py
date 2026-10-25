@@ -11,12 +11,9 @@ from pydantic import BaseModel, Field
 from app.agents.base import Agent, AnalysisResult
 from app.agents.formatting import memory_block
 from app.agents.registry import register_agent
-from app.core.context import note_fallback
 from app.domain.market_scan import ScanMetrics, scan_metrics
 from app.domain.signals import SignalLabel
 from app.knowledge.store import Learning
-from app.llm.client import LLMError
-from app.llm.prompt_loader import load_prompt
 
 
 class ScanJudgement(BaseModel):
@@ -54,23 +51,18 @@ class MarketScannerAgent(Agent[MarketScanData, MarketScanResult]):
         self, symbol: str, data: MarketScanData, memory: list[str]
     ) -> MarketScanResult:
         m = scan_metrics(data.info, data.history)
-        try:
-            judgement = await self.ctx.llm.generate(
-                system=load_prompt(self.name),
-                prompt=self.with_data_gaps(_prompt(symbol, data.info, m, memory)),
-                schema=ScanJudgement,
-                max_tokens=512,
-                prompt_name=self.name,
-            )
-        except LLMError:
-            note_fallback()
-            judgement = ScanJudgement(
+        judgement = await self.ask(
+            _prompt(symbol, data.info, m, memory),
+            schema=ScanJudgement,
+            max_tokens=512,
+            fallback=ScanJudgement(
                 signal="neutral",
                 confidence=0.0,
                 reasoning="LLM unavailable — scan metrics stored without judgement",
                 observations=["volume spike"] if m.volume_spike else [],
                 risk_level="medium",
-            )
+            ),
+        )
         return MarketScanResult(
             signal=judgement.signal,
             confidence=judgement.confidence,
