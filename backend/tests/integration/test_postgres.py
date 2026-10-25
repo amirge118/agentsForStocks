@@ -12,11 +12,11 @@ from collections.abc import AsyncIterator
 from datetime import date
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from alembic import command
-from alembic.config import Config
 from app.repositories.agent_results import AgentResultRepository
 
 POSTGRES_URL = os.environ.get("TEST_POSTGRES_URL")
