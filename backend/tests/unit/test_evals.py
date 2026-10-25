@@ -2,6 +2,7 @@
 
 import json
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from pydantic import BaseModel
@@ -9,7 +10,8 @@ from pydantic import BaseModel
 from app.core.clock import utcnow
 from app.core.context import current_usage
 from app.llm.pricing import TokenUsage
-from app.llm.profiles import ProfileBook
+from app.llm.profiles import AgentProfile, ProfileBook
+from app.llm.prompt_loader import load_prompt
 from app.llm.recording import DbLLMCallRecorder, LLMCallRecord
 from evals import capture, cases, compare, report
 from evals import run as eval_run
@@ -213,3 +215,24 @@ async def test_capture_exports_ledger_calls_and_replays_them(session_factory, tm
     assert llm.calls[0]["prompt"] == "Symbol: AAPL 0"  # the captured user prompt
     assert "A moat needs evidence" in llm.calls[0]["system"]  # today's prompt + profile skills
     assert grade(case, runs)["label_accuracy"] == 1.0
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("preset", sorted(p.stem for p in Path("evals/presets").glob("*.json")))
+def test_presets_are_valid_profiles(preset: str) -> None:
+    overrides = eval_run._load_profiles(f"@evals/presets/{preset}.json")
+    book = ProfileBook(overrides)  # unknown fields or skills would raise
+    for key in overrides:
+        profile = book.resolve(key, AgentProfile())
+        if profile.prompt:
+            assert load_prompt(profile.prompt)
+
+
+@pytest.mark.unit
+def test_v2_prompts_keep_the_rules_the_contracts_and_compliance_rely_on() -> None:
+    recommendation = load_prompt("recommendation_v2")
+    for phrase in ("guaranteed", "risk-free", "hype", "main risk", "risk override"):
+        assert phrase in recommendation
+    for name in ("moat_v2", "risk_v2", "broad_analysis_v2", "growth_v2"):
+        text = load_prompt(name)
+        assert "max 200 characters" in text and "below 50" in text  # length + missing-data rule

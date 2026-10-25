@@ -1,0 +1,7 @@
+{
+  "moat": {"prompt": "moat_v2"},
+  "risk": {"prompt": "risk_v2"},
+  "broad_analysis": {"prompt": "broad_analysis_v2"},
+  "growth": {"prompt": "growth_v2"},
+  "recommendation": {"prompt": "recommendation_v2"}
+}

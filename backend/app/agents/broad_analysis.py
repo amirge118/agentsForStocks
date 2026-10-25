@@ -8,7 +8,9 @@ from app.agents.base import Agent, AnalysisResult, neutral_fallback
 from app.agents.formatting import memory_block
 from app.agents.registry import register_agent
 
-_BUSINESS_CHARS = 8_000
+# The opening of the Business section is its overview; moat and risk read the rest
+# (was 8,000 chars — the same text moat also receives)
+_BUSINESS_CHARS = 4_000
 _DESCRIPTION_CHARS = 1_500
 
 

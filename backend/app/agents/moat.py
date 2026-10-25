@@ -8,10 +8,11 @@ from app.agents.base import Agent, AnalysisResult, neutral_fallback
 from app.agents.formatting import memory_block
 from app.agents.registry import register_agent
 from app.domain.financials import MOAT_KEYWORDS, MarginProfile, margin_profile
-from app.domain.stats import find_keywords
+from app.domain.stats import find_keywords, relevant_excerpt
 from app.knowledge.store import Learning
 
-_BUSINESS_CHARS = 6_000
+# The opening plus the sentences that mention a moat keyword (was: the first 6,000 chars)
+_BUSINESS_CHARS = 3_500
 
 
 class MoatResult(AnalysisResult):
@@ -88,7 +89,7 @@ Gross margin variance (lower = more pricing power): {m.gross_margin_variance * 1
 Intangibles / total assets: {m.intangibles_pct * 100:.1f}%
 
 10-K Business section (excerpt):
-{d.business_text[:_BUSINESS_CHARS] or 'Not available'}
+{relevant_excerpt(d.business_text, MOAT_KEYWORDS, _BUSINESS_CHARS) or 'Not available'}
 
 Knowledge base context:
 {memory_block(memory)}"""
