@@ -16,9 +16,10 @@ export default defineConfig({
     httpCredentials: { username: E2E_USER, password: E2E_PASSWORD },
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  // Runs the production build; browser calls to the /api/backend proxy are mocked per test
+  // Runs the same standalone server the Docker image ships, bound to 0.0.0.0 like the
+  // container; browser calls to the /api/backend proxy are mocked per test
   webServer: {
-    command: `npm run build && npx next start -p ${PORT}`,
+    command: `npm run build && HOSTNAME=0.0.0.0 PORT=${PORT} npm start`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

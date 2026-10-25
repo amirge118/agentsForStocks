@@ -45,9 +45,12 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] First real pipeline run against live Claude / FMP / Yahoo / SEC — blocked in the cloud environment until its network policy allows those hosts and the API keys are configured [PRIORITY: HIGH]
 - [x] CI (GitHub Actions): lint, format, bandit, pip-audit / npm audit, pytest on SQLite + PostgreSQL, migration check, Jest, Playwright
 - [ ] Protect `main` in GitHub settings: require the CI checks to pass before merging, no direct pushes [PRIORITY: HIGH]
-- [ ] Dependabot (pip, npm, github-actions) so pinned versions get security updates [PRIORITY: MED]
+- [x] Dependabot (pip, npm, docker, github-actions), weekly, minor/patch grouped
 - [ ] Pin GitHub Actions by commit SHA instead of major tag [PRIORITY: LOW]
-- [ ] Backend Dockerfile + deploy workflow (migrations on release) [PRIORITY: MED]
+- [x] Dockerfiles (backend: API / worker / migrations; frontend: Next standalone), non-root, full Docker Compose stack + CI smoke test
+- [ ] Publish images to GHCR and add a deploy workflow [PRIORITY: MED]
+- [ ] Pin Docker base images by digest (Dependabot keeps them updated) [PRIORITY: LOW]
+- [ ] Make uvicorn's own access/startup logs use the JSON formatter too (`--log-config`) [PRIORITY: LOW]
 - [x] Structured logging (`LOG_FORMAT=text|json`): `extra=` fields reach the output, secrets in URLs are scrubbed, httpx URL logging quieted
 
 ## API & Frontend

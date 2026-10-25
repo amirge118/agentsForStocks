@@ -18,6 +18,24 @@ const SAFE_SEGMENT = /^[A-Za-z0-9._-]+$/
 
 type Context = { params: Promise<{ path: string[] }> }
 
+/**
+ * Compare the browser's Origin with the host it actually addressed. Not
+ * `nextUrl.origin`: in the Docker image the server binds HOSTNAME=0.0.0.0, so
+ * nextUrl.origin is "http://0.0.0.0:3000" and every real request would look
+ * cross-site. Behind a reverse proxy the public host is in X-Forwarded-Host
+ * (a cross-site page cannot set that header without a CORS preflight).
+ */
+function isSameOrigin(request: NextRequest): boolean {
+  const origin = request.headers.get("origin")
+  if (origin === null) return true // non-browser clients; browsers always send Origin on POST
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host")
+  try {
+    return host !== null && new URL(origin).host === host
+  } catch {
+    return false
+  }
+}
+
 async function proxy(request: NextRequest, { params }: Context): Promise<NextResponse> {
   const { path } = await params
   // Reject traversal / encoded tricks — only plain path segments are forwarded
@@ -27,8 +45,7 @@ async function proxy(request: NextRequest, { params }: Context): Promise<NextRes
 
   const isWrite = request.method !== "GET" && request.method !== "HEAD"
   if (isWrite) {
-    const origin = request.headers.get("origin")
-    if (origin !== null && origin !== request.nextUrl.origin) {
+    if (!isSameOrigin(request)) {
       return NextResponse.json({ detail: "Cross-origin request refused" }, { status: 403 })
     }
     if (!request.headers.get("content-type")?.startsWith("application/json")) {

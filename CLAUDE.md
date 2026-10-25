@@ -11,6 +11,9 @@ Detailed coding standards are in `.claude/rules/` — Claude enforces these auto
 ## Quick Start
 
 ```bash
+# Whole stack in Docker (db → migrate → api + worker → frontend); needs .env
+docker compose up --build
+
 # Backend dependencies (runtime + test/lint tools; add requirements-knowledge.txt for OpenViking)
 cd backend && pip install -r requirements-dev.txt
 
@@ -165,6 +168,8 @@ Card pattern: `rounded-xl border border-zinc-800 bg-zinc-900`
 `.github/workflows/ci.yml` runs on every push to main and every PR — keep it green:
 - **backend**: ruff, black, bandit, pip-audit, pytest (SQLite + a PostgreSQL 16 service; deprecation warnings are errors), `alembic upgrade/check/downgrade` on Postgres.
 - **frontend**: `npm ci`, generated API types up to date, typecheck (Zod ↔ OpenAPI), lint, `npm audit`, Jest with coverage, Playwright E2E on the production build.
+- **docker**: builds both images and brings the whole stack up with Docker Compose, then smoke-tests health, auth, the proxy and a manual run.
+Dependabot (`.github/dependabot.yml`) opens weekly update PRs for pip, npm, Docker base images and GitHub Actions.
 Run the same commands locally before pushing.
 
 ## Testing Requirements

@@ -1,0 +1,17 @@
+# Only runtime code goes into the image
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+.venv
+venv
+.env
+.env.*
+tests
+requirements-dev.txt
+requirements-knowledge.txt
+pyproject.toml
+Dockerfile
+.dockerignore
