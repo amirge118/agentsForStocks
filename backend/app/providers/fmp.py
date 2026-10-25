@@ -11,6 +11,7 @@ from typing import Any
 
 from app.core.clock import market_today
 from app.core.symbols import validate_symbol
+from app.observability import metrics
 from app.providers.errors import QuotaExceededError
 from app.providers.http import HttpClient
 
@@ -34,6 +35,7 @@ class DailyCallBudget:
         if self.used >= self.limit:
             raise QuotaExceededError(f"FMP daily budget of {self.limit} calls exhausted")
         self.used += 1
+        metrics.fmp_calls.add(1)
         if self.used == self._warn_at:
             logger.warning("FMP daily budget at %d/%d calls", self.used, self.limit)
 

@@ -1,0 +1,8 @@
+# Grafana provisioning for the `observability` compose profile (grafana/otel-lgtm).
+apiVersion: 1
+providers:
+  - name: agentsForStocks
+    folder: agentsForStocks
+    type: file
+    options:
+      path: /otel-lgtm/agentsforstocks-dashboards

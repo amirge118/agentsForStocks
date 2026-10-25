@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from uuid import uuid4
 
+from opentelemetry import trace
+
 from app.agents.base import Agent
 from app.agents.registry import AgentRegistry
 from app.agents.runner import AgentRunner, RunOutcome
@@ -24,6 +26,7 @@ from app.core.context import bind
 from app.core.symbols import validate_symbol
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 @dataclass(frozen=True)
@@ -87,7 +90,18 @@ class PipelineOrchestrator:
         levels = self._registry.execution_levels(list(agents) if agents is not None else None)
         day = run_date or market_today()
         pipeline_run_id = pipeline_run_id or str(uuid4())
-        with bind(pipeline_run_id=pipeline_run_id):  # inherited by every task gathered below
+        with (
+            bind(pipeline_run_id=pipeline_run_id),  # inherited by every task gathered below
+            tracer.start_as_current_span(
+                "pipeline.run",
+                attributes={
+                    "pipeline.run_id": pipeline_run_id,
+                    "pipeline.symbols": tickers,
+                    "pipeline.run_date": day.isoformat(),
+                    "pipeline.force": force,
+                },
+            ) as span,
+        ):
             logger.info("Pipeline started", extra={"symbols": tickers})
             per_symbol = await asyncio.gather(
                 *(
@@ -100,6 +114,8 @@ class PipelineOrchestrator:
                 run_date=day,
                 outcomes=tuple(o for outcomes in per_symbol for o in outcomes),
             )
+            for key, value in {**report.counts, **report.usage}.items():
+                span.set_attribute(f"pipeline.{key}", value)
             logger.info(
                 "Pipeline finished",
                 extra={"symbols": tickers, "counts": report.counts, **report.usage},
@@ -114,15 +130,23 @@ class PipelineOrchestrator:
         force: bool,
         pipeline_run_id: str,
     ) -> list[RunOutcome]:
-        outcomes: list[RunOutcome] = []
         async with self._symbol_slots:
-            for level in levels:
-                outcomes += await asyncio.gather(
-                    *(
-                        self._run_agent(name, symbol, run_date, force, pipeline_run_id)
-                        for name in level
-                    )
-                )
+            with tracer.start_as_current_span("pipeline.symbol", attributes={"symbol": symbol}):
+                return await self._run_levels(symbol, levels, run_date, force, pipeline_run_id)
+
+    async def _run_levels(
+        self,
+        symbol: str,
+        levels: list[list[str]],
+        run_date: date,
+        force: bool,
+        pipeline_run_id: str,
+    ) -> list[RunOutcome]:
+        outcomes: list[RunOutcome] = []
+        for level in levels:
+            outcomes += await asyncio.gather(
+                *(self._run_agent(name, symbol, run_date, force, pipeline_run_id) for name in level)
+            )
         return outcomes
 
     async def _run_agent(

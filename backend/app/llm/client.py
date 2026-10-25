@@ -32,6 +32,7 @@ from app.llm.recording import (
     prompt_version,
 )
 from app.llm.schema import output_schema
+from app.observability import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +195,7 @@ class _Call:
         )
         _log(record)
         _accumulate(record)
+        _measure(record)
         await self._client._recorder.record(record)
 
 
@@ -221,6 +223,22 @@ def _log(record: LLMCallRecord) -> None:
         logger.info("LLM call completed", extra=extra)
     else:
         logger.warning("LLM call failed", extra={**extra, "error": record.error})
+
+
+def _measure(record: LLMCallRecord) -> None:
+    attrs = {"agent": record.agent or "(none)", "model": record.model}
+    metrics.llm_calls.add(1, {**attrs, "status": record.status})
+    metrics.llm_latency.record(record.latency_ms, attrs)
+    for kind, count in (
+        ("input", record.usage.input_tokens),
+        ("output", record.usage.output_tokens),
+        ("cache_read", record.usage.cache_read_tokens),
+        ("cache_write", record.usage.cache_write_tokens),
+    ):
+        if count:
+            metrics.llm_tokens.add(count, {**attrs, "type": kind})
+    if record.cost_usd:
+        metrics.llm_cost.add(record.cost_usd, attrs)
 
 
 def _accumulate(record: LLMCallRecord) -> None:

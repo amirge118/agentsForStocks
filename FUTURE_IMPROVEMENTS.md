@@ -35,7 +35,10 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 
 ## Infrastructure
 - [x] Alembic migrations setup with auto-generate (backend/alembic, `alembic upgrade head`)
-- [ ] Prometheus metrics endpoint for agent run durations and failure rates [PRIORITY: MED]
+- [x] OpenTelemetry: traces (pipeline → symbol → agent → fetch/analyze → HTTP/SQL/yfinance/Claude), metrics, logs over OTLP; `observability` compose profile with Grafana + dashboard
+- [ ] Grafana alerts: failed runs, fallbacks, daily LLM cost above a threshold, FMP budget at 80% [PRIORITY: MED]
+- [ ] Give Grafana a read-only Postgres role instead of the app's credentials [PRIORITY: LOW]
+- [ ] Send the observability data to a hosted backend (Grafana Cloud / Honeycomb) for a deployed instance — only OTEL_EXPORTER_OTLP_ENDPOINT/HEADERS change [PRIORITY: LOW]
 - [x] Health check endpoint validating DB connectivity + scheduler state (`/health`, 503 when degraded)
 - [ ] Add OpenViking connectivity to /health (only when OPENVIKING_ENABLED) [PRIORITY: LOW]
 - [ ] Add Redis for task queue (Celery or ARQ) if APScheduler proves insufficient [PRIORITY: LOW]

@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     llm_capture_content: bool = True
     llm_call_retention_days: int = 90
 
+    # OpenTelemetry (traces, metrics, logs over OTLP/HTTP). The exporters read the
+    # standard OTEL_EXPORTER_OTLP_ENDPOINT / OTEL_EXPORTER_OTLP_HEADERS variables.
+    otel_enabled: bool = False
+
     # OpenViking — knowledge/memory layer
     openviking_url: str = "http://localhost:1933"
     openviking_api_key: str = ""

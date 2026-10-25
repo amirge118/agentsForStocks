@@ -122,6 +122,10 @@ jobs:
             echo "DASHBOARD_PASSWORD=ci-password"
             echo "WATCHLIST=AAPL,MSFT"
           } > .env
+      - name: Optional profiles and dashboards are valid
+        run: |
+          docker compose --profile observability --profile knowledge config -q
+          for f in infra/grafana/dashboards/*.json; do jq -e '.panels | length > 0' "$f" > /dev/null; done
       - name: Build images
         run: docker compose build
       - name: Start the stack (db → migrate → api + worker → frontend)

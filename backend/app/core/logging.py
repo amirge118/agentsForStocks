@@ -18,6 +18,8 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from opentelemetry import trace
+
 from app.core.context import current_fields
 
 # Attributes every LogRecord has — anything else on a record came from `extra=`
@@ -55,6 +57,11 @@ def _is_sensitive(key: str) -> bool:
     )
 
 
+def extra_fields(record: logging.LogRecord) -> dict[str, Any]:
+    """The record's `extra=` fields (and run context), with sensitive values redacted."""
+    return _extras(record)
+
+
 def _extras(record: logging.LogRecord) -> dict[str, Any]:
     fields = {}
     for key, value in vars(record).items():
@@ -65,12 +72,19 @@ def _extras(record: logging.LogRecord) -> dict[str, Any]:
 
 
 class ContextFilter(logging.Filter):
-    """Adds the current run context to each record (explicit `extra=` values win)."""
+    """
+    Adds the current run context to each record (explicit `extra=` values win),
+    and the active trace / span ids, so a log line links to its trace.
+    """
 
     def filter(self, record: logging.LogRecord) -> bool:
         for key, value in current_fields().items():
             if not hasattr(record, key):
                 setattr(record, key, value)
+        span = trace.get_current_span().get_span_context()
+        if span.is_valid and not hasattr(record, "trace_id"):
+            record.trace_id = format(span.trace_id, "032x")
+            record.span_id = format(span.span_id, "016x")
         return True
 
 

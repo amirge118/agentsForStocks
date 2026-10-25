@@ -16,6 +16,7 @@ from app.container import build_container
 from app.core.config import settings
 from app.core.logging import configure_logging
 from app.db.session import AsyncSessionLocal
+from app.observability.telemetry import configure_telemetry
 from app.ops.manual_run import render_report
 
 
@@ -39,4 +40,9 @@ async def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":  # pragma: no cover
     configure_logging(settings.log_format, settings.log_level)
-    sys.exit(asyncio.run(main(sys.argv[1:])))
+    telemetry = configure_telemetry(settings, service_name="agentsforstocks-cli")
+    try:
+        code = asyncio.run(main(sys.argv[1:]))
+    finally:
+        telemetry.shutdown()  # flush the run's traces before exiting
+    sys.exit(code)
