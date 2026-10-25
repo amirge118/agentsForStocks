@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import anthropic
-import httpx
+import httpx2
 import pytest
 from pydantic import BaseModel, Field
 
@@ -60,7 +60,7 @@ async def test_generate_returns_validated_model_and_sends_schema() -> None:
     assert result == LLMSignal(signal="bullish", confidence=72, reasoning="Wide moat")
     kwargs = create.await_args.kwargs
     assert kwargs["model"] == "claude-haiku-4-5"
-    fmt = kwargs["extra_body"]["output_config"]["format"]
+    fmt = kwargs["output_config"]["format"]
     assert fmt["type"] == "json_schema"
     assert fmt["schema"]["required"] == ["signal", "confidence", "reasoning"]
 
@@ -90,9 +90,9 @@ async def test_invalid_replies_raise_llm_error(reply: SimpleNamespace) -> None:
 
 @pytest.mark.unit
 async def test_api_errors_raise_llm_error() -> None:
-    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
     status = anthropic.APIStatusError(
-        "overloaded", response=httpx.Response(529, request=request), body=None
+        "overloaded", response=httpx2.Response(529, request=request), body=None
     )
     llm, _ = _client(status)
     with pytest.raises(LLMError, match="529"):
@@ -147,7 +147,7 @@ async def test_mcp_request_sends_servers_toolsets_beta_and_longer_timeout() -> N
     kwargs = create.await_args.kwargs
     assert kwargs["betas"] == [MCP_BETA]
     assert kwargs["tools"] == [{"type": "mcp_toolset", "mcp_server_name": "factset"}]
-    assert kwargs["extra_body"]["mcp_servers"] == [
+    assert kwargs["mcp_servers"] == [
         {
             "type": "url",
             "url": "https://mcp.factset.com/content/v1",
@@ -155,7 +155,8 @@ async def test_mcp_request_sends_servers_toolsets_beta_and_longer_timeout() -> N
             "authorization_token": "tok",
         }
     ]
-    assert "output_config" in kwargs["extra_body"]  # still a structured reply
+    assert "output_config" in kwargs  # still a structured reply
+    assert "extra_body" not in kwargs
     assert options == [{"timeout": 120.0}]
 
 

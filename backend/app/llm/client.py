@@ -52,29 +52,25 @@ class LLMClient:
         chosen = model or self.default_model
         servers = list(mcp_servers or [])
         validate_servers(servers)  # caller bug, not an LLM failure — let ValueError surface
-        body: dict[str, Any] = {
-            "output_config": {"format": {"type": "json_schema", "schema": output_schema(schema)}}
-        }
         request: dict[str, Any] = {
             "model": chosen,
             "max_tokens": max_tokens,
             "system": system,
             "messages": [{"role": "user", "content": prompt}],
+            "output_config": {"format": {"type": "json_schema", "schema": output_schema(schema)}},
         }
         try:
             if servers:
-                body["mcp_servers"] = [s.to_server_param() for s in servers]
                 message = await self._client.with_options(
                     timeout=_MCP_TIMEOUT_SECONDS
                 ).beta.messages.create(
                     **request,
                     betas=[MCP_BETA],
+                    mcp_servers=[s.to_server_param() for s in servers],
                     tools=[s.to_toolset_param() for s in servers],
-                    # Pinned SDK predates these typed parameters, so send them as raw body
-                    extra_body=body,
                 )
             else:
-                message = await self._client.messages.create(**request, extra_body=body)
+                message = await self._client.messages.create(**request)
         except anthropic.APIStatusError as exc:
             raise LLMError(f"{chosen} returned HTTP {exc.status_code}: {exc.message}") from exc
         except anthropic.APIConnectionError as exc:
