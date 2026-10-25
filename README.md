@@ -21,11 +21,7 @@ authenticated REST API and shown on a Next.js dashboard.
 - [Tech stack](#tech-stack)
 - [Architecture](#architecture)
 - [Getting started](#getting-started)
-- [Configuration](#configuration)
 - [Operations](#operations)
-- [API](#api)
-- [Security](#security)
-- [Quality: tests & CI](#quality-tests--ci)
 - [Project structure](#project-structure)
 - [Roadmap](#roadmap)
 
@@ -122,11 +118,6 @@ execution order are derived from the registry's dependency graph.
 | UI | Tailwind CSS (dark theme) · shadcn/ui primitives (Radix) |
 | API contract | Types generated from the backend's OpenAPI with `openapi-typescript`, checked against the Zod schemas at compile time |
 
-### Quality & delivery
-pytest (+ pytest-asyncio, coverage gate 80%) · Jest + React Testing Library ·
-Playwright · ruff · black · ESLint · bandit · pip-audit · npm audit ·
-**GitHub Actions** CI · Docker Compose (PostgreSQL)
-
 ---
 
 ## Architecture
@@ -157,8 +148,7 @@ Design principles:
 
 - **Agents only describe *what* to analyse.** The cross-cutting rules
   (idempotency, logging, persistence, error handling) live once in `AgentRunner`.
-- **`domain/` is pure.** No I/O, no LLM, no database, so the financial logic is
-  fully unit-tested (≈98% branch coverage).
+- **`domain/` is pure.** No I/O, no LLM and no database, just the financial logic.
 - **One composition root.** `app/container.py` wires every dependency, and tests
   swap in fakes.
 - **Every external call goes through `providers/`**, with exponential-backoff
@@ -169,8 +159,21 @@ Design principles:
 
 ## Getting started
 
-### Prerequisites
-Python 3.13, Node.js 22, Docker (for PostgreSQL). Optional API keys: Anthropic, FMP.
+### Option 1 — Docker (whole stack)
+
+```bash
+git clone https://github.com/amirge118/agentsForStocks.git
+cd agentsForStocks
+cp .env.example .env    # set API_KEYS, BACKEND_API_KEY, DASHBOARD_PASSWORD (+ Anthropic / FMP keys)
+docker compose up --build
+```
+
+This starts PostgreSQL, runs the migrations, and brings up the API
+(`localhost:8000`), the scheduler worker and the dashboard (`localhost:3000`).
+
+### Option 2 — Local development
+
+Python 3.13, Node.js 22 and Docker (for PostgreSQL).
 
 ```bash
 git clone https://github.com/amirge118/agentsForStocks.git
@@ -204,93 +207,15 @@ python -m scripts.run_pipeline AAPL --agents technicals valuation --force
 
 ---
 
-## Configuration
-
-All settings are environment variables. See [`.env.example`](.env.example) and
-[`frontend/.env.example`](frontend/.env.example).
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `ENVIRONMENT` | `development` | `production` refuses to start without `API_KEYS` |
-| `API_KEYS` | — | Comma-separated API keys (≥ 32 chars each) accepted in `X-API-Key` |
-| `DATABASE_URL` | local Postgres | SQLAlchemy async URL |
-| `ANTHROPIC_API_KEY` | — | Claude access |
-| `LLM_DEFAULT_MODEL` / `LLM_REASONING_MODEL` | `claude-haiku-4-5` / `claude-sonnet-4-6` | Agent judgements / final recommendation |
-| `FMP_API_KEY` · `FMP_DAILY_CALL_LIMIT` | — · `250` | Financial Modeling Prep |
-| `EDGAR_USER_AGENT` | project contact string | Required by the SEC |
-| `WATCHLIST` | `AAPL,MSFT,NVDA,…` | Symbols the daily pipeline analyses |
-| `MAX_CONCURRENT_SYMBOLS` / `MAX_CONCURRENT_AGENTS` | `2` / `4` | Pipeline concurrency limits |
-| `RUN_SCHEDULER` | `true` | Run the scheduler inside the API process (set `false` in production) |
-| `LOG_FORMAT` / `LOG_LEVEL` | `text` / `INFO` | `json` for one log object per line |
-| `OPENVIKING_ENABLED` | `true` | Optional knowledge layer (`requirements-knowledge.txt`) |
-| **Frontend:** `BACKEND_URL`, `BACKEND_API_KEY` | | Server-side only, never sent to the browser |
-| **Frontend:** `DASHBOARD_USER`, `DASHBOARD_PASSWORD` | `admin` / — | Dashboard login (required under `next start`) |
-
----
-
 ## Operations
 
 | Task | Command (from `backend/`) |
 |---|---|
 | Check readiness (DB, Claude, FMP, Yahoo, SEC) | `python -m scripts.preflight` |
 | Run the pipeline now | `python -m scripts.run_pipeline AAPL [--agents …] [--force]` |
-| Production scheduler | API with `RUN_SCHEDULER=false` + **one** `python -m app.worker` |
+| Production scheduler | API with `RUN_SCHEDULER=false` + **one** `python -m app.worker` (the `worker` service in Docker Compose) |
 | Migrations | `alembic upgrade head` |
 | Export the API contract for the frontend | `python -m scripts.export_openapi`, then `npm run generate:api` in `frontend/` |
-
-Health: `GET /health` returns 200 when the database answers and the scheduler
-(if this process runs one) is running, and 503 otherwise.
-
----
-
-## API
-
-All routes under `/api/v1` require the `X-API-Key` header. Interactive docs are
-served at `/docs`.
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/v1/agents` | Agents in execution order, with dependencies and weights |
-| `GET` | `/api/v1/symbols` | Watchlist with each symbol's latest recommendation |
-| `GET` | `/api/v1/symbols/{symbol}/recommendation` | Latest recommendation (breakdown, compliance, disclaimer) |
-| `GET` | `/api/v1/symbols/{symbol}/results` | Stored agent results, filterable by `agent` and `run_date` |
-| `GET` | `/api/v1/runs` | Execution audit trail, filterable by symbol, date, status, pipeline run |
-| `POST` | `/api/v1/pipeline/runs` | Start a run in the background → `202` (`409` while one is active) |
-| `GET` | `/health` | Public liveness / dependency check |
-
----
-
-## Security
-
-- **API keys** are compared in constant time. The API fails closed in production.
-- **The browser never sees the backend key.** The dashboard calls a same-origin
-  Next.js proxy that attaches it from server-only environment variables.
-- **CSRF protection.** The proxy forwards writes only when they come from the
-  same origin and carry a JSON body.
-- **Dashboard login** uses HTTP Basic auth, and is required in production.
-- **Secret-safe logging.** Sensitive fields and `apikey=`-style URL parameters
-  are redacted from every log line.
-- **Supply chain.** `pip-audit` and `npm audit` run in CI, and `bandit` scans the backend.
-- **Input validation.** Ticker symbols are validated at every boundary, and API
-  responses are validated with Zod in the frontend.
-
----
-
-## Quality: tests & CI
-
-| Suite | Count | Notes |
-|---|---|---|
-| Backend unit + integration | 257 (+3 PostgreSQL) | ≈98% coverage; gate at 80%; deprecations are errors |
-| Frontend Jest + RTL | 49 | Loading, error and success states; proxy and auth |
-| Playwright E2E | 4 | Production build with dashboard auth enabled |
-
-[GitHub Actions](.github/workflows/ci.yml) runs on every push to `main` and on
-every pull request:
-
-- **backend:** ruff, black, bandit, pip-audit, pytest on SQLite and a
-  PostgreSQL 16 service, plus `alembic upgrade / check / downgrade`.
-- **frontend:** `npm ci`, generated-types freshness, type-check (Zod ↔ OpenAPI),
-  ESLint, npm audit, Jest with coverage, and Playwright.
 
 ---
 
@@ -336,4 +261,4 @@ Tracked in [`FUTURE_IMPROVEMENTS.md`](FUTURE_IMPROVEMENTS.md). Highlights:
   existing position-sizing logic.
 - Licensed data sources (Daloopa, S&P Global, Morningstar) through the MCP connector.
 - Richer dashboard: per-agent panels, score and price history charts.
-- Deployment: Dockerfile, release workflow, Dependabot.
+- Deployment: publish images and add a release workflow.
