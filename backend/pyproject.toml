@@ -31,3 +31,6 @@ ignore = ["B008"]  # FastAPI's Depends() in argument defaults is idiomatic
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
+# The local alembic/ migrations folder would otherwise make newer ruff treat
+# the alembic package as first-party
+known-third-party = ["alembic"]
