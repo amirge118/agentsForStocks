@@ -78,6 +78,7 @@ Use `get`/`post`/`put`/`del` from `@/lib/api/client.ts`. Never call `fetch()` di
 | Pure financial logic | `backend/app/domain/` |
 | External data clients (rate limit, retry, cache) | `backend/app/providers/` |
 | Claude client + system prompts | `backend/app/llm/client.py`, `backend/app/llm/prompts/*.md` |
+| Remote MCP data sources (FactSet, S&P, ...) | `backend/app/llm/mcp.py` → `Agent.judge(mcp_servers=...)` |
 | DB access | `backend/app/repositories/` |
 | Dependency wiring | `backend/app/container.py` |
 | Migrations | `backend/alembic/` (`alembic upgrade head`) |

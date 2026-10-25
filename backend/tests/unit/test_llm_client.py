@@ -7,6 +7,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from app.llm.client import LLMClient, LLMError
+from app.llm.mcp import MCP_BETA, McpServer
 from app.llm.prompt_loader import load_prompt
 from app.llm.schema import output_schema
 from app.schemas.signals import LLMSignal
@@ -25,6 +26,29 @@ def _client(reply: object) -> tuple[LLMClient, AsyncMock]:
     else:
         sdk.messages.create.return_value = reply
     return LLMClient(sdk, default_model="claude-haiku-4-5"), sdk.messages.create
+
+
+def _mcp_client(content: list) -> tuple[LLMClient, AsyncMock, list]:
+    """SDK fake exposing with_options(...).beta.messages.create, recording the options."""
+    beta_create = AsyncMock(return_value=SimpleNamespace(stop_reason="end_turn", content=content))
+    plain_create = AsyncMock()
+    options: list[dict] = []
+
+    def with_options(**kwargs):
+        options.append(kwargs)
+        return SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(create=beta_create)))
+
+    sdk = SimpleNamespace(messages=SimpleNamespace(create=plain_create), with_options=with_options)
+    return LLMClient(sdk, default_model="m"), beta_create, options
+
+
+FACTSET = McpServer(
+    name="factset", url="https://mcp.factset.com/content/v1", authorization_token="tok"
+)
+
+
+def _text(text: str) -> SimpleNamespace:
+    return SimpleNamespace(type="text", text=text)
 
 
 @pytest.mark.unit
@@ -110,3 +134,70 @@ def test_load_prompt_reads_markdown_file(tmp_path, monkeypatch) -> None:
     load_prompt.cache_clear()
     assert load_prompt("demo") == "You are a demo."
     load_prompt.cache_clear()
+
+
+@pytest.mark.unit
+async def test_mcp_request_sends_servers_toolsets_beta_and_longer_timeout() -> None:
+    llm, create, options = _mcp_client(
+        [_text('{"signal":"neutral","confidence":50,"reasoning":"x"}')]
+    )
+
+    await llm.generate(system="s", prompt="p", schema=LLMSignal, mcp_servers=[FACTSET])
+
+    kwargs = create.await_args.kwargs
+    assert kwargs["betas"] == [MCP_BETA]
+    assert kwargs["tools"] == [{"type": "mcp_toolset", "mcp_server_name": "factset"}]
+    assert kwargs["extra_body"]["mcp_servers"] == [
+        {
+            "type": "url",
+            "url": "https://mcp.factset.com/content/v1",
+            "name": "factset",
+            "authorization_token": "tok",
+        }
+    ]
+    assert "output_config" in kwargs["extra_body"]  # still a structured reply
+    assert options == [{"timeout": 120.0}]
+
+
+@pytest.mark.unit
+async def test_mcp_reply_is_the_final_text_after_tool_blocks() -> None:
+    llm, _, _ = _mcp_client(
+        [
+            _text("Let me look up the fundamentals."),
+            SimpleNamespace(type="mcp_tool_use", name="get_fundamentals", server_name="factset"),
+            SimpleNamespace(type="mcp_tool_result", content=[]),
+            _text('{"signal":"bearish","confidence":70,"reasoning":"margins fell"}'),
+        ]
+    )
+    result = await llm.generate(system="s", prompt="p", schema=LLMSignal, mcp_servers=[FACTSET])
+    assert result == LLMSignal(signal="bearish", confidence=70, reasoning="margins fell")
+
+
+@pytest.mark.unit
+async def test_invalid_mcp_servers_are_rejected_before_calling_claude() -> None:
+    llm, create, _ = _mcp_client([])
+    with pytest.raises(ValueError, match="Duplicate"):
+        await llm.generate(system="s", prompt="p", schema=LLMSignal, mcp_servers=[FACTSET, FACTSET])
+    insecure = McpServer(name="x", url="http://insecure")
+    with pytest.raises(ValueError, match="https"):
+        await llm.generate(system="s", prompt="p", schema=LLMSignal, mcp_servers=[insecure])
+    create.assert_not_awaited()
+
+
+@pytest.mark.unit
+def test_server_param_and_toolset_allowlist() -> None:
+    kensho = McpServer(name="sp", url="https://kfinance.kensho.com/integrations/mcp")
+    assert kensho.to_server_param() == {
+        "type": "url",
+        "url": "https://kfinance.kensho.com/integrations/mcp",
+        "name": "sp",
+    }
+    morningstar = McpServer(
+        name="ms", url="https://mcp.morningstar.com/mcp", allowed_tools=("fair_value",)
+    )
+    assert morningstar.to_toolset_param() == {
+        "type": "mcp_toolset",
+        "mcp_server_name": "ms",
+        "default_config": {"enabled": False},
+        "configs": {"fair_value": {"enabled": True}},
+    }

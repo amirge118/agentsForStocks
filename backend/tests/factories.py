@@ -236,8 +236,17 @@ class FakeLLM:
         schema: type[BaseModel],
         model: str | None = None,
         max_tokens: int = 1024,
+        mcp_servers: Any = None,
     ) -> BaseModel:
-        self.calls.append({"system": system, "prompt": prompt, "schema": schema, "model": model})
+        self.calls.append(
+            {
+                "system": system,
+                "prompt": prompt,
+                "schema": schema,
+                "model": model,
+                "mcp_servers": mcp_servers,
+            }
+        )
         if self.fail:
             raise LLMError("fake outage")
         fields = dict(self.reply)

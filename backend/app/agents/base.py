@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.domain.signals import SignalLabel
 from app.knowledge.store import Learning
 from app.llm.client import LLMClient, LLMError
+from app.llm.mcp import McpServer
 from app.llm.prompt_loader import load_prompt
 from app.providers.edgar import EdgarClient
 from app.providers.fmp import FmpClient
@@ -93,6 +94,7 @@ class Agent(ABC, Generic[DataT, ResultT]):
         fallback: LLMSignal,
         prompt_name: str | None = None,
         model: str | None = None,
+        mcp_servers: list[McpServer] | None = None,
     ) -> LLMSignal:
         """
         Ask Claude for the final signal using the agent's system prompt
@@ -105,6 +107,7 @@ class Agent(ABC, Generic[DataT, ResultT]):
                 prompt=prompt,
                 schema=LLMSignal,
                 model=model,
+                mcp_servers=mcp_servers,
             )
         except LLMError as exc:
             logger.warning(

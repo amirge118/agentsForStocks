@@ -54,3 +54,11 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 ## LLM
 - [ ] Upgrade the `anthropic` SDK pin (0.40) so structured outputs use the typed `output_config` parameter instead of `extra_body` [PRIORITY: MED]
 - [ ] Evaluate newer models (claude-haiku-5-5 / claude-sonnet-5-5) for agent judgements via LLM_DEFAULT_MODEL / LLM_REASONING_MODEL — needs an eval set first [PRIORITY: MED]
+
+## MCP Data Sources (Claude for Financial Advisors plugin)
+- [x] MCP connector support in LLMClient / Agent.judge(mcp_servers=...) (app/llm/mcp.py)
+- [ ] Wire `mcp_servers` into FundamentalsAgent with one licensed provider (Daloopa or S&P Global/Kensho); token via settings/env [PRIORITY: HIGH]
+- [ ] Persist the MCP tool calls Claude made (server, tool, input) on the agent result so runs stay auditable and reproducible [PRIORITY: HIGH]
+- [ ] Per-provider rate limiting / call budget for MCP tools (Claude decides when to call them, bypassing app/providers) [PRIORITY: MED]
+- [ ] Use Morningstar MCP (fair value, moat rating) as a cross-check in MoatAgent / ValuationAgent [PRIORITY: MED]
+- [ ] Compliance pass on RecommendationAgent output (promissory language, required disclaimer) adapted from the plugin's compliance skill [PRIORITY: MED]

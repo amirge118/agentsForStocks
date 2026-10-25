@@ -8,11 +8,13 @@ Failures raise LLMError; the agent runner decides how to degrade.
 """
 
 import logging
-from typing import TypeVar
+from collections.abc import Sequence
+from typing import Any, TypeVar
 
 import anthropic
 from pydantic import BaseModel, ValidationError
 
+from app.llm.mcp import MCP_BETA, McpServer, validate_servers
 from app.llm.schema import output_schema
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,10 @@ T = TypeVar("T", bound=BaseModel)
 
 class LLMError(Exception):
     """Claude could not produce a valid structured reply."""
+
+
+# Remote MCP tool calls make a request far slower than a plain completion
+_MCP_TIMEOUT_SECONDS = 120.0
 
 
 class LLMClient:
@@ -37,21 +43,38 @@ class LLMClient:
         schema: type[T],
         model: str | None = None,
         max_tokens: int = 1024,
+        mcp_servers: Sequence[McpServer] | None = None,
     ) -> T:
+        """
+        One structured completion. With mcp_servers, Claude may first call those
+        servers' tools; the answer is the final text block of the response.
+        """
         chosen = model or self.default_model
+        servers = list(mcp_servers or [])
+        validate_servers(servers)  # caller bug, not an LLM failure — let ValueError surface
+        body: dict[str, Any] = {
+            "output_config": {"format": {"type": "json_schema", "schema": output_schema(schema)}}
+        }
+        request: dict[str, Any] = {
+            "model": chosen,
+            "max_tokens": max_tokens,
+            "system": system,
+            "messages": [{"role": "user", "content": prompt}],
+        }
         try:
-            message = await self._client.messages.create(
-                model=chosen,
-                max_tokens=max_tokens,
-                system=system,
-                messages=[{"role": "user", "content": prompt}],
-                # Pinned SDK predates the typed parameter, so send it as raw body
-                extra_body={
-                    "output_config": {
-                        "format": {"type": "json_schema", "schema": output_schema(schema)}
-                    }
-                },
-            )
+            if servers:
+                body["mcp_servers"] = [s.to_server_param() for s in servers]
+                message = await self._client.with_options(
+                    timeout=_MCP_TIMEOUT_SECONDS
+                ).beta.messages.create(
+                    **request,
+                    betas=[MCP_BETA],
+                    tools=[s.to_toolset_param() for s in servers],
+                    # Pinned SDK predates these typed parameters, so send them as raw body
+                    extra_body=body,
+                )
+            else:
+                message = await self._client.messages.create(**request, extra_body=body)
         except anthropic.APIStatusError as exc:
             raise LLMError(f"{chosen} returned HTTP {exc.status_code}: {exc.message}") from exc
         except anthropic.APIConnectionError as exc:
@@ -60,7 +83,9 @@ class LLMClient:
         if message.stop_reason in ("refusal", "max_tokens"):
             raise LLMError(f"{chosen} stopped with {message.stop_reason}")
 
-        text = next((block.text for block in message.content if block.type == "text"), "")
+        # With MCP tools the content interleaves text and mcp_tool_use/result blocks
+        texts = [block.text for block in message.content if block.type == "text"]
+        text = texts[-1] if texts else ""
         try:
             return schema.model_validate_json(text)
         except ValidationError as exc:

@@ -226,3 +226,14 @@ async def test_recommendation_fallback_uses_rule_based_score() -> None:
         results=FakeResults(_analyst_results("bearish")),
     )
     assert result.action == "SELL"
+
+
+@pytest.mark.unit
+async def test_judge_passes_mcp_servers_to_the_llm() -> None:
+    from app.llm.mcp import McpServer
+
+    llm = FakeLLM()
+    agent = MoatAgent(make_context(llm=llm))
+    server = McpServer(name="daloopa", url="https://mcp.daloopa.com/mcp")
+    await agent.judge("prompt", fallback=None, mcp_servers=[server])
+    assert llm.calls[0]["mcp_servers"] == [server]
