@@ -2,14 +2,13 @@
  * The only place the frontend performs HTTP. Components and hooks call the
  * per-domain repositories, which call get/post/put/del here. Every response is
  * validated with a Zod schema before it reaches the UI.
+ *
+ * Requests go to the same-origin proxy (src/app/api/backend), which adds the
+ * backend API key server-side — the browser never sees it.
  */
-import { z } from "zod"
+import type { z } from "zod"
 
-const EnvSchema = z.object({
-  NEXT_PUBLIC_API_URL: z.string().url().default("http://localhost:8000"),
-})
-
-const env = EnvSchema.parse({ NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL })
+const API_BASE = "/api/backend"
 
 export class ApiError extends Error {
   constructor(
@@ -25,11 +24,12 @@ export class ApiError extends Error {
 type Query = Readonly<Record<string, string | number | boolean | undefined | null>>
 
 function buildUrl(path: string, query?: Query): string {
-  const url = new URL(`/api/v1${path}`, env.NEXT_PUBLIC_API_URL)
+  const params = new URLSearchParams()
   for (const [key, value] of Object.entries(query ?? {})) {
-    if (value !== undefined && value !== null) url.searchParams.set(key, String(value))
+    if (value !== undefined && value !== null) params.set(key, String(value))
   }
-  return url.toString()
+  const search = params.toString()
+  return `${API_BASE}${path}${search ? `?${search}` : ""}`
 }
 
 async function request<T>(

@@ -61,6 +61,11 @@ Use `isPending` for loading skeletons (NOT `isLoading` — that's v4). Get query
 ### 7. No Direct `fetch` in Components
 Use `get`/`post`/`put`/`del` from `@/lib/api/client.ts`. Never call `fetch()` directly from components or hooks.
 
+### 10. Authentication
+- Backend: every `/api/v1` route requires `X-API-Key` (keys in `API_KEYS`, checked in `app/api/auth.py`; `/health` is public). `ENVIRONMENT=production` refuses to start without keys. New routers go under `api_router`, so they inherit the check.
+- Frontend: the browser never sees the key. It calls the same-origin proxy `src/app/api/backend/[...path]/route.ts`, which adds `BACKEND_API_KEY` from server-only env (`src/lib/server/env.ts`, `import "server-only"`). The dashboard itself is protected by Basic auth in `src/middleware.ts` (`DASHBOARD_PASSWORD`; required under `next start`).
+- The proxy only forwards writes that are same-origin and `application/json` (CSRF protection — Basic-auth credentials are sent by the browser automatically).
+
 ### 9. API Contract Workflow
 After changing a backend schema or route: `cd backend && python -m scripts.export_openapi`, then `cd frontend && npm run generate:api`. `tests/integration/test_openapi_contract.py` fails while `frontend/openapi.json` is stale, and `npm run typecheck` fails while a Zod schema in `src/types/api.ts` no longer matches the generated types.
 

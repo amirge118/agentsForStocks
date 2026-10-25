@@ -45,8 +45,11 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 
 ## API & Frontend
 - [x] REST endpoints under /api/v1: agents, symbols overview, latest recommendation, agent results, agent_runs, manual pipeline trigger (202, background)
-- [ ] Authentication on /api/v1 — POST /pipeline/runs is currently open and can spend FMP/LLM budget [PRIORITY: HIGH]
-- [ ] Rate-limit or de-duplicate manual pipeline triggers (one active run per symbol) [PRIORITY: MED]
+- [x] Authentication on /api/v1 (X-API-Key, fail-closed in production) + dashboard Basic auth + server-side key proxy with CSRF checks
+- [ ] Replace dashboard Basic auth with real login (OIDC / NextAuth) once there is more than one user [PRIORITY: MED]
+- [ ] Scoped API keys (read-only vs. can trigger runs) and per-key rate limiting [PRIORITY: LOW]
+- [x] One manual pipeline run at a time (409 while a run is active)
+- [ ] Persist the 'run active' lock in the DB so it also holds across several backend workers [PRIORITY: LOW]
 - [ ] Cursor pagination for /runs and /symbols/{symbol}/results instead of limit-only [PRIORITY: LOW]
 - [ ] Manage the watchlist through the API (DB table) instead of the WATCHLIST env var [PRIORITY: MED]
 - [x] Next.js frontend: watchlist, symbol detail, run history; types generated from OpenAPI + Zod validated and checked against them

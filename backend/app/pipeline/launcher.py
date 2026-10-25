@@ -22,6 +22,10 @@ from app.pipeline.orchestrator import PipelineOrchestrator
 logger = logging.getLogger(__name__)
 
 
+class PipelineBusyError(Exception):
+    """A manually launched run is still in progress."""
+
+
 @dataclass(frozen=True)
 class LaunchedRun:
     pipeline_run_id: str
@@ -44,7 +48,13 @@ class PipelineLauncher:
         *,
         force: bool = False,
     ) -> LaunchedRun:
-        """Validate synchronously (ValueError / KeyError), then start the run in the background."""
+        """
+        Validate synchronously (ValueError / KeyError), then start the run in the
+        background. Only one manual run at a time (PipelineBusyError) so repeated
+        clicks cannot multiply FMP / LLM spend.
+        """
+        if self._tasks:
+            raise PipelineBusyError("A pipeline run is already in progress")
         tickers = list(dict.fromkeys(validate_symbol(s) for s in symbols))
         if not tickers:
             raise ValueError("At least one symbol is required")

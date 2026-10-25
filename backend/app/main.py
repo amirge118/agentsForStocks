@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     container = build_container(settings, AsyncSessionLocal)
+    if not settings.auth_enabled:
+        logger.warning("API authentication is DISABLED (no API_KEYS) — development only")
     scheduler = create_scheduler(container.orchestrator, settings.watchlist_symbols)
     app.state.container = container
     app.state.scheduler = scheduler

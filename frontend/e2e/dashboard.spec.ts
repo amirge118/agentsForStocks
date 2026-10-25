@@ -2,13 +2,12 @@ import { expect, test, type Page, type Route } from "@playwright/test"
 
 import { overview, recommendation, runs } from "../src/test/fixtures"
 
-const API = "http://localhost:8000/api/v1"
+const API = "**/api/backend"
 
 async function json(route: Route, body: unknown, status = 200): Promise<void> {
   await route.fulfill({
     status,
     contentType: "application/json",
-    headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*" },
     body: JSON.stringify(body),
   })
 }
@@ -22,7 +21,6 @@ async function mockApi(page: Page): Promise<string[]> {
   )
   await page.route(`${API}/runs**`, (route) => json(route, runs))
   await page.route(`${API}/pipeline/runs`, async (route) => {
-    if (route.request().method() === "OPTIONS") return json(route, {})
     posted.push(route.request().postData() ?? "")
     return json(
       route,
@@ -64,4 +62,14 @@ test("starting an analysis confirms with a toast", async ({ page }) => {
   const notifications = page.getByRole("region", { name: /notifications/i })
   await expect(notifications.getByText("Pipeline started")).toBeVisible()
   expect(JSON.parse(posted[0] ?? "{}")).toEqual({ symbols: null, agents: null, force: false })
+})
+
+test("dashboard requires the password", async ({ browser, baseURL }) => {
+  const anonymous = await browser.newContext({ httpCredentials: undefined })
+  const resp = await anonymous.request.get(`${baseURL}/`)
+  expect(resp.status()).toBe(401)
+  expect(resp.headers()["www-authenticate"]).toContain("Basic")
+  const proxied = await anonymous.request.get(`${baseURL}/api/backend/symbols`)
+  expect(proxied.status()).toBe(401)  // the backend proxy is protected too
+  await anonymous.close()
 })

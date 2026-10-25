@@ -386,6 +386,13 @@ export interface operations {
                     "application/json": components["schemas"]["PipelineRunAccepted"];
                 };
             };
+            /** @description A pipeline run is already in progress */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {

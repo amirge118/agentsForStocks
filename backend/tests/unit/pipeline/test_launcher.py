@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.agents.registry import AgentRegistry
-from app.pipeline.launcher import PipelineLauncher
+from app.pipeline.launcher import PipelineBusyError, PipelineLauncher
 
 
 def _registry() -> AgentRegistry:
@@ -63,3 +63,22 @@ async def test_crashed_run_is_logged_and_aclose_cancels(caplog) -> None:
     with caplog.at_level(logging.ERROR):
         await launcher.aclose()
     assert launcher.active == 0
+
+
+@pytest.mark.unit
+async def test_only_one_manual_run_at_a_time() -> None:
+    gate = asyncio.Event()
+    orchestrator = AsyncMock()
+
+    async def slow(*args, **kwargs) -> None:
+        await gate.wait()
+
+    orchestrator.run.side_effect = slow
+    launcher = PipelineLauncher(orchestrator, _registry())
+    launcher.launch(["AAPL"])
+    with pytest.raises(PipelineBusyError):
+        launcher.launch(["MSFT"])
+    gate.set()
+    await asyncio.sleep(0.01)
+    launcher.launch(["MSFT"])  # allowed again once the first finished
+    await launcher.aclose()

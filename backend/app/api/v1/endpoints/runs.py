@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_container, get_session
 from app.container import Container
 from app.core.symbols import validate_symbol
+from app.pipeline.launcher import PipelineBusyError
 from app.repositories.agent_runs import AgentRunRepository
 from app.schemas.api import AgentRunOut, PipelineRunAccepted, PipelineRunRequest
 
@@ -46,7 +47,10 @@ async def list_runs(
 
 
 @router.post(
-    "/pipeline/runs", response_model=PipelineRunAccepted, status_code=status.HTTP_202_ACCEPTED
+    "/pipeline/runs",
+    response_model=PipelineRunAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={409: {"description": "A pipeline run is already in progress"}},
 )
 async def start_pipeline_run(
     body: PipelineRunRequest,
@@ -55,6 +59,8 @@ async def start_pipeline_run(
     symbols = body.symbols or container.settings.watchlist_symbols
     try:
         run = container.launcher.launch(symbols, body.agents, force=body.force)
+    except PipelineBusyError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except (ValueError, KeyError) as exc:
         detail = exc.args[0] if exc.args else str(exc)
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(detail)) from exc

@@ -3,11 +3,24 @@ Application settings loaded from environment variables.
 All values have defaults so the app starts without a .env file (useful in CI).
 """
 
+from typing import Literal
+
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+MIN_API_KEY_LENGTH = 32
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    # "production" refuses to start without API keys (fail closed)
+    environment: Literal["development", "test", "production"] = "development"
+
+    # API authentication: comma-separated keys accepted in the X-API-Key header.
+    # Empty = auth disabled, which is only allowed outside production.
+    # Generate one with: python -c "import secrets; print(secrets.token_urlsafe(32))"
+    api_keys: str = ""
 
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/agentsforstocks"
@@ -42,6 +55,23 @@ class Settings(BaseSettings):
     @property
     def watchlist_symbols(self) -> list[str]:
         return [s.strip().upper() for s in self.watchlist.split(",") if s.strip()]
+
+    @property
+    def api_key_list(self) -> list[str]:
+        return [k.strip() for k in self.api_keys.split(",") if k.strip()]
+
+    @property
+    def auth_enabled(self) -> bool:
+        return bool(self.api_key_list)
+
+    @model_validator(mode="after")
+    def _check_api_keys(self) -> "Settings":
+        if self.environment == "production" and not self.api_key_list:
+            raise ValueError("API_KEYS must be set when ENVIRONMENT=production")
+        weak = [k for k in self.api_key_list if len(k) < MIN_API_KEY_LENGTH]
+        if weak:
+            raise ValueError(f"API keys must be at least {MIN_API_KEY_LENGTH} characters")
+        return self
 
 
 settings = Settings()

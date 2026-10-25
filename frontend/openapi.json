@@ -503,6 +503,14 @@
         "title": "ValidationError",
         "type": "object"
       }
+    },
+    "securitySchemes": {
+      "APIKeyHeader": {
+        "description": "API key from the API_KEYS setting",
+        "in": "header",
+        "name": "X-API-Key",
+        "type": "apiKey"
+      }
     }
   },
   "info": {
@@ -530,6 +538,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "List Agents",
         "tags": [
           "agents"
@@ -560,6 +573,9 @@
             },
             "description": "Successful Response"
           },
+          "409": {
+            "description": "A pipeline run is already in progress"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -571,6 +587,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Start Pipeline Run",
         "tags": [
           "pipeline"
@@ -690,6 +711,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "List Runs",
         "tags": [
           "pipeline"
@@ -715,6 +741,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "List Symbols",
         "tags": [
           "symbols"
@@ -759,6 +790,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Get Recommendation",
         "tags": [
           "symbols"
@@ -856,6 +892,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "List Results",
         "tags": [
           "symbols"

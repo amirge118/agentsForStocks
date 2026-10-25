@@ -19,7 +19,7 @@ describe("api client", () => {
     const fetchMock = mockFetch(200, { ok: true })
     const result = await get("/things", z.object({ ok: z.boolean() }), { a: 1, b: undefined, c: null })
     expect(result).toEqual({ ok: true })
-    expect(fetchMock).toHaveBeenCalledWith("http://localhost:8000/api/v1/things?a=1", {
+    expect(fetchMock).toHaveBeenCalledWith("/api/backend/things?a=1", {
       method: "GET",
       headers: undefined,
       body: undefined,
@@ -77,13 +77,13 @@ describe("repositories", () => {
     const resultsMock = mockFetch(200, [])
     await symbolRepository.getResults("AAPL", { agent: "moat", runDate: "2026-10-23" })
     expect(resultsMock.mock.calls[0][0]).toBe(
-      "http://localhost:8000/api/v1/symbols/AAPL/results?agent=moat&run_date=2026-10-23",
+      "/api/backend/symbols/AAPL/results?agent=moat&run_date=2026-10-23",
     )
 
     const runsMock = mockFetch(200, [])
     await runRepository.getAll({ symbol: "AAPL", status: "failed", pipelineRunId: "p", limit: 5 })
     expect(runsMock.mock.calls[0][0]).toBe(
-      "http://localhost:8000/api/v1/runs?symbol=AAPL&status=failed&pipeline_run_id=p&limit=5",
+      "/api/backend/runs?symbol=AAPL&status=failed&pipeline_run_id=p&limit=5",
     )
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
@@ -94,14 +94,14 @@ describe("agent repository", () => {
     const agents = [{ name: "moat", description: "d", depends_on: [], recommendation_weight: 15 }]
     const fetchMock = mockFetch(200, agents)
     await expect(agentRepository.getAll()).resolves.toEqual(agents)
-    expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:8000/api/v1/agents")
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/backend/agents")
   })
 
   it("posts pipeline runs", async () => {
     const accepted = { pipeline_run_id: "p", run_date: "2026-10-23", symbols: ["AAPL"], agents: [], force: true }
     const fetchMock = mockFetch(202, accepted)
     await expect(runRepository.create({ symbols: ["AAPL"], force: true })).resolves.toEqual(accepted)
-    expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:8000/api/v1/pipeline/runs")
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/backend/pipeline/runs")
   })
 
   it("uses default filters", async () => {
@@ -109,8 +109,8 @@ describe("agent repository", () => {
     await runRepository.getAll()
     await symbolRepository.getResults("AAPL")
     expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
-      "http://localhost:8000/api/v1/runs",
-      "http://localhost:8000/api/v1/symbols/AAPL/results",
+      "/api/backend/runs",
+      "/api/backend/symbols/AAPL/results",
     ])
   })
 })
