@@ -218,6 +218,22 @@
             "title": "Agent",
             "type": "string"
           },
+          "compliance_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pass",
+                  "flag",
+                  "fail"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compliance Status"
+          },
           "confidence": {
             "title": "Confidence",
             "type": "number"

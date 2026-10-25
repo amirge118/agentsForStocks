@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 
 import { AgentErrorBoundary } from "@/components/features/agents/agent-error-boundary"
 import { AgentRunsTable } from "@/components/features/agents/agent-runs-table"
@@ -44,6 +44,34 @@ describe("RecommendationCard", () => {
     expect(screen.getByText("-6.0")).toHaveClass("text-red-400")
     expect(screen.getByText("—")).toBeInTheDocument() // missing analyst has no confidence
     expect(screen.queryByText(/Risk override/)).not.toBeInTheDocument()
+  })
+
+  it("marks analysts whose reasoning was flagged or replaced in the breakdown", async () => {
+    const status = { moat: "fail", risk: "flag" } as const
+    const marked = {
+      ...recommendation,
+      agent_breakdown: recommendation.agent_breakdown.map((c) => ({
+        ...c,
+        compliance_status: c.agent in status ? status[c.agent as keyof typeof status] : null,
+      })),
+    }
+    renderWithProviders(<RecommendationCard symbol="AAPL" />, { symbols: symbols(async () => marked) })
+
+    const table = await screen.findByRole("table", { name: "Agent breakdown" })
+    const row = (agent: string) => within(table).getByRole("row", { name: new RegExp(`^${agent}`) })
+    expect(within(row("moat")).getByLabelText("Compliance: original reasoning replaced")).toHaveTextContent(
+      "Replaced",
+    )
+    expect(within(row("risk")).getByLabelText("Compliance: flagged")).toHaveTextContent("Flagged")
+    expect(within(row("institutional")).queryByLabelText(/^Compliance:/)).not.toBeInTheDocument()
+  })
+
+  it("shows no breakdown markers when every analyst passed or predates the review", async () => {
+    renderWithProviders(<RecommendationCard symbol="AAPL" />, {
+      symbols: symbols(async () => recommendation),
+    })
+    const table = await screen.findByRole("table", { name: "Agent breakdown" })
+    expect(within(table).queryByLabelText(/^Compliance:/)).not.toBeInTheDocument()
   })
 
   it("always shows the disclaimer and hides the compliance badge when it passed", async () => {
