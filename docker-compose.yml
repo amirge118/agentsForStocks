@@ -1,4 +1,26 @@
-version: "3.9"
+# Full stack:            docker compose up --build
+# Database only (dev):   docker compose up -d db
+# With knowledge layer:  docker compose --profile knowledge up --build
+#
+# Settings come from .env (see .env.example). API_KEYS, BACKEND_API_KEY and
+# DASHBOARD_PASSWORD are required — the containers run in production mode.
+
+x-backend: &backend
+  build: ./backend
+  image: agentsforstocks-backend
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    # Fixed for the container topology, whatever .env (written for local dev) says:
+    # the scheduler runs only in `worker`, never inside `api`.
+    ENVIRONMENT: production
+    RUN_SCHEDULER: "false"
+    DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-agentsforstocks}
+    API_KEYS: ${API_KEYS:?Set API_KEYS in .env}
+    OPENVIKING_ENABLED: ${OPENVIKING_ENABLED:-false}
+    OPENVIKING_URL: http://openviking:1933
+  restart: unless-stopped
 
 services:
   db:
@@ -18,9 +40,53 @@ services:
       timeout: 5s
       retries: 5
 
+  # One-shot: applies migrations, then exits. api and worker start after it succeeds.
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Exactly one scheduler process (the API runs with RUN_SCHEDULER=false)
+  worker:
+    <<: *backend
+    command: ["python", "-m", "app.worker"]
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    build: ./frontend
+    image: agentsforstocks-frontend
+    environment:
+      BACKEND_URL: http://api:8000
+      BACKEND_API_KEY: ${BACKEND_API_KEY:?Set BACKEND_API_KEY in .env (one of API_KEYS)}
+      DASHBOARD_USER: ${DASHBOARD_USER:-admin}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?Set DASHBOARD_PASSWORD in .env}
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---- optional knowledge layer (profile "knowledge") --------------------------
   openviking:
     image: ghcr.io/volcengine/openviking:main
     container_name: openviking
+    profiles: ["knowledge"]
     ports:
       - "1933:1933"
     volumes:
@@ -39,6 +105,7 @@ services:
   openviking-mcp:
     image: ghcr.io/volcengine/openviking:main
     container_name: openviking_mcp
+    profiles: ["knowledge"]
     command: ["uv", "run", "mcp_server.py", "--port", "2033", "--transport", "http"]
     ports:
       - "2033:2033"
@@ -49,8 +116,6 @@ services:
       openviking:
         condition: service_healthy
     restart: unless-stopped
-
-  # backend and frontend added here when code is ready
 
 volumes:
   postgres_data:

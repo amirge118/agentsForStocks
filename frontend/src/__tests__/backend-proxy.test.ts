@@ -89,13 +89,34 @@ describe("backend proxy", () => {
     const json = { "content-type": "application/json" }
 
     const evil = await call("POST", "http://dash/api/backend/pipeline/runs", ["pipeline", "runs"],
-      "{}", { ...json, origin: "https://evil.example" })
+      "{}", { ...json, origin: "https://evil.example", host: "dash" })
     expect(evil.status).toBe(403)
 
     const same = await call("POST", "http://dash/api/backend/pipeline/runs", ["pipeline", "runs"],
-      "{}", { ...json, origin: "http://dash" })
+      "{}", { ...json, origin: "http://dash", host: "dash" })
     expect(same.status).toBe(202)
+
+    const garbage = await call("POST", "http://dash/api/backend/pipeline/runs", ["pipeline", "runs"],
+      "{}", { ...json, origin: "not a url", host: "dash" })
+    expect(garbage.status).toBe(403)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("accepts same-origin writes when the server binds 0.0.0.0 (Docker)", async () => {
+    // Regression: nextUrl.origin is http://0.0.0.0:3000 in the container, while the
+    // browser sends Origin/Host for the address it used (localhost:3000).
+    // a Response body can be read once — build a fresh one per call
+    global.fetch = jest.fn().mockImplementation(async () => new Response("{}", { status: 202 }))
+    const json = { "content-type": "application/json" }
+    const docker = await call("POST", "http://0.0.0.0:3000/api/backend/pipeline/runs",
+      ["pipeline", "runs"], "{}", { ...json, origin: "http://localhost:3000", host: "localhost:3000" })
+    expect(docker.status).toBe(202)
+
+    const proxied = await call("POST", "http://10.0.0.5:3000/api/backend/pipeline/runs",
+      ["pipeline", "runs"], "{}",
+      { ...json, origin: "https://stocks.example.com", host: "10.0.0.5:3000",
+        "x-forwarded-host": "stocks.example.com" })
+    expect(proxied.status).toBe(202)
   })
 
   it("refuses writes without a JSON body (form / simple-request CSRF)", async () => {
