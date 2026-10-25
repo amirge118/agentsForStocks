@@ -24,6 +24,14 @@ export const ContributionSchema = z.object({
   reasoning: z.string(),
 })
 
+export const ComplianceSchema = z.object({
+  status: z.enum(["pass", "flag", "fail"]),
+  findings: z.array(
+    z.object({ rule: z.string(), severity: z.enum(["flag", "fail"]), phrase: z.string() }),
+  ),
+  original_reasoning: z.string().nullish(),
+})
+
 export const RecommendationSchema = z.object({
   symbol: z.string().min(1).max(10),
   run_date: z.string(),
@@ -37,6 +45,8 @@ export const RecommendationSchema = z.object({
   agents_available: z.number().int(),
   agents_missing: z.array(z.string()),
   risk_override_applied: z.boolean(),
+  compliance: ComplianceSchema,
+  disclaimer: z.string(),
   agent_breakdown: z.array(ContributionSchema),
 })
 
@@ -85,6 +95,7 @@ export type Signal = z.infer<typeof SignalSchema>
 export type Action = z.infer<typeof ActionSchema>
 export type RunStatus = z.infer<typeof RunStatusSchema>
 export type Contribution = z.infer<typeof ContributionSchema>
+export type Compliance = z.infer<typeof ComplianceSchema>
 export type Recommendation = z.infer<typeof RecommendationSchema>
 export type SymbolOverview = z.infer<typeof SymbolOverviewSchema>
 export type AgentInfo = z.infer<typeof AgentInfoSchema>
@@ -101,6 +112,7 @@ type Assert<T extends true> = T
 
 export type ContractChecks = [
   Assert<Exact<Contribution, Schemas["ContributionView"]>>,
+  Assert<Exact<Compliance, Schemas["ComplianceView"]>>,
   Assert<Exact<Recommendation, Schemas["Recommendation"]>>,
   Assert<Exact<SymbolOverview, Schemas["SymbolOverview"]>>,
   Assert<Exact<AgentInfo, Schemas["AgentInfo"]>>,

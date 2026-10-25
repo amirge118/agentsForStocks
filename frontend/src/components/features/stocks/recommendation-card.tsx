@@ -10,6 +10,7 @@ import { useRecommendation } from "@/lib/hooks/queries"
 import { cn } from "@/lib/utils"
 
 import { AgentBreakdownTable } from "./agent-breakdown-table"
+import { ComplianceNotice } from "./compliance-notice"
 
 export function RecommendationCard({ symbol }: { symbol: string }) {
   const { data: rec, isPending, isError, error } = useRecommendation(symbol)
@@ -73,6 +74,7 @@ export function RecommendationCard({ symbol }: { symbol: string }) {
           <p className="text-sm text-zinc-400">Missing analysts: {rec.agents_missing.join(", ")}</p>
         )}
         <AgentBreakdownTable breakdown={rec.agent_breakdown} />
+        <ComplianceNotice compliance={rec.compliance} disclaimer={rec.disclaimer} />
       </CardContent>
     </Card>
   )

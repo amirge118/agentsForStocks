@@ -237,3 +237,44 @@ async def test_judge_passes_mcp_servers_to_the_llm() -> None:
     server = McpServer(name="daloopa", url="https://mcp.daloopa.com/mcp")
     await agent.judge("prompt", fallback=None, mcp_servers=[server])
     assert llm.calls[0]["mcp_servers"] == [server]
+
+
+def _recommend_with(reasoning: str, signal: str = "bullish"):
+    llm = FakeLLM({"signal": signal, "confidence": 75.0, "reasoning": reasoning})
+    return _run(RecommendationAgent, llm=llm, results=FakeResults(_analyst_results("bullish")))
+
+
+@pytest.mark.unit
+async def test_compliant_recommendation_reasoning_is_kept() -> None:
+    from app.domain.compliance import DISCLAIMER
+
+    text = "Strong history and valuation; main risk is slowing growth."
+    _, result = await _recommend_with(text)
+    assert result.reasoning == text
+    assert result.compliance.status == "pass"
+    assert result.compliance.findings == []
+    assert result.disclaimer == DISCLAIMER
+
+
+@pytest.mark.unit
+async def test_promissory_recommendation_reasoning_is_replaced() -> None:
+    from app.domain.compliance import review_recommendation
+
+    text = "Guaranteed gains — a risk-free buy."
+    _, result = await _recommend_with(text)
+    assert result.compliance.status == "fail"
+    assert result.compliance.original_reasoning == text
+    assert "Guaranteed" not in result.reasoning
+    assert "Guaranteed" not in result.summary
+    assert result.reasoning.startswith("Weighted analyst score +90.0")
+    assert "financial_history bullish" in result.reasoning
+    # The replacement text must itself pass review
+    assert review_recommendation(result.reasoning, "bullish").status == "pass"
+
+
+@pytest.mark.unit
+async def test_flagged_recommendation_reasoning_is_kept_with_findings() -> None:
+    _, result = await _recommend_with("Great growth and strong margins.")
+    assert result.compliance.status == "flag"
+    assert result.compliance.findings[0].rule == "missing_risk_discussion"
+    assert result.reasoning == "Great growth and strong margins."

@@ -31,6 +31,8 @@ def _recommendation(action: str, signal: str, score: float) -> dict:
         "agents_available": 8,
         "agents_missing": [],
         "risk_override_applied": False,
+        "compliance": {"status": "pass", "findings": [], "original_reasoning": None},
+        "disclaimer": "Not investment advice.",
         "agent_breakdown": [
             {
                 "agent": "moat",
@@ -113,6 +115,8 @@ async def test_symbol_recommendation_and_errors(api: httpx.AsyncClient) -> None:
     resp = await api.get("/api/v1/symbols/aapl/recommendation")
     assert resp.status_code == 200
     assert resp.json()["weighted_score"] == 42.0
+    assert resp.json()["compliance"]["status"] == "pass"
+    assert resp.json()["disclaimer"] == "Not investment advice."
     assert (await api.get("/api/v1/symbols/MSFT/recommendation")).status_code == 404
     assert (await api.get("/api/v1/symbols/BAD;SYM/recommendation")).status_code == 422
 

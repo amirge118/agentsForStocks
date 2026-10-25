@@ -3,17 +3,24 @@ RecommendationAgent — final BUY / HOLD / SELL from today's analyst results.
 
 Weights come from each agent's @register_agent(recommendation_weight=...), so the
 registry is the single source of truth. Runs after its dependencies (see registry).
+
+Compliance: the reasoning is reviewed (app/domain/compliance.py) before it is
+stored. Promissory language ("guaranteed", "risk-free") fails the review and the
+reasoning is replaced with a neutral, score-based summary; the original text is
+kept in compliance.original_reasoning for audit. Every result carries a disclaimer.
 """
 
+import logging
 from dataclasses import dataclass
 from datetime import date
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
 from app.agents.base import Agent, AnalysisResult, quant_fallback
 from app.agents.formatting import memory_block
 from app.agents.registry import register_agent, registry
+from app.domain.compliance import DISCLAIMER, review_recommendation
 from app.domain.scoring import BUY_THRESHOLD, SELL_THRESHOLD, Action, WeightedScore, to_action
 from app.domain.scoring import weighted_score as compute_weighted_score
 from app.schemas.signals import LLMSignal
@@ -32,6 +39,20 @@ INPUT_AGENTS = (
 )
 _MIN_AGENTS_FOR_CONVICTION = 4
 
+logger = logging.getLogger(__name__)
+
+
+class ComplianceFindingView(BaseModel):
+    rule: str
+    severity: Literal["flag", "fail"]
+    phrase: str
+
+
+class ComplianceView(BaseModel):
+    status: Literal["pass", "flag", "fail"]
+    findings: list[ComplianceFindingView]
+    original_reasoning: str | None = None
+
 
 class ContributionView(BaseModel):
     agent: str
@@ -49,6 +70,8 @@ class RecommendationResult(AnalysisResult):
     agents_available: int
     agents_missing: list[str]
     risk_override_applied: bool
+    compliance: ComplianceView
+    disclaimer: str
 
 
 @dataclass(frozen=True)
@@ -89,20 +112,57 @@ class RecommendationAgent(Agent[RecommendationData, RecommendationResult]):
                 model=self.ctx.reasoning_model,
             )
 
+        reasoning, compliance = _reviewed_reasoning(symbol, judgement, score)
         action = to_action(judgement.signal)
         return RecommendationResult(
             signal=judgement.signal,
             confidence=judgement.confidence,
-            reasoning=judgement.reasoning,
+            reasoning=reasoning,
             action=action,
             weighted_score=score.score,
             agent_breakdown=[ContributionView(**vars(c)) for c in score.contributions],
             agents_available=available,
             agents_missing=list(score.missing),
             risk_override_applied=score.risk_override_applied,
+            compliance=compliance,
+            disclaimer=DISCLAIMER,
             summary=f"RECOMMENDATION: {action} ({judgement.confidence:.0f}%) "
-            f"score={score.score:+.1f} — {judgement.reasoning}",
+            f"score={score.score:+.1f} — {reasoning}",
         )
+
+
+def _reviewed_reasoning(
+    symbol: str, judgement: LLMSignal, score: WeightedScore
+) -> tuple[str, ComplianceView]:
+    """Apply the compliance rules to the client-facing reasoning."""
+    review = review_recommendation(judgement.reasoning, judgement.signal)
+    findings = [ComplianceFindingView(**vars(f)) for f in review.findings]
+    log_ctx = {"symbol": symbol, "findings": [vars(f) for f in review.findings]}
+
+    if review.status == "fail":
+        logger.warning(
+            "Recommendation failed compliance review — reasoning replaced", extra=log_ctx
+        )
+        return _fallback_reasoning(score), ComplianceView(
+            status="fail", findings=findings, original_reasoning=judgement.reasoning
+        )
+    if review.status == "flag":
+        logger.info("Recommendation has compliance flags", extra=log_ctx)
+    return judgement.reasoning, ComplianceView(status=review.status, findings=findings)
+
+
+def _fallback_reasoning(score: WeightedScore) -> str:
+    """Neutral, factual reasoning built from the score — used when the LLM text fails compliance."""
+    top = sorted(
+        (c for c in score.contributions if c.signal != "missing"),
+        key=lambda c: abs(c.contribution),
+        reverse=True,
+    )[:3]
+    drivers = ", ".join(f"{c.agent} {c.signal}" for c in top) or "no analyst signals"
+    return (
+        f"Weighted analyst score {score.score:+.1f}. Main drivers: {drivers}. "
+        "Outcome is not certain; review the risks."
+    )
 
 
 def _prompt(symbol: str, s: WeightedScore, memory: list[str]) -> str:

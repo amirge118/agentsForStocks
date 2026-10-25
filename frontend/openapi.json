@@ -148,6 +148,70 @@
         "title": "AgentRunOut",
         "type": "object"
       },
+      "ComplianceFindingView": {
+        "properties": {
+          "phrase": {
+            "title": "Phrase",
+            "type": "string"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "flag",
+              "fail"
+            ],
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule",
+          "severity",
+          "phrase"
+        ],
+        "title": "ComplianceFindingView",
+        "type": "object"
+      },
+      "ComplianceView": {
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/ComplianceFindingView"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "original_reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Reasoning"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "flag",
+              "fail"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "findings"
+        ],
+        "title": "ComplianceView",
+        "type": "object"
+      },
       "ContributionView": {
         "properties": {
           "agent": {
@@ -311,9 +375,16 @@
             "title": "Agents Missing",
             "type": "array"
           },
+          "compliance": {
+            "$ref": "#/components/schemas/ComplianceView"
+          },
           "confidence": {
             "title": "Confidence",
             "type": "number"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
           },
           "reasoning": {
             "title": "Reasoning",
@@ -368,6 +439,8 @@
           "agents_available",
           "agents_missing",
           "risk_override_applied",
+          "compliance",
+          "disclaimer",
           "agent_breakdown"
         ],
         "title": "Recommendation",

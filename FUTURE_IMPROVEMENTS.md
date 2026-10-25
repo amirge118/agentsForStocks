@@ -66,4 +66,7 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Persist the MCP tool calls Claude made (server, tool, input) on the agent result so runs stay auditable and reproducible [PRIORITY: HIGH]
 - [ ] Per-provider rate limiting / call budget for MCP tools (Claude decides when to call them, bypassing app/providers) [PRIORITY: MED]
 - [ ] Use Morningstar MCP (fair value, moat rating) as a cross-check in MoatAgent / ValuationAgent [PRIORITY: MED]
-- [ ] Compliance pass on RecommendationAgent output (promissory language, required disclaimer) adapted from the plugin's compliance skill [PRIORITY: MED]
+- [x] Compliance pass on RecommendationAgent output (app/domain/compliance.py): promissory language fails and is replaced, hype / missing-risk is flagged, disclaimer on every result; shown in the frontend
+- [ ] Run the compliance review on every agent's `reasoning`, not just RecommendationAgent (all are user-visible) [PRIORITY: MED]
+- [ ] Optional LLM second-pass compliance review for subtler issues (cherry-picking, unbalanced framing) the regex rules miss [PRIORITY: LOW]
+- [ ] Endpoint / report listing recommendations that were flagged or failed compliance, for review [PRIORITY: LOW]

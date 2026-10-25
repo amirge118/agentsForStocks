@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.agents.recommendation import ContributionView, RecommendationResult
+from app.agents.recommendation import ComplianceView, ContributionView, RecommendationResult
 from app.domain.scoring import Action
 from app.domain.signals import SignalLabel
 
@@ -41,6 +41,8 @@ class Recommendation(BaseModel):
     agents_available: int
     agents_missing: list[str]
     risk_override_applied: bool
+    compliance: ComplianceView
+    disclaimer: str
     agent_breakdown: list[ContributionView]
 
     @classmethod
@@ -52,7 +54,8 @@ class Recommendation(BaseModel):
             symbol=symbol,
             run_date=run_date,
             updated_at=updated_at,
-            **result.model_dump(exclude={"agent_breakdown"}),
+            **result.model_dump(exclude={"agent_breakdown", "compliance"}),
+            compliance=result.compliance,
             agent_breakdown=result.agent_breakdown,
         )
 

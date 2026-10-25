@@ -13,6 +13,8 @@ export const recommendation: Recommendation = {
   agents_available: 7,
   agents_missing: ["institutional"],
   risk_override_applied: false,
+  compliance: { status: "pass", findings: [], original_reasoning: null },
+  disclaimer: "This is an automated analysis for informational purposes only and is not investment advice.",
   agent_breakdown: [
     { agent: "moat", signal: "bullish", confidence: 80, weight: 15, contribution: 12, reasoning: "brand" },
     { agent: "risk", signal: "bearish", confidence: 40, weight: 15, contribution: -6, reasoning: "litigation" },

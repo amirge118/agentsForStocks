@@ -46,6 +46,42 @@ describe("RecommendationCard", () => {
     expect(screen.queryByText(/Risk override/)).not.toBeInTheDocument()
   })
 
+  it("always shows the disclaimer and hides the compliance badge when it passed", async () => {
+    renderWithProviders(<RecommendationCard symbol="AAPL" />, {
+      symbols: symbols(async () => recommendation),
+    })
+    expect(await screen.findByText(/not investment advice/)).toBeInTheDocument()
+    expect(screen.queryByLabelText("Compliance review")).not.toBeInTheDocument()
+  })
+
+  it("shows compliance findings when the reasoning was replaced or flagged", async () => {
+    const failed = {
+      ...recommendation,
+      compliance: {
+        status: "fail" as const,
+        findings: [
+          { rule: "promissory_language", severity: "fail" as const, phrase: "guaranteed" },
+          { rule: "missing_risk_discussion", severity: "flag" as const, phrase: "" },
+          { rule: "custom_rule", severity: "flag" as const, phrase: "" },
+        ],
+        original_reasoning: "guaranteed gains",
+      },
+    }
+    const { unmount } = renderWithProviders(<RecommendationCard symbol="AAPL" />, {
+      symbols: symbols(async () => failed),
+    })
+    const notice = await screen.findByLabelText("Compliance review")
+    expect(notice).toHaveTextContent("Compliance: original reasoning replaced")
+    expect(notice).toHaveTextContent("Promissory language “guaranteed”")
+    expect(notice).toHaveTextContent("No risk discussed")
+    expect(notice).toHaveTextContent("custom_rule")
+    unmount()
+
+    const flagged = { ...failed, compliance: { ...failed.compliance, status: "flag" as const } }
+    renderWithProviders(<RecommendationCard symbol="AAPL" />, { symbols: symbols(async () => flagged) })
+    expect(await screen.findByText("Compliance: flagged")).toBeInTheDocument()
+  })
+
   it("flags a risk override", async () => {
     const overridden = { ...recommendation, risk_override_applied: true, agents_missing: [] }
     renderWithProviders(<RecommendationCard symbol="AAPL" />, {

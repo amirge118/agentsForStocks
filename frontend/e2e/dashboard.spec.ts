@@ -56,8 +56,12 @@ test("symbol without a recommendation explains what to do", async ({ page }) => 
 test("starting an analysis confirms with a toast", async ({ page }) => {
   const posted = await mockApi(page)
   await page.goto("/")
+  // The button is server-rendered: wait for client data (proves React hydrated) before clicking
+  await expect(page.getByRole("link", { name: "AAPL" })).toBeVisible()
   await page.getByRole("button", { name: "Run analysis" }).click()
 
-  await expect(page.getByText("Pipeline started")).toBeVisible()
+  // Radix also copies toast text into an aria-live announcer, so scope to the visible toast list
+  const notifications = page.getByRole("region", { name: /notifications/i })
+  await expect(notifications.getByText("Pipeline started")).toBeVisible()
   expect(JSON.parse(posted[0] ?? "{}")).toEqual({ symbols: null, agents: null, force: false })
 })

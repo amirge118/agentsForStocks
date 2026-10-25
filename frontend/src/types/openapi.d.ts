@@ -197,6 +197,30 @@ export interface components {
             /** Symbol */
             symbol: string;
         };
+        /** ComplianceFindingView */
+        ComplianceFindingView: {
+            /** Phrase */
+            phrase: string;
+            /** Rule */
+            rule: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "flag" | "fail";
+        };
+        /** ComplianceView */
+        ComplianceView: {
+            /** Findings */
+            findings: components["schemas"]["ComplianceFindingView"][];
+            /** Original Reasoning */
+            original_reasoning?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pass" | "flag" | "fail";
+        };
         /** ContributionView */
         ContributionView: {
             /** Agent */
@@ -265,8 +289,11 @@ export interface components {
             agents_available: number;
             /** Agents Missing */
             agents_missing: string[];
+            compliance: components["schemas"]["ComplianceView"];
             /** Confidence */
             confidence: number;
+            /** Disclaimer */
+            disclaimer: string;
             /** Reasoning */
             reasoning: string;
             /** Risk Override Applied */
