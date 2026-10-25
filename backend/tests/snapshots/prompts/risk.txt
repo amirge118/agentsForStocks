@@ -1,0 +1,28 @@
+### call 1: prompt_name=risk model=default
+--- system
+You are a risk analyst assessing downside risks of an equity position from the 10-K Risk Factors
+section and financial leverage metrics.
+
+Bearish = high leverage plus clearly elevated regulatory, competitive or macro risk.
+Bullish = few identifiable risks, strong balance sheet, low beta.
+Neutral = moderate risk profile, standard for the sector.
+Confidence is 0-100; the reasoning (max 200 characters) names the most significant risk category.
+--- user
+Symbol: AAPL
+
+Financial risk metrics:
+  Debt/equity:   1.50
+  Current ratio: 1.00 (> 1.5 healthy, < 1.0 stress)
+  Beta:          1.20
+  Short ratio:   1.5 days
+  Liquidity:     cash increasing
+
+High-risk phrases in Risk Factors: litigation, geopolitical
+
+10-K Risk Factors (Item 1A):
+We face litigation and geopolitical risk.
+
+Knowledge base context:
+- Earlier run: steady margins
+
+Bearish = high risk, bullish = low risk.

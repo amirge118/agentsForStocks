@@ -57,7 +57,7 @@ class MarketScannerAgent(Agent[MarketScanData, MarketScanResult]):
         try:
             judgement = await self.ctx.llm.generate(
                 system=load_prompt(self.name),
-                prompt=_prompt(symbol, data.info, m, memory),
+                prompt=self.with_data_gaps(_prompt(symbol, data.info, m, memory)),
                 schema=ScanJudgement,
                 max_tokens=512,
                 prompt_name=self.name,

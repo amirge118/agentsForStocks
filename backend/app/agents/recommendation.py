@@ -34,6 +34,7 @@ from app.domain.scoring import (
     ComplianceStatus,
     Contribution,
     WeightedScore,
+    risk_capped,
     to_action,
 )
 from app.domain.scoring import weighted_score as compute_weighted_score
@@ -116,6 +117,7 @@ class RecommendationAgent(Agent[RecommendationData, RecommendationResult]):
                 model=self.ctx.reasoning_model,
             )
 
+        judgement, capped = _apply_risk_cap(judgement, data.results)
         reasoning, compliance = _reviewed_reasoning(symbol, judgement, score)
         action = to_action(judgement.signal)
         return RecommendationResult(
@@ -127,7 +129,7 @@ class RecommendationAgent(Agent[RecommendationData, RecommendationResult]):
             agent_breakdown=[_contribution_view(c) for c in score.contributions],
             agents_available=available,
             agents_missing=list(score.missing),
-            risk_override_applied=score.risk_override_applied,
+            risk_override_applied=score.risk_override_applied or capped,
             compliance=compliance,
             disclaimer=DISCLAIMER,
             summary=f"RECOMMENDATION: {action} ({judgement.confidence:.0f}%) "
@@ -143,6 +145,28 @@ def _contribution_view(c: Contribution) -> ContributionView:
                 ComplianceFindingView(**vars(f)) for f in c.compliance_findings
             ],
         }
+    )
+
+
+def _apply_risk_cap(
+    judgement: LLMSignal, results: dict[str, dict[str, Any]]
+) -> tuple[LLMSignal, bool]:
+    """
+    Enforce the risk override on the final call too: the prompt asks the model to
+    respect it, this guarantees it. Returns the (possibly capped) judgement.
+    """
+    signal, confidence, capped = risk_capped(judgement.signal, judgement.confidence, results)
+    if not capped:
+        return judgement, False
+    logger.info("Bullish recommendation capped at HOLD by the risk override")
+    return (
+        LLMSignal(
+            signal=signal,
+            confidence=confidence,
+            reasoning=f"{judgement.reasoning} Capped at HOLD: the risk analyst is bearish "
+            "with high confidence.",
+        ),
+        True,
     )
 
 

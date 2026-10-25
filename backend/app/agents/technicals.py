@@ -15,7 +15,26 @@ class TechnicalsResult(AnalysisResult):
     composite: float
 
 
-@register_agent("technicals", description="Five-strategy technical analysis on 1y of prices")
+# Twice the label threshold (±0.2): a composite this strong leaves no room for the
+# opposite call. Five partly opposing strategies rarely push it past ±0.45.
+_DECISIVE_COMPOSITE = 0.4
+
+
+def _signal_agrees_with_a_decisive_composite(
+    data: object, result: "TechnicalsResult"
+) -> str | None:
+    if result.composite >= _DECISIVE_COMPOSITE and result.signal == "bearish":
+        return f"bearish against a strongly bullish composite ({result.composite:+.2f})"
+    if result.composite <= -_DECISIVE_COMPOSITE and result.signal == "bullish":
+        return f"bullish against a strongly bearish composite ({result.composite:+.2f})"
+    return None
+
+
+@register_agent(
+    "technicals",
+    description="Five-strategy technical analysis on 1y of prices",
+    invariants=(_signal_agrees_with_a_decisive_composite,),
+)
 class TechnicalsAgent(Agent[pd.DataFrame, TechnicalsResult]):
     result_model = TechnicalsResult
 

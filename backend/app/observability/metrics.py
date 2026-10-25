@@ -38,6 +38,14 @@ agent_fallbacks = _meter.create_counter(
     unit="{judgement}",
     description="Judgements that fell back to the agent's own signal (LLM unavailable)",
 )
+agent_data_gaps = _meter.create_counter(
+    "agent.data_gaps", unit="{run}", description="Agent runs where some inputs came back empty"
+)
+agent_contract_violations = _meter.create_counter(
+    "agent.contract_violations",
+    unit="{violation}",
+    description="Results that broke an agent's contract (app/agents/contracts.py)",
+)
 provider_requests = _meter.create_counter(
     "provider.requests",
     unit="{request}",

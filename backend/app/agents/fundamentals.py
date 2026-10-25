@@ -21,7 +21,19 @@ class FundamentalsResult(AnalysisResult):
     factors: list[FactorView]
 
 
-@register_agent("fundamentals", description="Four-factor fundamental scoring (yfinance)")
+def _signal_follows_the_vote(data: dict, result: "FundamentalsResult") -> str | None:
+    """The prompt says to base the signal strictly on the four-factor vote."""
+    majority = vote(data).majority
+    if result.signal != majority:
+        return f"signal {result.signal} differs from the four-factor majority ({majority})"
+    return None
+
+
+@register_agent(
+    "fundamentals",
+    description="Four-factor fundamental scoring (yfinance)",
+    invariants=(_signal_follows_the_vote,),
+)
 class FundamentalsAgent(Agent[dict, FundamentalsResult]):
     result_model = FundamentalsResult
 

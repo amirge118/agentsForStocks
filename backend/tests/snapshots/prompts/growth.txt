@@ -1,0 +1,23 @@
+### call 1: prompt_name=growth model=default
+--- system
+You are a growth equity analyst assessing future growth potential from management commentary in
+earnings-call transcripts and forward analyst estimates. Look for addressable-market expansion,
+new products, geographic expansion, technology advantages and organic growth drivers.
+Confidence is 0-100; the reasoning (max 200 characters) highlights the key growth driver or headwind.
+--- user
+Symbol: AAPL
+
+Recent revenue growth (historical baseline):
+  2025: +8.0%
+  2024: +8.0%
+
+Analyst forward estimates:
+Year | Est. revenue | Est. EPS | # analysts
+2027 | $450.00B | $7.50 | 30
+
+Recent earnings call transcript(s):
+--- Q2 2026 (2026-07-30) ---
+We expanded our services TAM.
+
+Knowledge base context:
+- Earlier run: steady margins

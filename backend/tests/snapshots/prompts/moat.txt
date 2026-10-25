@@ -1,0 +1,21 @@
+### call 1: prompt_name=moat model=default
+--- system
+You are a competitive-analysis expert identifying economic moats.
+Assess brand strength, network effects, switching costs, cost advantages, patents/IP,
+regulatory licences and margin durability (stable high margins = pricing power).
+
+Bullish = clear, durable moat. Bearish = no moat, commodity business, eroding margins.
+Confidence is 0-100; the reasoning (max 200 characters) names the specific moat type or its absence.
+--- user
+Symbol: AAPL | Industry: Consumer Electronics
+
+Moat keywords found in the 10-K: switching cost, brand, installed base
+Gross margin (5-year average): 45.0%
+Gross margin variance (lower = more pricing power): 0.00%
+Intangibles / total assets: 0.0%
+
+10-K Business section (excerpt):
+Our brand and installed base create switching cost.
+
+Knowledge base context:
+- Earlier run: steady margins

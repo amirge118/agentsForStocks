@@ -79,6 +79,8 @@ async def test_run_persists_result_and_learnings(session_factory, db_session) ->
         "reasoning": "r",
         "summary": "stub summary",
         "score": 1.5,
+        "data_gaps": [],
+        "contract_violations": [],
         "compliance": {"status": "pass", "findings": [], "original_reasoning": None},
     }
     assert row.run_id == outcome.run_id
