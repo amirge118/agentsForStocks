@@ -37,8 +37,8 @@ jobs:
       OPENVIKING_ENABLED: "false"
       TEST_POSTGRES_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/agents_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
@@ -75,8 +75,8 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -101,7 +101,7 @@ jobs:
         run: npm run test:e2e
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: frontend/test-results/
@@ -112,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Test environment for compose
         run: |
           KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
