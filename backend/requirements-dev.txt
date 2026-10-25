@@ -4,7 +4,11 @@
 pytest==9.1.1
 pytest-asyncio==1.4.0
 pytest-cov==7.1.0
-aiosqlite==0.22.1
+# Held at 0.20.0: with SQLAlchemy 2.1.6, aiosqlite 0.22.1's new stop() is used to
+# force-close a connection cancelled mid-query, and SQLAlchemy's shielded graceful
+# close then never completes, so the event loop hangs at teardown (seen in
+# tests/integration/test_api.py). Test-only dependency; asyncpg is unaffected.
+aiosqlite==0.20.0
 # The anthropic SDK's HTTP layer (pulled in by anthropic); tests build its
 # Request/Response objects for SDK errors
 httpx2==2.16.0
