@@ -48,9 +48,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
       - name: Lint (ruff)
-        run: ruff check app tests scripts alembic
+        run: ruff check app tests scripts alembic evals
       - name: Format (black)
-        run: black --check app tests scripts alembic
+        run: black --check app tests scripts alembic evals
       - name: Security scan (bandit)
         run: bandit -q -r app
       - name: Dependency audit (pip-audit)

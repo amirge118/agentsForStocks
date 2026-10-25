@@ -39,6 +39,12 @@ cd backend && python -m scripts.run_pipeline AAPL MSFT [--agents technicals valu
 # Token usage and cost per agent / model / day / prompt version (from the llm_calls ledger)
 cd backend && python -m scripts.token_report [--days 30] [--by model]
 
+# Evals: accuracy, stability, faithfulness and cost of a model / prompt / skill configuration.
+# Without --yes only the cost estimate is printed (a real run calls the model and costs money)
+cd backend && python -m evals.run --suite scenarios --repeats 3 [--judge] [--profiles '{"*": {...}}'] --label x --yes
+cd backend && python -m evals.compare evals/reports/<a>.json evals/reports/<b>.json
+cd backend && python -m evals.capture --days 7     # real prompts from the ledger → evals/datasets/ledger.jsonl
+
 # Production scheduler: API processes with RUN_SCHEDULER=false + exactly one worker
 cd backend && python -m app.worker
 
@@ -79,6 +85,9 @@ FMP calls also count against `DailyCallBudget` (free tier = 250/day). Claude is 
 
 ### 11. Every LLM Call Is Measured — Keep It That Way
 `LLMClient.generate` records each request (success or failure) in `llm_calls`: tokens, cost (`app/llm/pricing.py` — add a price when you add a model), latency, `prompt_version` (hash of the system prompt) and, with `LLM_CAPTURE_CONTENT=true`, the exact prompt and reply. Always pass `prompt_name=`; agents go through `Agent.judge()`, which does. On `LLMError`, call `note_fallback()` so the run's `llm_fallbacks` is counted.
+
+### 16. Change Prompts, Models and Skills Through the Evals
+A prompt, model or skill change ships with an eval report: run `python -m evals.run` on the current and the new configuration (`--profiles` / `--label`) and compare them with `evals.compare`. CI runs the harness offline only (`tests/unit/test_evals.py`); live runs are manual and need `ANTHROPIC_API_KEY`. New scenario cases go in `evals/cases.py`; label a case only when the data make the right signal unambiguous.
 
 ### 15. Every Model Call Goes Through `Agent.ask()` / `judge()`
 Never call `ctx.llm.generate` from an agent: `ask()` applies the prompt's profile (`app/llm/profiles.py` — provider, model, skills, `max_tokens`, `use_llm`, prompt variant), names missing inputs, labels the call for the ledger and handles fallbacks. `ctx.llm` is an `LLMRouter` (`anthropic` = Claude, `alt` = any OpenAI-compatible API, `app/llm/openai_compat.py`). Skills are markdown files in `app/llm/skills/` with front-matter; they are off by default — enable one per agent via `AGENT_PROFILES` and measure it with the evals first.
