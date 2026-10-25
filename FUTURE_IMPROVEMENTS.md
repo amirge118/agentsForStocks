@@ -39,7 +39,10 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [x] Health check endpoint validating DB connectivity + scheduler state (`/health`, 503 when degraded)
 - [ ] Add OpenViking connectivity to /health (only when OPENVIKING_ENABLED) [PRIORITY: LOW]
 - [ ] Add Redis for task queue (Celery or ARQ) if APScheduler proves insufficient [PRIORITY: LOW]
-- [ ] Run the scheduler in a single dedicated worker process — with several uvicorn workers each would start its own scheduler [PRIORITY: HIGH]
+- [x] Scheduler in a dedicated worker process (`python -m app.worker`, RUN_SCHEDULER=false on the API)
+- [ ] Postgres advisory lock around the daily job so even two workers can never both run it [PRIORITY: LOW]
+- [x] Preflight (`python -m scripts.preflight`) and manual run CLI (`python -m scripts.run_pipeline`)
+- [ ] First real pipeline run against live Claude / FMP / Yahoo / SEC — blocked in the cloud environment until its network policy allows those hosts and the API keys are configured [PRIORITY: HIGH]
 - [x] CI (GitHub Actions): lint, format, bandit, pip-audit / npm audit, pytest on SQLite + PostgreSQL, migration check, Jest, Playwright
 - [ ] Protect `main` in GitHub settings: require the CI checks to pass before merging, no direct pushes [PRIORITY: HIGH]
 - [ ] Dependabot (pip, npm, github-actions) so pinned versions get security updates [PRIORITY: MED]

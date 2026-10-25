@@ -23,6 +23,15 @@ cd frontend && npm run dev
 # Apply DB migrations
 cd backend && alembic upgrade head
 
+# Before a real run: check keys + connectivity to Claude, FMP, Yahoo, SEC (exit 1 = not ready)
+cd backend && python -m scripts.preflight
+
+# Run the pipeline once, now (all agents, or a subset)
+cd backend && python -m scripts.run_pipeline AAPL MSFT [--agents technicals valuation] [--force]
+
+# Production scheduler: API processes with RUN_SCHEDULER=false + exactly one worker
+cd backend && python -m app.worker
+
 # Run all backend tests (coverage gate: 80%; set TEST_POSTGRES_URL to include the Postgres tests)
 cd backend && pytest
 
@@ -85,7 +94,8 @@ After changing a backend schema or route: `cd backend && python -m scripts.expor
 | Agent classes (one file per agent) | `backend/app/agents/` — register in `agents/catalog.py` |
 | Agent contract / run lifecycle | `backend/app/agents/base.py` / `backend/app/agents/runner.py` |
 | Agent registry (deps, weights, order) | `backend/app/agents/registry.py` |
-| Pipeline orchestration + scheduler | `backend/app/pipeline/orchestrator.py`, `backend/app/agents/scheduler.py` |
+| Pipeline orchestration + scheduler | `backend/app/pipeline/orchestrator.py`, `backend/app/agents/scheduler.py`, `backend/app/worker.py` |
+| Preflight / manual runs | `backend/app/ops/`, `backend/scripts/preflight.py`, `backend/scripts/run_pipeline.py` |
 | Pure financial logic | `backend/app/domain/` |
 | External data clients (rate limit, retry, cache) | `backend/app/providers/` |
 | Claude client + system prompts | `backend/app/llm/client.py`, `backend/app/llm/prompts/*.md` |

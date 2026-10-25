@@ -115,7 +115,8 @@ export interface paths {
         };
         /**
          * Health
-         * @description Liveness + dependencies: 200 when the DB answers and the scheduler runs, else 503.
+         * @description Liveness + dependencies: 200 when the DB answers and the in-process scheduler
+         *     (if this process runs one) is running, else 503.
          */
         get: operations["health_health_get"];
         put?: never;

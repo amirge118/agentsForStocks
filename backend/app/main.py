@@ -1,7 +1,7 @@
 """
 FastAPI application entrypoint.
-Builds the dependency container, starts the daily pipeline scheduler on startup
-and shuts everything down cleanly on exit.
+Builds the dependency container and, when RUN_SCHEDULER is on, starts the daily
+pipeline scheduler (in production it runs in its own process: app/worker.py).
 """
 
 import logging
@@ -32,15 +32,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     container = build_container(settings, AsyncSessionLocal)
     if not settings.auth_enabled:
         logger.warning("API authentication is DISABLED (no API_KEYS) — development only")
-    scheduler = create_scheduler(container.orchestrator, settings.watchlist_symbols)
     app.state.container = container
-    app.state.scheduler = scheduler
-    scheduler.start()
-    logger.info("Agent scheduler started")
+    app.state.scheduler = None
+    if settings.run_scheduler:
+        app.state.scheduler = create_scheduler(container.orchestrator, settings.watchlist_symbols)
+        app.state.scheduler.start()
+        logger.info("Agent scheduler started in the API process")
     yield
-    scheduler.shutdown(wait=False)
+    if app.state.scheduler is not None:
+        app.state.scheduler.shutdown(wait=False)
+        logger.info("Agent scheduler stopped")
     await container.aclose()
-    logger.info("Agent scheduler stopped")
 
 
 app = FastAPI(title="agentsForStocks", version="0.3.0", lifespan=lifespan)
@@ -58,7 +60,10 @@ app.include_router(api_router)
 
 @app.get("/health")
 async def health(request: Request) -> JSONResponse:
-    """Liveness + dependencies: 200 when the DB answers and the scheduler runs, else 503."""
+    """
+    Liveness + dependencies: 200 when the DB answers and the in-process scheduler
+    (if this process runs one) is running, else 503.
+    """
     checks: dict[str, str] = {}
     try:
         async with request.app.state.container.session_factory() as session:
@@ -67,9 +72,13 @@ async def health(request: Request) -> JSONResponse:
     except Exception as exc:
         logger.error("Health check: database unavailable", extra={"error": str(exc)})
         checks["database"] = "unavailable"
-    checks["scheduler"] = "ok" if request.app.state.scheduler.running else "stopped"
+    scheduler = request.app.state.scheduler
+    if scheduler is None:
+        checks["scheduler"] = "external"  # runs in app.worker, not in this process
+    else:
+        checks["scheduler"] = "ok" if scheduler.running else "stopped"
 
-    healthy = all(v == "ok" for v in checks.values())
+    healthy = checks["database"] == "ok" and checks["scheduler"] != "stopped"
     return JSONResponse(
         status_code=200 if healthy else 503,
         content={"status": "ok" if healthy else "degraded", "checks": checks},
