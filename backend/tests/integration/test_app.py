@@ -72,3 +72,21 @@ async def test_lifespan_starts_and_stops_scheduler() -> None:
         assert app.state.container.registry.names()
     await asyncio.sleep(0)  # AsyncIOScheduler.shutdown runs on the next loop tick
     assert not app.state.scheduler.running
+
+
+@pytest.mark.integration
+async def test_health_ok_when_scheduler_runs_in_the_worker(client_with_state) -> None:
+    async with client_with_state() as client:
+        app.state.scheduler = None  # RUN_SCHEDULER=false
+        resp = await client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json()["checks"] == {"database": "ok", "scheduler": "external"}
+
+
+@pytest.mark.integration
+async def test_lifespan_without_scheduler(monkeypatch) -> None:
+    from app import main
+
+    monkeypatch.setattr(main.settings, "run_scheduler", False)
+    async with lifespan(app):
+        assert app.state.scheduler is None

@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     provider_cache_ttl_seconds: int = 6 * 60 * 60
 
     # Pipeline
+    # Run the daily scheduler inside the API process. Fine for one process in
+    # development; in production set RUN_SCHEDULER=false and run `python -m app.worker`
+    # once, so several API workers don't each trigger the daily pipeline.
+    run_scheduler: bool = True
     # Comma-separated symbols, e.g. WATCHLIST=AAPL,MSFT
     watchlist: str = "AAPL,MSFT,NVDA,GOOGL,AMZN,TSLA,META,SPY,QQQ"
     max_concurrent_symbols: int = 2
