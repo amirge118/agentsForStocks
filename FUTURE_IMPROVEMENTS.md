@@ -40,7 +40,11 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Add OpenViking connectivity to /health (only when OPENVIKING_ENABLED) [PRIORITY: LOW]
 - [ ] Add Redis for task queue (Celery or ARQ) if APScheduler proves insufficient [PRIORITY: LOW]
 - [ ] Run the scheduler in a single dedicated worker process — with several uvicorn workers each would start its own scheduler [PRIORITY: HIGH]
-- [ ] Add CI (GitHub Actions): ruff, black --check, bandit, pytest with coverage gate [PRIORITY: HIGH]
+- [x] CI (GitHub Actions): lint, format, bandit, pip-audit / npm audit, pytest on SQLite + PostgreSQL, migration check, Jest, Playwright
+- [ ] Protect `main` in GitHub settings: require the CI checks to pass before merging, no direct pushes [PRIORITY: HIGH]
+- [ ] Dependabot (pip, npm, github-actions) so pinned versions get security updates [PRIORITY: MED]
+- [ ] Pin GitHub Actions by commit SHA instead of major tag [PRIORITY: LOW]
+- [ ] Backend Dockerfile + deploy workflow (migrations on release) [PRIORITY: MED]
 - [ ] Structured JSON logging so `extra=` fields (symbol, run_id) reach the log output [PRIORITY: MED]
 
 ## API & Frontend
@@ -73,3 +77,8 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Run the compliance review on every agent's `reasoning`, not just RecommendationAgent (all are user-visible) [PRIORITY: MED]
 - [ ] Optional LLM second-pass compliance review for subtler issues (cherry-picking, unbalanced framing) the regex rules miss [PRIORITY: LOW]
 - [ ] Endpoint / report listing recommendations that were flagged or failed compliance, for review [PRIORITY: LOW]
+
+## Dependencies
+- [x] Split requirements: runtime / dev / optional knowledge (OpenViking pulls ~300 packages)
+- [x] fastapi 0.115 → 0.162 with starlette 1.10 (0.38.x had 14 known vulnerabilities); removed unused python-jose + bcrypt
+- [ ] Upgrade the remaining old pins (anthropic 0.40, yfinance 0.2.50, pandas 2.2, SQLAlchemy 2.0.36) one at a time with the test suite [PRIORITY: MED]

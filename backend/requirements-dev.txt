@@ -1,0 +1,13 @@
+-r requirements.txt
+
+# Testing
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pytest-cov==7.1.0
+aiosqlite==0.20.0
+
+# Linting / formatting / security
+ruff==0.7.4
+black==26.10.1
+bandit==1.8.0
+pip-audit==2.10.1

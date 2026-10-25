@@ -35,7 +35,7 @@ async def list_runs(
         try:
             symbol = validate_symbol(symbol)
         except ValueError as exc:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     runs = await AgentRunRepository(session).list(
         symbol=symbol,
         run_date=run_date,
@@ -63,7 +63,7 @@ async def start_pipeline_run(
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except (ValueError, KeyError) as exc:
         detail = exc.args[0] if exc.args else str(exc)
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(detail)) from exc
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(detail)) from exc
     return PipelineRunAccepted(
         pipeline_run_id=run.pipeline_run_id,
         run_date=run.run_date,

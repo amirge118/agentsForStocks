@@ -6,6 +6,7 @@ markers = [
     "unit: fast tests with every external dependency mocked",
     "integration: tests that exercise several layers together (DB, API)",
 ]
+filterwarnings = ["error::DeprecationWarning"]
 addopts = "--strict-markers --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=80"
 
 [tool.coverage.run]

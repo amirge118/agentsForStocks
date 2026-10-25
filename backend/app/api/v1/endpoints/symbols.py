@@ -62,7 +62,7 @@ async def list_results(
     session: AsyncSession = Depends(get_session),
 ) -> list[AgentResultOut]:
     if agent is not None and agent not in container.registry.names():
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Unknown agent {agent!r}")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Unknown agent {agent!r}")
     rows = await AgentResultRepository(session).list_for_symbol(
         symbol, agent_type=agent, run_date=run_date, limit=limit
     )

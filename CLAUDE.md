@@ -11,6 +11,9 @@ Detailed coding standards are in `.claude/rules/` — Claude enforces these auto
 ## Quick Start
 
 ```bash
+# Backend dependencies (runtime + test/lint tools; add requirements-knowledge.txt for OpenViking)
+cd backend && pip install -r requirements-dev.txt
+
 # Backend (FastAPI on :8000)
 cd backend && uvicorn app.main:app --reload
 
@@ -20,7 +23,7 @@ cd frontend && npm run dev
 # Apply DB migrations
 cd backend && alembic upgrade head
 
-# Run all backend tests (coverage gate: 80%)
+# Run all backend tests (coverage gate: 80%; set TEST_POSTGRES_URL to include the Postgres tests)
 cd backend && pytest
 
 # Run all frontend tests (type-check, lint, unit)
@@ -146,6 +149,13 @@ frontend/
 | `bg-green-400/10` / `bg-red-400/10` | Gain / loss badge backgrounds |
 
 Card pattern: `rounded-xl border border-zinc-800 bg-zinc-900`
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push to main and every PR — keep it green:
+- **backend**: ruff, black, bandit, pip-audit, pytest (SQLite + a PostgreSQL 16 service; deprecation warnings are errors), `alembic upgrade/check/downgrade` on Postgres.
+- **frontend**: `npm ci`, generated API types up to date, typecheck (Zod ↔ OpenAPI), lint, `npm audit`, Jest with coverage, Playwright E2E on the production build.
+Run the same commands locally before pushing.
 
 ## Testing Requirements
 

@@ -22,4 +22,4 @@ def symbol_param(symbol: str = Path(description="Ticker, e.g. AAPL or BRK.B")) -
     try:
         return validate_symbol(symbol)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
