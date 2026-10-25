@@ -17,7 +17,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 
-_fields: ContextVar[dict[str, str]] = ContextVar("run_context_fields", default={})
+# None rather than {} as the default: a mutable default would be one dict shared by every context
+_fields: ContextVar[dict[str, str] | None] = ContextVar("run_context_fields", default=None)
 _usage: ContextVar["RunUsage | None"] = ContextVar("run_usage", default=None)
 
 
@@ -37,7 +38,9 @@ class RunUsage:
 @contextmanager
 def bind(**fields: str | None) -> Iterator[None]:
     """Add fields to the current context for the duration of the block."""
-    token = _fields.set({**_fields.get(), **{k: v for k, v in fields.items() if v is not None}})
+    token = _fields.set(
+        {**(_fields.get() or {}), **{k: v for k, v in fields.items() if v is not None}}
+    )
     try:
         yield
     finally:
@@ -57,7 +60,7 @@ def bind_run(**fields: str | None) -> Iterator[RunUsage]:
 
 
 def current_fields() -> dict[str, str]:
-    return dict(_fields.get())
+    return dict(_fields.get() or {})
 
 
 def current_usage() -> RunUsage | None:
