@@ -1,0 +1,7 @@
+{
+  "*": {"skills": ["confidence_calibration"]},
+  "valuation": {"skills": ["confidence_calibration", "valuation_judgement"]},
+  "moat": {"skills": ["confidence_calibration", "moat_evidence"]},
+  "risk": {"skills": ["confidence_calibration", "risk_red_flags"]},
+  "earnings": {"skills": ["confidence_calibration", "earnings_quality"]}
+}

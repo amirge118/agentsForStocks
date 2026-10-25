@@ -8,10 +8,11 @@ from app.agents.base import Agent, AnalysisResult, neutral_fallback
 from app.agents.formatting import memory_block
 from app.agents.registry import register_agent
 from app.domain.financials import HIGH_RISK_KEYWORDS, liquidity_trend
-from app.domain.stats import find_keywords
+from app.domain.stats import find_keywords, relevant_excerpt
 from app.knowledge.store import Learning
 
-_RISK_TEXT_CHARS = 8_000
+# The opening plus the sentences with high-risk phrases (was: the first 8,000 chars)
+_RISK_TEXT_CHARS = 4_500
 
 
 class RiskResult(AnalysisResult):
@@ -67,7 +68,7 @@ Financial risk metrics:
 High-risk phrases in Risk Factors: {', '.join(keywords) or 'none'}
 
 10-K Risk Factors (Item 1A):
-{data.risk_text[:_RISK_TEXT_CHARS] or 'Not available'}
+{relevant_excerpt(data.risk_text, HIGH_RISK_KEYWORDS, _RISK_TEXT_CHARS) or 'Not available'}
 
 Knowledge base context:
 {memory_block(memory)}

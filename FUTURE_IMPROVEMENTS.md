@@ -76,6 +76,10 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Move to Next.js 16 when CLAUDE.md allows — Next 15 bundles a vulnerable postcss, currently forced to 8.5.31 via npm overrides [PRIORITY: MED]
 
 ## LLM
+- [x] 10-K excerpts: the opening plus the sentences with moat / risk keywords, at lower budgets (moat 6k→3.5k, risk 8k→4.5k, broad_analysis 8k→4k chars) — about −31% input tokens per symbol
+- [ ] Decide on the experiments with a live eval run, then make the winners defaults (presets in backend/evals/presets/): prompts_v2, haiku55 (~10x cheaper), rule_based_quant (−2 calls per symbol), skills, cheap_alt_news [PRIORITY: HIGH]
+- [ ] Message Batches API (−50%) for the scheduled daily run, one batch per dependency level — worth it once the daily cost is meaningful (today ≈ $0.15 for 9 symbols) [PRIORITY: LOW]
+- [ ] Prompt caching — only pays once a system prompt (+ skills) exceeds the model's minimum cacheable prefix (512 tokens on the 5.5 models, 4096 on Haiku 4.5); today's prompts are 60–250 tokens [PRIORITY: LOW]
 - [x] Eval harness (evals/): scenario + ledger-replay suites; label accuracy, confidence limits, stability across repeats, LLM-as-judge faithfulness, contract violations, tokens and cost; cost estimate before every run; reports + compare
 - [ ] Run the first live eval baseline (needs ANTHROPIC_API_KEY): current models vs claude-haiku-5-5 / claude-sonnet-5-5, with and without skills [PRIORITY: HIGH]
 - [ ] Optional weekly eval in GitHub Actions with a key secret, posting the report as an artifact [PRIORITY: LOW]

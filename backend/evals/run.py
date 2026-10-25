@@ -7,6 +7,9 @@ the real model and costs money). From backend/:
     python -m evals.run --agents valuation moat --label calibration --yes \\
         --profiles '{"*": {"skills": ["confidence_calibration"]}}'
     python -m evals.run --suite ledger --dataset evals/datasets/ledger.jsonl --judge --yes
+
+Presets in evals/presets/: prompts_v2, haiku55, sonnet55_recommendation,
+rule_based_quant, skills, cheap_alt_news — e.g. --profiles @evals/presets/haiku55.json
 """
 
 import argparse
@@ -29,7 +32,7 @@ from evals.harness import Estimate, EvalConfig, estimate, grade, judge_faithfuln
 def build_config(args: argparse.Namespace, s: Settings, llm: Any = None) -> EvalConfig:
     profiles = json.loads(s.agent_profiles) if s.agent_profiles else {}
     if args.profiles:
-        profiles.update(json.loads(args.profiles))
+        profiles.update(_load_profiles(args.profiles))
     return EvalConfig(
         llm=llm
         or build_llm_router(s, NullRecorder()),  # evals never write to the production ledger
@@ -39,6 +42,13 @@ def build_config(args: argparse.Namespace, s: Settings, llm: Any = None) -> Eval
         judge_model=args.judge_model or s.llm_reasoning_model,
         judge_provider=args.judge_provider,
     )
+
+
+def _load_profiles(value: str) -> dict[str, Any]:
+    """Inline JSON, or @path to a JSON file (e.g. @evals/presets/haiku55.json)."""
+    if value.startswith("@"):
+        return dict(json.loads(Path(value[1:]).read_text(encoding="utf-8")))
+    return dict(json.loads(value))
 
 
 def load_cases(args: argparse.Namespace) -> list[eval_cases.EvalCase]:
@@ -65,7 +75,9 @@ async def main(argv: list[str], llm: Any = None, out_dir: Path | None = None) ->
     parser.add_argument("--dataset", default="evals/datasets/ledger.jsonl")
     parser.add_argument("--agents", nargs="+", default=None)
     parser.add_argument("--repeats", type=int, default=1)
-    parser.add_argument("--profiles", default="", help="JSON agent-profile overrides to test")
+    parser.add_argument(
+        "--profiles", default="", help="agent-profile overrides: JSON, or @evals/presets/<x>.json"
+    )
     parser.add_argument("--label", default="run")
     parser.add_argument("--judge", action="store_true", help="LLM-as-judge faithfulness check")
     parser.add_argument("--judge-model", default=None)
