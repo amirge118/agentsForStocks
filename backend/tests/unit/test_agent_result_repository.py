@@ -36,7 +36,7 @@ async def test_get_for_date_filters_agent_types(db_session) -> None:
 
 
 @pytest.mark.unit
-async def test_latest_for_symbol_orders_newest_first(db_session) -> None:
+async def test_list_for_symbol_orders_newest_first(db_session) -> None:
     repo = AgentResultRepository(db_session)
     await repo.upsert(agent_type="moat", symbol="AAPL", run_date=D1, run_id="r1", result={})
     await repo.upsert(agent_type="moat", symbol="AAPL", run_date=D2, run_id="r2", result={})
@@ -44,8 +44,32 @@ async def test_latest_for_symbol_orders_newest_first(db_session) -> None:
     await repo.upsert(agent_type="moat", symbol="MSFT", run_date=D2, run_id="r4", result={})
     await db_session.commit()
 
-    rows = await repo.latest_for_symbol("AAPL")
+    rows = await repo.list_for_symbol("AAPL")
     assert [(r.run_date, r.agent_type) for r in rows] == [(D2, "moat"), (D2, "risk"), (D1, "moat")]
-    assert [r.run_id for r in await repo.latest_for_symbol("AAPL", agent_type="moat", limit=1)] == [
+    assert [r.run_id for r in await repo.list_for_symbol("AAPL", agent_type="moat", limit=1)] == [
         "r2"
     ]
+
+
+@pytest.mark.unit
+async def test_list_for_symbol_filters_by_date(db_session) -> None:
+    repo = AgentResultRepository(db_session)
+    await repo.upsert(agent_type="moat", symbol="AAPL", run_date=D1, run_id="r1", result={})
+    await repo.upsert(agent_type="moat", symbol="AAPL", run_date=D2, run_id="r2", result={})
+    await db_session.commit()
+    assert [r.run_id for r in await repo.list_for_symbol("AAPL", run_date=D1)] == ["r1"]
+
+
+@pytest.mark.unit
+async def test_latest_per_symbol_picks_newest_row_for_each_symbol(db_session) -> None:
+    repo = AgentResultRepository(db_session)
+    rows = [("AAPL", D1, "a1"), ("AAPL", D2, "a2"), ("MSFT", D1, "m1"), ("NVDA", D2, "n2")]
+    for symbol, day, run_id in rows:
+        await repo.upsert(
+            agent_type="recommendation", symbol=symbol, run_date=day, run_id=run_id, result={}
+        )
+    await repo.upsert(agent_type="moat", symbol="MSFT", run_date=D2, run_id="other", result={})
+    await db_session.commit()
+
+    latest = await repo.latest_per_symbol("recommendation", ["AAPL", "MSFT", "TSLA"])
+    assert {s: r.run_id for s, r in latest.items()} == {"AAPL": "a2", "MSFT": "m1"}

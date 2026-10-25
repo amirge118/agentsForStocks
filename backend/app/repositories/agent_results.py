@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from datetime import date
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -67,12 +67,41 @@ class AgentResultRepository:
         rows = (await self._session.execute(stmt)).scalars().all()
         return {row.agent_type: row.result_json for row in rows}
 
-    async def latest_for_symbol(
-        self, symbol: str, agent_type: str | None = None, limit: int = 50
+    async def latest_per_symbol(
+        self, agent_type: str, symbols: Iterable[str]
+    ) -> dict[str, AgentResult]:
+        """{symbol: most recent row of agent_type} — one query for a whole watchlist."""
+        latest = (
+            select(AgentResult.symbol, func.max(AgentResult.run_date).label("run_date"))
+            .where(AgentResult.agent_type == agent_type, AgentResult.symbol.in_(list(symbols)))
+            .group_by(AgentResult.symbol)
+            .subquery()
+        )
+        stmt = (
+            select(AgentResult)
+            .join(
+                latest,
+                (AgentResult.symbol == latest.c.symbol)
+                & (AgentResult.run_date == latest.c.run_date),
+            )
+            .where(AgentResult.agent_type == agent_type)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return {row.symbol: row for row in rows}
+
+    async def list_for_symbol(
+        self,
+        symbol: str,
+        *,
+        agent_type: str | None = None,
+        run_date: date | None = None,
+        limit: int = 50,
     ) -> list[AgentResult]:
-        """Most recent results first."""
+        """Newest first, optionally narrowed to one agent and/or one market date."""
         stmt = select(AgentResult).where(AgentResult.symbol == symbol)
         if agent_type is not None:
             stmt = stmt.where(AgentResult.agent_type == agent_type)
+        if run_date is not None:
+            stmt = stmt.where(AgentResult.run_date == run_date)
         stmt = stmt.order_by(AgentResult.run_date.desc(), AgentResult.agent_type).limit(limit)
         return list((await self._session.execute(stmt)).scalars().all())

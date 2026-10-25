@@ -63,15 +63,17 @@ class PipelineOrchestrator:
         agents: Iterable[str] | None = None,
         force: bool = False,
         run_date: date | None = None,
+        pipeline_run_id: str | None = None,
     ) -> PipelineReport:
         """
         Run the selected agents (default: all) for each symbol.
         Unknown agents or invalid symbols raise before anything runs.
+        Pass pipeline_run_id to correlate with a caller (e.g. an API request).
         """
         tickers = list(dict.fromkeys(validate_symbol(s) for s in symbols))
         levels = self._registry.execution_levels(list(agents) if agents is not None else None)
         day = run_date or market_today()
-        pipeline_run_id = str(uuid4())
+        pipeline_run_id = pipeline_run_id or str(uuid4())
         log_ctx = {"pipeline_run_id": pipeline_run_id, "symbols": tickers}
         logger.info("Pipeline started", extra=log_ctx)
 

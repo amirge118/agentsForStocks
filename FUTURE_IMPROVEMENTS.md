@@ -44,7 +44,11 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Structured JSON logging so `extra=` fields (symbol, run_id) reach the log output [PRIORITY: MED]
 
 ## API & Frontend
-- [ ] REST endpoints under /api/v1: symbols, latest recommendation, agent results, agent_runs, manual pipeline trigger [PRIORITY: HIGH]
+- [x] REST endpoints under /api/v1: agents, symbols overview, latest recommendation, agent results, agent_runs, manual pipeline trigger (202, background)
+- [ ] Authentication on /api/v1 — POST /pipeline/runs is currently open and can spend FMP/LLM budget [PRIORITY: HIGH]
+- [ ] Rate-limit or de-duplicate manual pipeline triggers (one active run per symbol) [PRIORITY: MED]
+- [ ] Cursor pagination for /runs and /symbols/{symbol}/results instead of limit-only [PRIORITY: LOW]
+- [ ] Manage the watchlist through the API (DB table) instead of the WATCHLIST env var [PRIORITY: MED]
 - [ ] Next.js frontend per CLAUDE.md; generate TS types from FastAPI OpenAPI (openapi-typescript) + Zod at the boundary [PRIORITY: HIGH]
 
 ## LLM

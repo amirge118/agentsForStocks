@@ -1,0 +1,178 @@
+"""/api/v1 end to end: real container, routers, repositories and SQLite — fake providers/LLM."""
+
+import asyncio
+from collections.abc import AsyncIterator
+from datetime import date
+
+import httpx
+import pytest
+
+from app.agents.runner import SessionResultsReader
+from app.container import build_container
+from app.core.config import Settings
+from app.main import app
+from app.pipeline.launcher import PipelineLauncher
+from app.pipeline.orchestrator import PipelineOrchestrator
+from app.repositories.agent_results import AgentResultRepository
+from tests.factories import FakeLLM, make_context
+
+D1 = date(2026, 10, 22)
+D2 = date(2026, 10, 23)
+
+
+def _recommendation(action: str, signal: str, score: float) -> dict:
+    return {
+        "signal": signal,
+        "confidence": 66.0,
+        "reasoning": "r",
+        "summary": f"{action} summary",
+        "action": action,
+        "weighted_score": score,
+        "agents_available": 8,
+        "agents_missing": [],
+        "risk_override_applied": False,
+        "agent_breakdown": [
+            {
+                "agent": "moat",
+                "signal": signal,
+                "confidence": 80.0,
+                "weight": 15.0,
+                "contribution": 12.0,
+                "reasoning": "brand",
+            }
+        ],
+    }
+
+
+@pytest.fixture
+async def api(concurrent_session_factory) -> AsyncIterator[httpx.AsyncClient]:
+    settings = Settings(openviking_enabled=False, watchlist="AAPL,MSFT")
+    container = build_container(settings, concurrent_session_factory)
+    # Swap the launcher for one whose agents use fake providers and a fake LLM
+    ctx = make_context(llm=FakeLLM(), results=SessionResultsReader(concurrent_session_factory))
+    orchestrator = PipelineOrchestrator(
+        container.runner,
+        container.registry,
+        build_agent=lambda name: container.registry.get(name).agent_cls(ctx),
+    )
+    container.launcher = PipelineLauncher(orchestrator, container.registry)
+    app.state.container = container
+
+    async with concurrent_session_factory() as session:
+        repo = AgentResultRepository(session)
+        await repo.upsert(
+            agent_type="recommendation",
+            symbol="AAPL",
+            run_date=D1,
+            run_id="old",
+            result=_recommendation("HOLD", "neutral", 3.0),
+        )
+        await repo.upsert(
+            agent_type="recommendation",
+            symbol="AAPL",
+            run_date=D2,
+            run_id="new",
+            result=_recommendation("BUY", "bullish", 42.0),
+        )
+        await repo.upsert(
+            agent_type="moat", symbol="AAPL", run_date=D2, run_id="m", result={"signal": "bullish"}
+        )
+        await session.commit()
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        yield client
+    await container.aclose()
+
+
+@pytest.mark.integration
+async def test_list_agents_in_execution_order(api: httpx.AsyncClient) -> None:
+    resp = await api.get("/api/v1/agents")
+    assert resp.status_code == 200
+    agents = resp.json()
+    assert len(agents) == 13
+    assert agents[-1]["name"] == "recommendation"
+    assert sum(a["recommendation_weight"] for a in agents) == 100
+
+
+@pytest.mark.integration
+async def test_symbols_overview_uses_latest_recommendation(api: httpx.AsyncClient) -> None:
+    resp = await api.get("/api/v1/symbols")
+    assert resp.status_code == 200
+    by_symbol = {s["symbol"]: s["recommendation"] for s in resp.json()}
+    assert list(by_symbol) == ["AAPL", "MSFT"]
+    assert by_symbol["AAPL"]["action"] == "BUY"
+    assert by_symbol["AAPL"]["run_date"] == "2026-10-23"
+    assert by_symbol["AAPL"]["agent_breakdown"][0]["agent"] == "moat"
+    assert by_symbol["MSFT"] is None
+
+
+@pytest.mark.integration
+async def test_symbol_recommendation_and_errors(api: httpx.AsyncClient) -> None:
+    resp = await api.get("/api/v1/symbols/aapl/recommendation")
+    assert resp.status_code == 200
+    assert resp.json()["weighted_score"] == 42.0
+    assert (await api.get("/api/v1/symbols/MSFT/recommendation")).status_code == 404
+    assert (await api.get("/api/v1/symbols/BAD;SYM/recommendation")).status_code == 422
+
+
+@pytest.mark.integration
+async def test_symbol_results_filters(api: httpx.AsyncClient) -> None:
+    all_rows = (await api.get("/api/v1/symbols/AAPL/results")).json()
+    assert [(r["agent_type"], r["run_date"]) for r in all_rows] == [
+        ("moat", "2026-10-23"),
+        ("recommendation", "2026-10-23"),
+        ("recommendation", "2026-10-22"),
+    ]
+    moat = (await api.get("/api/v1/symbols/AAPL/results", params={"agent": "moat"})).json()
+    assert moat[0]["result"] == {"signal": "bullish"}
+    dated = await api.get("/api/v1/symbols/AAPL/results", params={"run_date": "2026-10-22"})
+    assert [r["run_id"] for r in dated.json()] == ["old"]
+    unknown = await api.get("/api/v1/symbols/AAPL/results", params={"agent": "nope"})
+    assert unknown.status_code == 422
+    assert (await api.get("/api/v1/symbols/AAPL/results", params={"limit": 0})).status_code == 422
+
+
+@pytest.mark.integration
+async def test_trigger_pipeline_then_inspect_runs(api: httpx.AsyncClient) -> None:
+    resp = await api.post(
+        "/api/v1/pipeline/runs", json={"symbols": ["msft"], "agents": ["technicals"]}
+    )
+    assert resp.status_code == 202
+    accepted = resp.json()
+    assert accepted["symbols"] == ["MSFT"]
+    assert accepted["agents"] == ["technicals"]
+
+    for _ in range(100):  # the run happens in the background
+        runs = (
+            await api.get("/api/v1/runs", params={"pipeline_run_id": accepted["pipeline_run_id"]})
+        ).json()
+        if runs:
+            break
+        await asyncio.sleep(0.02)
+    assert [(r["agent_type"], r["symbol"], r["status"]) for r in runs] == [
+        ("technicals", "MSFT", "completed")
+    ]
+    filtered = await api.get("/api/v1/runs", params={"symbol": "msft", "status": "completed"})
+    assert len(filtered.json()) == 1
+    assert (await api.get("/api/v1/runs", params={"status": "weird"})).status_code == 422
+    assert (await api.get("/api/v1/runs", params={"symbol": "x;y"})).status_code == 422
+
+
+@pytest.mark.integration
+async def test_trigger_pipeline_rejects_bad_input(api: httpx.AsyncClient) -> None:
+    bad_agent = await api.post("/api/v1/pipeline/runs", json={"agents": ["nope"]})
+    assert bad_agent.status_code == 422
+    bad_symbol = await api.post("/api/v1/pipeline/runs", json={"symbols": ["../etc"]})
+    assert bad_symbol.status_code == 422
+
+
+@pytest.mark.integration
+async def test_trigger_defaults_to_watchlist_and_all_agents(api: httpx.AsyncClient) -> None:
+    resp = await api.post("/api/v1/pipeline/runs", json={})
+    assert resp.status_code == 202
+    body = resp.json()
+    assert body["symbols"] == ["AAPL", "MSFT"]
+    assert body["agents"][-1] == "recommendation"
+    assert app.state.container.launcher.active == 1

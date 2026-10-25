@@ -18,6 +18,7 @@ from app.core.config import Settings
 from app.knowledge.openviking_store import OpenVikingStore
 from app.knowledge.store import KnowledgeStore, NullKnowledgeStore
 from app.llm.client import LLMClient
+from app.pipeline.launcher import PipelineLauncher
 from app.pipeline.orchestrator import PipelineOrchestrator
 from app.providers.cache import TTLCache
 from app.providers.edgar import EdgarClient
@@ -43,6 +44,7 @@ class Container:
     knowledge: KnowledgeStore
     runner: AgentRunner
     orchestrator: PipelineOrchestrator
+    launcher: PipelineLauncher
     session_factory: async_sessionmaker[AsyncSession]
     http: HttpClient
     llm: LLMClient
@@ -51,6 +53,7 @@ class Container:
         return self.registry.get(name).agent_cls(self.agent_context)
 
     async def aclose(self) -> None:
+        await self.launcher.aclose()
         await self.http.aclose()
         await self.llm.aclose()
 
@@ -98,6 +101,7 @@ def build_container(
         knowledge=knowledge,
         runner=runner,
         orchestrator=orchestrator,
+        launcher=PipelineLauncher(orchestrator, registry),
         session_factory=session_factory,
         http=http,
         llm=llm,

@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.agents.scheduler import create_scheduler
+from app.api.v1.router import api_router
 from app.container import build_container
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
@@ -40,7 +41,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("Agent scheduler stopped")
 
 
-app = FastAPI(title="agentsForStocks", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="agentsForStocks", version="0.3.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,6 +51,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(RequestLoggingMiddleware)
+app.include_router(api_router)
 
 
 @app.get("/health")
