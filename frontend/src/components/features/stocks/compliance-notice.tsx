@@ -1,11 +1,7 @@
 import { Badge } from "@/components/ui/badge"
 import type { Compliance } from "@/types/api"
 
-const RULE_LABEL: Record<string, string> = {
-  promissory_language: "Promissory language",
-  exaggerated_claim: "Exaggerated claim",
-  missing_risk_discussion: "No risk discussed",
-}
+import { RULE_LABEL } from "./compliance-marker"
 
 /** Compliance review status + findings, and the disclaimer every recommendation carries. */
 export function ComplianceNotice({

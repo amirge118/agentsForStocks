@@ -82,7 +82,8 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [x] Compliance pass on RecommendationAgent output (app/domain/compliance.py): promissory language fails and is replaced, hype / missing-risk is flagged, disclaimer on every result; shown on the symbol page and the watchlist (per-row Flagged/Replaced marker + disclaimer)
 - [x] Run the compliance review on every agent's `reasoning` (AgentRunner → app/agents/compliance.py): promissory text is replaced before storage and knowledge writes, hype is flagged
 - [x] Show per-agent compliance markers (Flagged / Replaced) in the frontend agent breakdown table (`compliance_status` on each contribution)
-- [ ] Tooltip / expandable row on a breakdown marker showing the findings (rule + phrase) — needs findings on ContributionView [PRIORITY: LOW]
+- [x] Tooltip on the Flagged / Replaced marker listing the findings (rule + phrase), in the agent breakdown and the watchlist
+- [ ] Touch devices: Radix tooltips don't open on tap — consider a popover for the compliance marker on mobile [PRIORITY: LOW]
 - [ ] Re-review results stored before the per-agent compliance gate existed (they have no `compliance` field) [PRIORITY: LOW]
 - [ ] Optional LLM second-pass compliance review for subtler issues (cherry-picking, unbalanced framing) the regex rules miss [PRIORITY: LOW]
 - [ ] Endpoint / report listing recommendations that were flagged or failed compliance, for review [PRIORITY: LOW]

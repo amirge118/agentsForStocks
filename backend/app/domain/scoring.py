@@ -9,6 +9,7 @@ risk signal caps a bullish call at neutral.
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from app.domain.compliance import ComplianceFinding
 from app.domain.signals import SignalLabel, direction
 
 BUY_THRESHOLD = 15.0
@@ -32,6 +33,7 @@ class Contribution:
     # Outcome of the agent's compliance review; None for missing agents and
     # results stored before the review existed
     compliance_status: ComplianceStatus | None = None
+    compliance_findings: tuple[ComplianceFinding, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -71,6 +73,7 @@ def weighted_score(
                 value,
                 str(result.get("reasoning", "")),
                 _compliance_status(result),
+                _compliance_findings(result),
             )
         )
 
@@ -113,3 +116,19 @@ def _compliance_status(result: dict[str, Any]) -> ComplianceStatus | None:
     compliance = result.get("compliance")
     status = compliance.get("status") if isinstance(compliance, dict) else None
     return status if status in _COMPLIANCE_STATUSES else None
+
+
+def _compliance_findings(result: dict[str, Any]) -> tuple[ComplianceFinding, ...]:
+    """Findings from the stored review; malformed entries are skipped."""
+    compliance = result.get("compliance")
+    raw = compliance.get("findings") if isinstance(compliance, dict) else None
+    if not isinstance(raw, list):
+        return ()
+    return tuple(
+        ComplianceFinding(f["rule"], f["severity"], f.get("phrase") or "")
+        for f in raw
+        if isinstance(f, dict)
+        and isinstance(f.get("rule"), str)
+        and f.get("severity") in ("flag", "fail")
+        and isinstance(f.get("phrase", ""), str)
+    )

@@ -209,6 +209,24 @@ async def test_recommendation_uses_reasoning_model_and_weights() -> None:
 
 
 @pytest.mark.unit
+async def test_recommendation_breakdown_carries_each_analysts_compliance_review() -> None:
+    results = _analyst_results("bullish")
+    results["moat"]["compliance"] = {
+        "status": "fail",
+        "findings": [{"rule": "promissory_language", "severity": "fail", "phrase": "risk-free"}],
+    }
+    _, result = await _run(RecommendationAgent, llm=FakeLLM(), results=FakeResults(results))
+
+    by_agent = {c.agent: c for c in result.agent_breakdown}
+    assert by_agent["moat"].compliance_status == "fail"
+    assert [f.model_dump() for f in by_agent["moat"].compliance_findings] == [
+        {"rule": "promissory_language", "severity": "fail", "phrase": "risk-free"}
+    ]
+    assert by_agent["valuation"].compliance_status is None
+    assert by_agent["valuation"].compliance_findings == []
+
+
+@pytest.mark.unit
 async def test_recommendation_holds_without_enough_analysts() -> None:
     llm = FakeLLM()
     partial = dict(list(_analyst_results("bullish").items())[:2])

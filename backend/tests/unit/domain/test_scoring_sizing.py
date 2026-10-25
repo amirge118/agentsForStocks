@@ -92,3 +92,31 @@ def test_contributions_carry_each_agents_compliance_status() -> None:
 def test_missing_agent_has_no_compliance_status() -> None:
     score = weighted_score({}, WEIGHTS)
     assert all(c.compliance_status is None for c in score.contributions)
+
+
+@pytest.mark.unit
+def test_contributions_carry_valid_compliance_findings_only() -> None:
+    findings = [
+        {"rule": "promissory_language", "severity": "fail", "phrase": "guaranteed"},
+        {"rule": "missing_risk_discussion", "severity": "flag", "phrase": ""},
+        {"rule": "bad", "severity": "critical", "phrase": "x"},  # unknown severity
+        "not a dict",
+    ]
+    results = {
+        "valuation": {"signal": "bullish", "confidence": 60, "compliance": {"findings": findings}}
+    }
+    valuation = weighted_score(results, WEIGHTS).contributions[0]
+
+    assert [(f.rule, f.severity, f.phrase) for f in valuation.compliance_findings] == [
+        ("promissory_language", "fail", "guaranteed"),
+        ("missing_risk_discussion", "flag", ""),
+    ]
+
+
+@pytest.mark.unit
+def test_contributions_without_review_have_no_findings() -> None:
+    results = {
+        "valuation": {"signal": "bullish", "confidence": 60, "compliance": {"findings": "x"}}
+    }
+    score = weighted_score(results, WEIGHTS)
+    assert all(c.compliance_findings == () for c in score.contributions)

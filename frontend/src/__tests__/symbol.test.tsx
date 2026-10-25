@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 
 import { AgentErrorBoundary } from "@/components/features/agents/agent-error-boundary"
 import { AgentRunsTable } from "@/components/features/agents/agent-runs-table"
@@ -53,6 +54,10 @@ describe("RecommendationCard", () => {
       agent_breakdown: recommendation.agent_breakdown.map((c) => ({
         ...c,
         compliance_status: c.agent in status ? status[c.agent as keyof typeof status] : null,
+        compliance_findings:
+          c.agent === "moat"
+            ? [{ rule: "promissory_language", severity: "fail" as const, phrase: "risk-free" }]
+            : [],
       })),
     }
     renderWithProviders(<RecommendationCard symbol="AAPL" />, { symbols: symbols(async () => marked) })
@@ -64,6 +69,9 @@ describe("RecommendationCard", () => {
     )
     expect(within(row("risk")).getByLabelText("Compliance: flagged")).toHaveTextContent("Flagged")
     expect(within(row("institutional")).queryByLabelText(/^Compliance:/)).not.toBeInTheDocument()
+
+    await userEvent.tab() // the only focusable marker: moat has findings
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Promissory language “risk-free”")
   })
 
   it("shows no breakdown markers when every analyst passed or predates the review", async () => {
