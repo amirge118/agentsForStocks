@@ -70,7 +70,8 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Move to Next.js 16 when CLAUDE.md allows — Next 15 bundles a vulnerable postcss, currently forced to 8.5.31 via npm overrides [PRIORITY: MED]
 
 ## LLM
-- [ ] Upgrade the `anthropic` SDK pin (0.40) so structured outputs use the typed `output_config` parameter instead of `extra_body` [PRIORITY: MED]
+- [x] Upgrade the `anthropic` SDK pin 0.40 → 2.3.0 (API version 2026-10-21); `output_config` / `mcp_servers` are now typed parameters
+- [ ] After deploying the SDK 2.x upgrade, run `python -m scripts.preflight` with the real ANTHROPIC_API_KEY to confirm a live request on API version 2026-10-21 [PRIORITY: HIGH]
 - [ ] Evaluate newer models (claude-haiku-5-5 / claude-sonnet-5-5) for agent judgements via LLM_DEFAULT_MODEL / LLM_REASONING_MODEL — needs an eval set first [PRIORITY: MED]
 
 ## MCP Data Sources (Claude for Financial Advisors plugin)
@@ -91,4 +92,4 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 ## Dependencies
 - [x] Split requirements: runtime / dev / optional knowledge (OpenViking pulls ~300 packages)
 - [x] fastapi 0.115 → 0.162 with starlette 1.10 (0.38.x had 14 known vulnerabilities); removed unused python-jose + bcrypt
-- [ ] Upgrade the remaining old pins (anthropic 0.40, yfinance 0.2.50, pandas 2.2, SQLAlchemy 2.0.36) one at a time with the test suite [PRIORITY: MED]
+- [ ] Upgrade the remaining old pins (yfinance 0.2.50, pandas 2.2, SQLAlchemy 2.0.36) one at a time with the test suite — anthropic done [PRIORITY: MED]

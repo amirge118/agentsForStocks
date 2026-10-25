@@ -14,7 +14,7 @@ asyncpg==0.30.0
 alembic==1.14.0
 
 # AI & data
-anthropic==0.40.0
+anthropic==2.3.0
 yfinance==0.2.50
 pandas==2.2.3
 
