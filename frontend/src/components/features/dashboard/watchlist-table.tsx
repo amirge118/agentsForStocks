@@ -3,7 +3,7 @@
 import Link from "next/link"
 
 import { ActionBadge } from "@/components/features/stocks/action-badge"
-import { Badge } from "@/components/ui/badge"
+import { ComplianceMarker } from "@/components/features/stocks/compliance-marker"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -17,22 +17,6 @@ import {
 import { formatConfidence, formatDate, formatScore, toneClasses } from "@/lib/format"
 import { useSymbols } from "@/lib/hooks/queries"
 import { cn } from "@/lib/utils"
-import type { Compliance } from "@/types/api"
-
-/** Short marker for a row whose reasoning was flagged or replaced by the compliance review. */
-function ComplianceMarker({ compliance }: { compliance: Compliance }) {
-  if (compliance.status === "pass") return null
-  return (
-    <Badge
-      variant={compliance.status === "fail" ? "loss" : "outline"}
-      aria-label={
-        compliance.status === "fail" ? "Compliance: original reasoning replaced" : "Compliance: flagged"
-      }
-    >
-      {compliance.status === "fail" ? "Replaced" : "Flagged"}
-    </Badge>
-  )
-}
 
 export function WatchlistTable() {
   const { data, isPending, isError, error, refetch } = useSymbols()
@@ -87,7 +71,7 @@ export function WatchlistTable() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <ActionBadge action={rec.action} />
-                      <ComplianceMarker compliance={rec.compliance} />
+                      <ComplianceMarker status={rec.compliance.status} />
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-mono">

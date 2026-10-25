@@ -1,3 +1,4 @@
+import { ComplianceMarker } from "@/components/features/stocks/compliance-marker"
 import { SignalText } from "@/components/features/stocks/signal-text"
 import {
   Table,
@@ -29,7 +30,10 @@ export function AgentBreakdownTable({ breakdown }: { breakdown: readonly Contrib
           <TableRow key={c.agent}>
             <TableCell className="font-medium">{c.agent.replaceAll("_", " ")}</TableCell>
             <TableCell>
-              <SignalText signal={c.signal} />
+              <div className="flex items-center gap-2">
+                <SignalText signal={c.signal} />
+                <ComplianceMarker status={c.compliance_status} />
+              </div>
             </TableCell>
             <TableCell className="text-right font-mono">
               {c.signal === "missing" ? "—" : formatConfidence(c.confidence)}

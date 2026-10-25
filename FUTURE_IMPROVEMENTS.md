@@ -81,7 +81,8 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Use Morningstar MCP (fair value, moat rating) as a cross-check in MoatAgent / ValuationAgent [PRIORITY: MED]
 - [x] Compliance pass on RecommendationAgent output (app/domain/compliance.py): promissory language fails and is replaced, hype / missing-risk is flagged, disclaimer on every result; shown on the symbol page and the watchlist (per-row Flagged/Replaced marker + disclaimer)
 - [x] Run the compliance review on every agent's `reasoning` (AgentRunner → app/agents/compliance.py): promissory text is replaced before storage and knowledge writes, hype is flagged
-- [ ] Show per-agent compliance markers (Flagged / Replaced) in the frontend agent breakdown table and results view [PRIORITY: LOW]
+- [x] Show per-agent compliance markers (Flagged / Replaced) in the frontend agent breakdown table (`compliance_status` on each contribution)
+- [ ] Tooltip / expandable row on a breakdown marker showing the findings (rule + phrase) — needs findings on ContributionView [PRIORITY: LOW]
 - [ ] Re-review results stored before the per-agent compliance gate existed (they have no `compliance` field) [PRIORITY: LOW]
 - [ ] Optional LLM second-pass compliance review for subtler issues (cherry-picking, unbalanced framing) the regex rules miss [PRIORITY: LOW]
 - [ ] Endpoint / report listing recommendations that were flagged or failed compliance, for review [PRIORITY: LOW]

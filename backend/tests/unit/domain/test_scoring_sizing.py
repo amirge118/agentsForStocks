@@ -70,3 +70,25 @@ def test_correlated_holdings_shrink_the_position() -> None:
     assert crowded.adjusted_limit_pct < alone.adjusted_limit_pct
     assert average_correlation(target, {"SHORT": target.head(5)}) == 0.0
     assert annualized_volatility(target.head(3)) == 0.20
+
+
+@pytest.mark.unit
+def test_contributions_carry_each_agents_compliance_status() -> None:
+    results = {
+        "valuation": {"signal": "bullish", "confidence": 60, "compliance": {"status": "fail"}},
+        "moat": {"signal": "bullish", "confidence": 60, "compliance": {"status": "flag"}},
+        # Stored before the review existed / malformed → unknown
+        "risk": {"signal": "neutral", "confidence": 50},
+        "growth": {"signal": "bullish", "confidence": 40, "compliance": {"status": "weird"}},
+    }
+    by_agent = {
+        c.agent: c.compliance_status for c in weighted_score(results, WEIGHTS).contributions
+    }
+
+    assert by_agent == {"valuation": "fail", "moat": "flag", "risk": None, "growth": None}
+
+
+@pytest.mark.unit
+def test_missing_agent_has_no_compliance_status() -> None:
+    score = weighted_score({}, WEIGHTS)
+    assert all(c.compliance_status is None for c in score.contributions)

@@ -14,6 +14,7 @@ type Schemas = components["schemas"]
 export const SignalSchema = z.enum(["bullish", "bearish", "neutral"])
 export const ActionSchema = z.enum(["BUY", "SELL", "HOLD"])
 export const RunStatusSchema = z.enum(["completed", "skipped", "failed"])
+export const ComplianceStatusSchema = z.enum(["pass", "flag", "fail"])
 
 export const ContributionSchema = z.object({
   agent: z.string(),
@@ -22,10 +23,11 @@ export const ContributionSchema = z.object({
   weight: z.number(),
   contribution: z.number(),
   reasoning: z.string(),
+  compliance_status: ComplianceStatusSchema.nullish(),
 })
 
 export const ComplianceSchema = z.object({
-  status: z.enum(["pass", "flag", "fail"]),
+  status: ComplianceStatusSchema,
   findings: z.array(
     z.object({ rule: z.string(), severity: z.enum(["flag", "fail"]), phrase: z.string() }),
   ),
@@ -96,6 +98,7 @@ export type Action = z.infer<typeof ActionSchema>
 export type RunStatus = z.infer<typeof RunStatusSchema>
 export type Contribution = z.infer<typeof ContributionSchema>
 export type Compliance = z.infer<typeof ComplianceSchema>
+export type ComplianceStatus = z.infer<typeof ComplianceStatusSchema>
 export type Recommendation = z.infer<typeof RecommendationSchema>
 export type SymbolOverview = z.infer<typeof SymbolOverviewSchema>
 export type AgentInfo = z.infer<typeof AgentInfoSchema>

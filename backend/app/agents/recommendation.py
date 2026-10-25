@@ -27,7 +27,14 @@ from app.agents.base import (
 from app.agents.formatting import memory_block
 from app.agents.registry import register_agent, registry
 from app.domain.compliance import DISCLAIMER, review_recommendation
-from app.domain.scoring import BUY_THRESHOLD, SELL_THRESHOLD, Action, WeightedScore, to_action
+from app.domain.scoring import (
+    BUY_THRESHOLD,
+    SELL_THRESHOLD,
+    Action,
+    ComplianceStatus,
+    WeightedScore,
+    to_action,
+)
 from app.domain.scoring import weighted_score as compute_weighted_score
 from app.schemas.signals import LLMSignal
 
@@ -55,6 +62,7 @@ class ContributionView(BaseModel):
     weight: float
     contribution: float
     reasoning: str
+    compliance_status: ComplianceStatus | None = None
 
 
 class RecommendationResult(AnalysisResult):

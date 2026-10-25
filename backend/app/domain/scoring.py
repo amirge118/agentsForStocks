@@ -17,6 +17,8 @@ RISK_OVERRIDE_CONFIDENCE = 70.0
 RISK_OVERRIDE_MAX_CONFIDENCE = 55.0
 
 Action = Literal["BUY", "SELL", "HOLD"]
+ComplianceStatus = Literal["pass", "flag", "fail"]
+_COMPLIANCE_STATUSES: tuple[ComplianceStatus, ...] = ("pass", "flag", "fail")
 
 
 @dataclass(frozen=True)
@@ -27,6 +29,9 @@ class Contribution:
     weight: float
     contribution: float
     reasoning: str = ""
+    # Outcome of the agent's compliance review; None for missing agents and
+    # results stored before the review existed
+    compliance_status: ComplianceStatus | None = None
 
 
 @dataclass(frozen=True)
@@ -58,7 +63,15 @@ def weighted_score(
         value = direction(signal) * confidence / 100 * weight
         total += value
         contributions.append(
-            Contribution(agent, signal, confidence, weight, value, str(result.get("reasoning", "")))
+            Contribution(
+                agent,
+                signal,
+                confidence,
+                weight,
+                value,
+                str(result.get("reasoning", "")),
+                _compliance_status(result),
+            )
         )
 
     if total > BUY_THRESHOLD:
@@ -94,3 +107,9 @@ def to_action(signal: str) -> Action:
     if signal == "bearish":
         return "SELL"
     return "HOLD"
+
+
+def _compliance_status(result: dict[str, Any]) -> ComplianceStatus | None:
+    compliance = result.get("compliance")
+    status = compliance.get("status") if isinstance(compliance, dict) else None
+    return status if status in _COMPLIANCE_STATUSES else None
