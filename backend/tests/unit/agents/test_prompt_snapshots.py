@@ -63,9 +63,9 @@ async def test_prompt_matches_snapshot(name: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(rendered, encoding="utf-8")
     assert path.exists(), f"missing snapshot — run: UPDATE_SNAPSHOTS=1 pytest {__file__}"
-    assert rendered == path.read_text(encoding="utf-8"), (
-        f"{name}'s prompt changed. If intended: UPDATE_SNAPSHOTS=1 pytest {__file__}"
-    )
+    assert rendered == path.read_text(
+        encoding="utf-8"
+    ), f"{name}'s prompt changed. If intended: UPDATE_SNAPSHOTS=1 pytest {__file__}"
 
 
 @pytest.mark.unit
