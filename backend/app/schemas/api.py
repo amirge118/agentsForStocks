@@ -77,6 +77,67 @@ class AgentRunOut(BaseModel):
     error: str | None
     started_at: datetime
     finished_at: datetime
+    fetch_ms: int | None
+    analyze_ms: int | None
+    llm_calls: int
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float | None
+    llm_fallbacks: int
+
+
+class LLMCallOut(BaseModel):
+    """One request to the model, with the exact text sent and received (when captured)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    call_id: str
+    created_at: datetime
+    pipeline_run_id: str | None
+    run_id: str | None
+    agent: str | None
+    symbol: str | None
+    model: str
+    prompt_name: str | None
+    prompt_version: str
+    status: Literal["ok", "error"]
+    stop_reason: str | None
+    error: str | None
+    latency_ms: int
+    input_tokens: int
+    output_tokens: int
+    cache_read_tokens: int
+    cache_write_tokens: int
+    cost_usd: float | None
+    system_prompt: str | None
+    prompt: str | None
+    response: str | None
+
+
+class LLMUsageRow(BaseModel):
+    """Token and cost totals for one group (agent, model, day or prompt version)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    key: str
+    calls: int
+    errors: int
+    input_tokens: int
+    output_tokens: int
+    cache_read_tokens: int
+    cache_write_tokens: int
+    cost_usd: float
+    avg_latency_ms: float
+
+
+class LLMUsageReport(BaseModel):
+    since: datetime
+    group_by: Literal["agent", "model", "day", "prompt_version"]
+    rows: list[LLMUsageRow]
+    total_calls: int
+    total_input_tokens: int
+    total_output_tokens: int
+    total_cost_usd: float
 
 
 class PipelineRunRequest(BaseModel):

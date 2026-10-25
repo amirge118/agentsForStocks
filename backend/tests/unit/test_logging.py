@@ -3,7 +3,14 @@ import logging
 
 import pytest
 
-from app.core.logging import REDACTED, JsonFormatter, TextFormatter, configure_logging, scrub
+from app.core.logging import (
+    REDACTED,
+    ContextFilter,
+    JsonFormatter,
+    TextFormatter,
+    configure_logging,
+    scrub,
+)
 
 
 def _record(**extra) -> logging.LogRecord:
@@ -58,7 +65,17 @@ def test_json_format_includes_exceptions_and_unserialisable_values() -> None:
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "key", ["api_key", "authorization", "openviking_api_key", "TOKEN", "password"]
+    "key",
+    [
+        "api_key",
+        "authorization",
+        "openviking_api_key",
+        "TOKEN",
+        "password",
+        "access_token",
+        "password_hash",
+        "fmp_apikey",
+    ],
 )
 def test_sensitive_extras_are_redacted(key: str) -> None:
     record = _record(**{key: "s3cret"})
@@ -128,6 +145,46 @@ def test_configure_logging_quiets_url_logging_libraries() -> None:
         configure_logging("text", "info")
         assert logging.getLogger("httpx").level == logging.WARNING
         assert logging.getLogger("httpcore").level == logging.WARNING
+    finally:
+        for h in [h for h in root.handlers if getattr(h, "_agents_for_stocks_handler", False)]:
+            root.removeHandler(h)
+        root.setLevel(saved)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "key", ["input_tokens", "output_tokens", "cache_read_tokens", "max_tokens", "tokenizer"]
+)
+def test_token_counters_are_not_redacted(key: str) -> None:
+    """Regression: substring matching turned every `*_tokens` count into ***."""
+    assert json.loads(JsonFormatter().format(_record(**{key: 1200})))[key] == 1200
+
+
+@pytest.mark.unit
+def test_run_context_is_added_to_every_record() -> None:
+    from app.core.context import bind
+
+    record = _record(agent="explicit")
+    with bind(pipeline_run_id="p1", run_id="r1", agent="moat"):
+        assert ContextFilter().filter(record) is True
+    payload = json.loads(JsonFormatter().format(record))
+    assert (payload["pipeline_run_id"], payload["run_id"]) == ("p1", "r1")
+    assert payload["agent"] == "explicit"  # an explicit extra= value wins
+
+
+@pytest.mark.unit
+def test_uvicorn_logs_go_through_our_handler() -> None:
+    root = logging.getLogger()
+    saved = root.level
+    access = logging.getLogger("uvicorn.access")
+    access.addHandler(logging.NullHandler())
+    access.propagate = False
+    try:
+        configure_logging("json", "info")
+        assert access.handlers == [] and access.propagate is True
+        ours = [h for h in root.handlers if getattr(h, "_agents_for_stocks_handler", False)]
+        assert any(isinstance(f, ContextFilter) for f in ours[0].filters)
+        assert logging.getLogger("httpx2").level == logging.WARNING
     finally:
         for h in [h for h in root.handlers if getattr(h, "_agents_for_stocks_handler", False)]:
             root.removeHandler(h)

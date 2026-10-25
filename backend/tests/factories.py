@@ -237,6 +237,7 @@ class FakeLLM:
         model: str | None = None,
         max_tokens: int = 1024,
         mcp_servers: Any = None,
+        prompt_name: str | None = None,
     ) -> BaseModel:
         self.calls.append(
             {
@@ -245,6 +246,7 @@ class FakeLLM:
                 "schema": schema,
                 "model": model,
                 "mcp_servers": mcp_servers,
+                "prompt_name": prompt_name,
             }
         )
         if self.fail:

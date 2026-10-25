@@ -4,9 +4,11 @@ import { createContext, useContext, type ReactNode } from "react"
 
 import {
   agentRepository,
+  llmRepository,
   runRepository,
   symbolRepository,
   type AgentRepository,
+  type LLMRepository,
   type RunRepository,
   type SymbolRepository,
 } from "./repositories"
@@ -15,12 +17,14 @@ export interface Repositories {
   symbols: SymbolRepository
   agents: AgentRepository
   runs: RunRepository
+  llm: LLMRepository
 }
 
 const defaultRepositories: Repositories = {
   symbols: symbolRepository,
   agents: agentRepository,
   runs: runRepository,
+  llm: llmRepository,
 }
 
 const RepositoryContext = createContext<Repositories>(defaultRepositories)

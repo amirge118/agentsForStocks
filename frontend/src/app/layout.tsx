@@ -26,6 +26,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <Link href="/runs" className="text-zinc-400 hover:text-zinc-50">
                 Runs
               </Link>
+              <Link href="/usage" className="text-zinc-400 hover:text-zinc-50">
+                Tokens &amp; cost
+              </Link>
             </nav>
           </header>
           <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">{children}</main>

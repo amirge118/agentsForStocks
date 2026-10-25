@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from app.agents.base import Agent, AnalysisResult
 from app.agents.formatting import memory_block
 from app.agents.registry import register_agent
+from app.core.context import note_fallback
 from app.domain.market_scan import ScanMetrics, scan_metrics
 from app.domain.signals import SignalLabel
 from app.knowledge.store import Learning
@@ -59,8 +60,10 @@ class MarketScannerAgent(Agent[MarketScanData, MarketScanResult]):
                 prompt=_prompt(symbol, data.info, m, memory),
                 schema=ScanJudgement,
                 max_tokens=512,
+                prompt_name=self.name,
             )
         except LLMError:
+            note_fallback()
             judgement = ScanJudgement(
                 signal="neutral",
                 confidence=0.0,

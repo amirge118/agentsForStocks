@@ -8,17 +8,22 @@ import {
   AgentInfoSchema,
   AgentResultSchema,
   AgentRunSchema,
+  LLMCallSchema,
+  LLMUsageReportSchema,
   PipelineRunAcceptedSchema,
   RecommendationSchema,
   SymbolOverviewSchema,
   type AgentInfo,
   type AgentResult,
   type AgentRun,
+  type LLMCall,
+  type LLMUsageReport,
   type PipelineRunAccepted,
   type PipelineRunRequest,
   type Recommendation,
   type RunStatus,
   type SymbolOverview,
+  type UsageGroup,
 } from "@/types/api"
 
 import { get, post } from "./client"
@@ -45,6 +50,11 @@ export interface RunRepository {
   create(request: PipelineRunRequest): Promise<PipelineRunAccepted>
 }
 
+export interface LLMRepository {
+  getUsage(days: number, groupBy: UsageGroup): Promise<LLMUsageReport>
+  getRunCalls(runId: string): Promise<LLMCall[]>
+}
+
 export const symbolRepository: SymbolRepository = {
   getAll: () => get("/symbols", z.array(SymbolOverviewSchema)),
   getRecommendation: (symbol) =>
@@ -69,4 +79,11 @@ export const runRepository: RunRepository = {
       limit: filters.limit,
     }),
   create: (request) => post("/pipeline/runs", PipelineRunAcceptedSchema, request),
+}
+
+export const llmRepository: LLMRepository = {
+  getUsage: (days, groupBy) =>
+    get("/llm/usage", LLMUsageReportSchema, { days, group_by: groupBy }),
+  getRunCalls: (runId) =>
+    get(`/runs/${encodeURIComponent(runId)}/llm-calls`, z.array(LLMCallSchema)),
 }

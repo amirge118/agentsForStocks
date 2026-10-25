@@ -122,3 +122,29 @@ async def test_input_validation_happens_before_running(concurrent_session_factor
 
     report = await orchestrator.run(["aapl", "AAPL"], agents=["a"], run_date=RUN_DATE)
     assert len(report.outcomes) == 1  # duplicates collapsed after normalisation
+
+
+@pytest.mark.unit
+async def test_pipeline_logs_carry_its_id_and_report_llm_totals(
+    concurrent_session_factory, caplog
+) -> None:
+    import logging
+
+    from app.core.logging import ContextFilter
+
+    caplog.handler.addFilter(ContextFilter())
+    caplog.set_level(logging.INFO)
+    report = await _orchestrator(concurrent_session_factory, _registry(_Tracker())).run(
+        ["AAPL"], run_date=RUN_DATE
+    )
+    runner_lines = [r for r in caplog.records if r.name == "app.agents.runner"]
+    assert runner_lines and {r.pipeline_run_id for r in runner_lines} == {report.pipeline_run_id}
+    (finished,) = (r for r in caplog.records if r.message == "Pipeline finished")
+    assert finished.llm_calls == 0 and finished.cost_usd == 0
+    assert report.usage == {
+        "llm_calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost_usd": 0,
+        "llm_fallbacks": 0,
+    }

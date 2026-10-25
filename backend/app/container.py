@@ -18,6 +18,7 @@ from app.core.config import Settings
 from app.knowledge.openviking_store import OpenVikingStore
 from app.knowledge.store import KnowledgeStore, NullKnowledgeStore
 from app.llm.client import LLMClient
+from app.llm.recording import DbLLMCallRecorder
 from app.pipeline.launcher import PipelineLauncher
 from app.pipeline.orchestrator import PipelineOrchestrator
 from app.providers.cache import TTLCache
@@ -71,6 +72,8 @@ def build_container(
             max_retries=2,  # SDK retries 429/5xx/connection errors with backoff
         ),
         default_model=settings.llm_default_model,
+        recorder=DbLLMCallRecorder(session_factory),
+        capture_content=settings.llm_capture_content,
     )
     knowledge: KnowledgeStore = (
         OpenVikingStore(settings.openviking_url, settings.openviking_api_key or None)

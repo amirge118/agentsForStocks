@@ -19,6 +19,7 @@ from typing import Any, ClassVar, Generic, Literal, Protocol, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.context import note_fallback
 from app.domain.signals import SignalLabel
 from app.knowledge.store import Learning
 from app.llm.client import LLMClient, LLMError
@@ -116,14 +117,17 @@ class Agent(ABC, Generic[DataT, ResultT]):
         usually the agent's own quantitative signal — so the run still completes.
         """
         try:
+            name = prompt_name or self.name
             return await self.ctx.llm.generate(
-                system=load_prompt(prompt_name or self.name),
+                system=load_prompt(name),
                 prompt=prompt,
                 schema=LLMSignal,
                 model=model,
                 mcp_servers=mcp_servers,
+                prompt_name=name,
             )
         except LLMError as exc:
+            note_fallback()
             logger.warning(
                 "LLM judgement unavailable, using fallback",
                 extra={

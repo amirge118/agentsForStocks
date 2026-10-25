@@ -20,6 +20,7 @@ from app.agents.base import Agent
 from app.agents.registry import AgentRegistry
 from app.agents.runner import AgentRunner, RunOutcome
 from app.core.clock import market_today
+from app.core.context import bind
 from app.core.symbols import validate_symbol
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,18 @@ class PipelineReport:
     @property
     def failed(self) -> list[RunOutcome]:
         return [o for o in self.outcomes if o.status == "failed"]
+
+    @property
+    def usage(self) -> dict[str, int | float]:
+        """LLM totals across the pipeline run (summed from each agent run)."""
+        runs = [o.usage for o in self.outcomes if o.usage is not None]
+        return {
+            "llm_calls": sum(u.llm_calls for u in runs),
+            "input_tokens": sum(u.input_tokens for u in runs),
+            "output_tokens": sum(u.output_tokens for u in runs),
+            "cost_usd": round(sum(u.cost_usd for u in runs), 6),
+            "llm_fallbacks": sum(u.llm_fallbacks for u in runs),
+        }
 
 
 class PipelineOrchestrator:
@@ -74,18 +87,23 @@ class PipelineOrchestrator:
         levels = self._registry.execution_levels(list(agents) if agents is not None else None)
         day = run_date or market_today()
         pipeline_run_id = pipeline_run_id or str(uuid4())
-        log_ctx = {"pipeline_run_id": pipeline_run_id, "symbols": tickers}
-        logger.info("Pipeline started", extra=log_ctx)
-
-        per_symbol = await asyncio.gather(
-            *(self._run_symbol(symbol, levels, day, force, pipeline_run_id) for symbol in tickers)
-        )
-        report = PipelineReport(
-            pipeline_run_id=pipeline_run_id,
-            run_date=day,
-            outcomes=tuple(o for outcomes in per_symbol for o in outcomes),
-        )
-        logger.info("Pipeline finished", extra={**log_ctx, "counts": report.counts})
+        with bind(pipeline_run_id=pipeline_run_id):  # inherited by every task gathered below
+            logger.info("Pipeline started", extra={"symbols": tickers})
+            per_symbol = await asyncio.gather(
+                *(
+                    self._run_symbol(symbol, levels, day, force, pipeline_run_id)
+                    for symbol in tickers
+                )
+            )
+            report = PipelineReport(
+                pipeline_run_id=pipeline_run_id,
+                run_date=day,
+                outcomes=tuple(o for outcomes in per_symbol for o in outcomes),
+            )
+            logger.info(
+                "Pipeline finished",
+                extra={"symbols": tickers, "counts": report.counts, **report.usage},
+            )
         return report
 
     async def _run_symbol(

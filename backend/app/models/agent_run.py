@@ -8,7 +8,7 @@ happened in each pipeline run.
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, String, Text
+from sqlalchemy import Date, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -26,6 +26,22 @@ class AgentRun(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Where the time went (None for skipped runs or a failure before that phase)
+    fetch_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    analyze_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # LLM usage of this run — per-call detail is in llm_calls (same run_id)
+    llm_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    input_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    output_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Judgements that fell back to the agent's own quantitative signal
+    llm_fallbacks: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
 
     def __repr__(self) -> str:
         return f"<AgentRun {self.agent_type}/{self.symbol} {self.run_date} {self.status}>"

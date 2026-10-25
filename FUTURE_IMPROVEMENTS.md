@@ -72,6 +72,9 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 ## LLM
 - [x] Upgrade the `anthropic` SDK pin 0.40 → 2.3.0 (API version 2026-10-21); `output_config` / `mcp_servers` are now typed parameters
 - [ ] After deploying the SDK 2.x upgrade, run `python -m scripts.preflight` with the real ANTHROPIC_API_KEY to confirm a live request on API version 2026-10-21 [PRIORITY: HIGH]
+- [x] LLM ledger (`llm_calls`): tokens, cost, latency, prompt version and exact text of every call; `/api/v1/llm/usage`, Tokens & cost page, `scripts.token_report`
+- [ ] Per-day LLM cost budget (like the FMP DailyCallBudget) that stops new calls and alerts when exceeded [PRIORITY: MED]
+- [ ] Load model prices from config instead of `app/llm/pricing.py`, so a price change needs no deploy [PRIORITY: LOW]
 - [ ] Evaluate newer models (claude-haiku-5-5 / claude-sonnet-5-5) for agent judgements via LLM_DEFAULT_MODEL / LLM_REASONING_MODEL — needs an eval set first [PRIORITY: MED]
 
 ## MCP Data Sources (Claude for Financial Advisors plugin)

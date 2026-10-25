@@ -44,3 +44,19 @@ export function toneClasses(n: number): string {
   if (n < 0) return "text-red-400 bg-red-400/10"
   return "text-zinc-400 bg-zinc-800"
 }
+
+/** LLM cost: dollars with up to 4 decimals (calls cost fractions of a cent). */
+export function formatCost(n: number | null): string {
+  if (n === null) return "—"
+  return n.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  })
+}
+
+/** Token counts with thousands separators: 12345 → "12,345". */
+export function formatTokens(n: number): string {
+  return n.toLocaleString("en-US")
+}
