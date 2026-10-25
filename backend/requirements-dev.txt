@@ -5,6 +5,9 @@ pytest==9.1.1
 pytest-asyncio==1.4.0
 pytest-cov==7.1.0
 aiosqlite==0.20.0
+# The anthropic SDK's HTTP layer (pulled in by anthropic); tests build its
+# Request/Response objects for SDK errors
+httpx2==2.16.0
 
 # Linting / formatting / security
 ruff==0.7.4

@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import anthropic
-import httpx2 as httpx  # the SDK's HTTP layer since anthropic 1.x
+import httpx2
 import pytest
 from pydantic import BaseModel, Field
 
@@ -91,9 +91,9 @@ async def test_invalid_replies_raise_llm_error(reply: SimpleNamespace) -> None:
 
 @pytest.mark.unit
 async def test_api_errors_raise_llm_error() -> None:
-    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
     status = anthropic.APIStatusError(
-        "overloaded", response=httpx.Response(529, request=request), body=None
+        "overloaded", response=httpx2.Response(529, request=request), body=None
     )
     llm, _ = _client(status)
     with pytest.raises(LLMError, match="529"):
@@ -157,6 +157,7 @@ async def test_mcp_request_sends_servers_toolsets_beta_and_longer_timeout() -> N
         }
     ]
     assert "output_config" in kwargs  # still a structured reply
+    assert "extra_body" not in kwargs
     assert options == [{"timeout": 120.0}]
 
 
@@ -266,9 +267,9 @@ async def test_successful_call_is_recorded_with_usage_cost_and_context() -> None
 
 @pytest.mark.unit
 async def test_failed_calls_are_recorded_as_errors() -> None:
-    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
     status = anthropic.APIStatusError(
-        "overloaded", response=httpx.Response(529, request=request), body=None
+        "overloaded", response=httpx2.Response(529, request=request), body=None
     )
     for reply in (
         status,
