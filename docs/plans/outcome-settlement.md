@@ -145,6 +145,22 @@ As built (phases 1, 3, 4):
   `evals.run --suite outcomes` grades `outcome_hit_rate` and `alpha_captured`.
 - Backtest: `docs/plans/backtest.md`.
 
+Eval of the recommendation prompt change (phase 3), scenario suite, Gemini free tier
+(`free_gemini` preset), 10 repeats, before (phase 1 commit) vs after, 0% fallbacks both:
+
+| Metric | Before | After |
+|---|---|---|
+| Label accuracy | 100% | 100% |
+| Stability | 100% | 100% |
+| Consensus case, mean confidence | 89.5% | 78.5% |
+| Risk-override case, mean confidence (limit 55%) | 58.0% (50% within) | 59.0% (20% within) |
+| Avg input tokens | 407 | 477 |
+
+No label or stability change. The track-record paragraph makes the model more cautious on
+a clear consensus even without history (−11 pp). The risk-override confidence exceeds its
+limit before and after: a pre-existing calibration gap (FUTURE_IMPROVEMENTS → Agents). The
+real test is the outcome suite once recommendations have settled.
+
 ## Tests
 
 - `tests/unit/domain/test_outcomes.py`: entry is the next close; partial window → pending;
