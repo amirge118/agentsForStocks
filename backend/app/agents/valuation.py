@@ -47,6 +47,7 @@ def _signal_matches_margin_of_safety(data: object, result: "ValuationResult") ->
     "valuation",
     description="Multi-method intrinsic value and margin of safety",
     recommendation_weight=20,
+    company_only=True,
     invariants=(_signal_matches_margin_of_safety,),
 )
 class ValuationAgent(Agent[ValuationData, ValuationResult]):

@@ -88,6 +88,7 @@ class RecommendationData:
     "recommendation",
     description="Weighted BUY/HOLD/SELL across all analyst agents",
     depends_on=INPUT_AGENTS,
+    company_only=True,
 )
 class RecommendationAgent(Agent[RecommendationData, RecommendationResult]):
     result_model = RecommendationResult

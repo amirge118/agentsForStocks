@@ -34,6 +34,7 @@ class MoatData:
     "moat",
     description="Competitive advantage: brand, IP, switching costs, margin durability",
     recommendation_weight=15,
+    company_only=True,
 )
 class MoatAgent(Agent[MoatData, MoatResult]):
     result_model = MoatResult

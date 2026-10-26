@@ -34,3 +34,11 @@ def test_every_agent_has_prompt_and_result_model(name: str) -> None:
     assert load_prompt(name)
     assert issubclass(spec.agent_cls.result_model, AnalysisResult)
     assert spec.description
+
+
+@pytest.mark.unit
+def test_funds_run_only_the_market_agents() -> None:
+    registry = load_agents()
+    fund = {name for level in registry.execution_levels(fund=True) for name in level}
+    assert fund == {"market_scanner", "technicals", "sentiment"}
+    assert "recommendation" in registry.company_only()  # no BUY/SELL from price data alone

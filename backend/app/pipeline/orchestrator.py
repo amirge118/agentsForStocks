@@ -6,12 +6,15 @@ only after everything it depends on); agents within a level run concurrently.
 Two semaphores bound the load: how many symbols are processed at once and how
 many agents run at once overall — this is what keeps FMP / SEC / Yahoo traffic
 within limits instead of fixed cron time slots.
+
+For a fund (ETF) the company-only agents are left out and reported as skipped
+(`is_fund`, app/pipeline/assets.py).
 """
 
 import asyncio
 import logging
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import date
 from uuid import uuid4
@@ -27,6 +30,8 @@ from app.core.symbols import validate_symbol
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+
+NOT_FOR_FUNDS = "not applicable to a fund (company-only agent)"
 
 
 @dataclass(frozen=True)
@@ -65,8 +70,10 @@ class PipelineOrchestrator:
         *,
         max_concurrent_symbols: int = 2,
         max_concurrent_agents: int = 4,
+        is_fund: Callable[[str], Awaitable[bool]] | None = None,
     ) -> None:
         self._runner = runner
+        self._is_fund = is_fund
         self._registry = registry
         self._build_agent = build_agent
         self._symbol_slots = asyncio.Semaphore(max_concurrent_symbols)
@@ -87,7 +94,8 @@ class PipelineOrchestrator:
         Pass pipeline_run_id to correlate with a caller (e.g. an API request).
         """
         tickers = list(dict.fromkeys(validate_symbol(s) for s in symbols))
-        levels = self._registry.execution_levels(list(agents) if agents is not None else None)
+        selected = list(agents) if agents is not None else None
+        levels = self._registry.execution_levels(selected)  # raises on an unknown agent
         day = run_date or market_today()
         pipeline_run_id = pipeline_run_id or str(uuid4())
         with (
@@ -105,7 +113,7 @@ class PipelineOrchestrator:
             logger.info("Pipeline started", extra={"symbols": tickers})
             per_symbol = await asyncio.gather(
                 *(
-                    self._run_symbol(symbol, levels, day, force, pipeline_run_id)
+                    self._run_symbol(symbol, selected, levels, day, force, pipeline_run_id)
                     for symbol in tickers
                 )
             )
@@ -125,14 +133,34 @@ class PipelineOrchestrator:
     async def _run_symbol(
         self,
         symbol: str,
+        selected: list[str] | None,
         levels: list[list[str]],
         run_date: date,
         force: bool,
         pipeline_run_id: str,
     ) -> list[RunOutcome]:
         async with self._symbol_slots:
-            with tracer.start_as_current_span("pipeline.symbol", attributes={"symbol": symbol}):
-                return await self._run_levels(symbol, levels, run_date, force, pipeline_run_id)
+            with tracer.start_as_current_span(
+                "pipeline.symbol", attributes={"symbol": symbol}
+            ) as span:
+                skipped: list[RunOutcome] = []
+                if self._is_fund is not None and await self._is_fund(symbol):
+                    span.set_attribute("symbol.fund", True)
+                    fund_levels = self._registry.execution_levels(selected, fund=True)
+                    kept = {name for level in fund_levels for name in level}
+                    skipped = [
+                        RunOutcome(name, symbol, "", "skipped", error=NOT_FOR_FUNDS)
+                        for level in levels
+                        for name in level
+                        if name not in kept
+                    ]
+                    logger.info(
+                        "Fund: company-only agents skipped",
+                        extra={"symbol": symbol, "agents": [o.agent for o in skipped]},
+                    )
+                    levels = fund_levels
+                ran = await self._run_levels(symbol, levels, run_date, force, pipeline_run_id)
+                return ran + skipped
 
     async def _run_levels(
         self,

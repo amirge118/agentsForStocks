@@ -18,6 +18,8 @@ class AgentSpec:
     depends_on: tuple[str, ...]
     # Weight in the final recommendation score; 0 = informational only
     recommendation_weight: float
+    # Reads a company's own reports (10-K, statements, earnings); skipped for funds (ETFs)
+    company_only: bool = False
 
 
 class AgentRegistry:
@@ -33,10 +35,13 @@ class AgentRegistry:
         recommendation_weight: float = 0.0,
         invariants: Iterable[Any] = (),
         profile: Any = None,
+        company_only: bool = False,
     ) -> Any:
         """
         invariants: contract rules checked on every result (app/agents/contracts.py).
         profile: the agent's default AgentProfile (app/llm/profiles.py).
+        company_only: the agent analyses a company (filings, statements, earnings),
+            so it does not run for a fund (ETF) — see app/domain/assets.py.
         """
 
         def decorator(cls: type[Any]) -> type[Any]:
@@ -52,6 +57,7 @@ class AgentRegistry:
                 description=description,
                 depends_on=tuple(depends_on),
                 recommendation_weight=recommendation_weight,
+                company_only=company_only,
             )
             return cls
 
@@ -71,15 +77,23 @@ class AgentRegistry:
             s.name: s.recommendation_weight for s in self._specs.values() if s.recommendation_weight
         }
 
-    def execution_levels(self, names: Iterable[str] | None = None) -> list[list[str]]:
+    def company_only(self) -> set[str]:
+        return {s.name for s in self._specs.values() if s.company_only}
+
+    def execution_levels(
+        self, names: Iterable[str] | None = None, *, fund: bool = False
+    ) -> list[list[str]]:
         """
         Topologically group agents: every agent appears after all of its dependencies.
         Agents within one level are independent and may run concurrently.
+        fund=True leaves out the company-only agents (a fund has no 10-K or earnings).
         """
         selected = set(names) if names is not None else set(self._specs)
         unknown = selected - set(self._specs)
         if unknown:
             raise KeyError(f"Unknown agents: {sorted(unknown)}")
+        if fund:
+            selected -= self.company_only()
 
         remaining = {n: set(self._specs[n].depends_on) & selected for n in selected}
         levels: list[list[str]] = []

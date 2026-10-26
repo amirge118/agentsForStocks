@@ -4,6 +4,8 @@ Add ideas and "nice to haves" discovered during implementation here.
 Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 
 ## Agents
+- [x] Funds (ETFs) run only the market agents; company-only agents are skipped (`company_only=True`)
+- [ ] Fund-specific agents: holdings concentration, expense ratio, tracking error, flows — then a fund recommendation [PRIORITY: LOW]
 - [x] Agent contracts: data gaps, no-data confidence cap, invariants (valuation, fundamentals, technicals), risk cap enforced in code; golden scenarios; prompt snapshots with a size budget
 - [ ] More invariants: risk (bullish with D/E > 3 and current ratio < 1), earnings (beat rate ≥ 75% + positive reaction yet bearish), institutional (distributing yet bullish) — normalise D/E units first (FMP ratio vs Yahoo percent) [PRIORITY: MED]
 - [ ] Show data gaps and contract violations per agent on the symbol page [PRIORITY: MED]

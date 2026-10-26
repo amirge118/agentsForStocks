@@ -34,6 +34,7 @@ class RiskData:
     "risk",
     description="Downside risk: risk factors, leverage, liquidity, beta",
     recommendation_weight=15,
+    company_only=True,
 )
 class RiskAgent(Agent[RiskData, RiskResult]):
     result_model = RiskResult

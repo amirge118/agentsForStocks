@@ -150,6 +150,9 @@ Nothing runs on its own unless `SCHEDULER_ENABLED=true` (default false: the app 
 
 Where they run: `RUN_SCHEDULER=true` runs them in the API process (development); in production `RUN_SCHEDULER=false` on the API plus one `python -m app.worker` (which idles while the switch is off). `/health` reports the scheduler as `disabled`, `external`, `ok` or `stopped`. Outside the app, only CI (push/PR) and Dependabot (weekly PRs) are scheduled. A new job goes in `jobs()` and `build_scheduler`, with its own `*_SCHEDULE` setting.
 
+### 21. Funds (ETFs) Skip the Company Agents
+A fund has no 10-K, statements, earnings or moat. `@register_agent(company_only=True)` marks the agents that analyse a company (fundamentals, valuation, moat, financial_history, growth, earnings, institutional, risk, broad_analysis and the recommendation); for a symbol whose `quoteType` is ETF or MUTUALFUND (`app/domain/assets.py`, set by yfinance, the Yahoo chart's `instrumentType` or FMP's `isEtf`) the orchestrator runs only the others (market_scanner, technicals, sentiment) and reports the rest as `skipped` — not recorded in `agent_runs`. The FMP fundamentals fill is not fetched for a fund. A new agent that reads company filings must set `company_only=True`.
+
 ## Key File Map
 
 | What you need | Where |

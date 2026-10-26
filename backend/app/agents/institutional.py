@@ -34,6 +34,7 @@ class InstitutionalData:
     "institutional",
     description="Institutional ownership trend (13F)",
     recommendation_weight=5,
+    company_only=True,
 )
 class InstitutionalAgent(Agent[InstitutionalData, InstitutionalResult]):
     result_model = InstitutionalResult
