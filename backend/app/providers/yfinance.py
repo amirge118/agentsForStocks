@@ -113,7 +113,8 @@ class YFinanceClient:
 
     async def get_news(self, symbol: str, count: int = 20) -> list[dict]:
         ticker = validate_symbol(symbol)
-        # yfinance 0.2.x get_news() takes no count argument — slice instead
+        # yfinance 1.x asks Yahoo for `count` articles (default 10); slice in case it sends more
         return await self._call(
-            ("news", ticker, count), lambda: (self._ticker(ticker).get_news() or [])[:count]
+            ("news", ticker, count),
+            lambda: (self._ticker(ticker).get_news(count=count) or [])[:count],
         )
