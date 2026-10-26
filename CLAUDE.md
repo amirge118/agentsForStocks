@@ -152,6 +152,7 @@ Two design skills are vendored in the repo (sources and update steps: `.claude/s
 | Model providers: contract, router, chain, free tiers, quotas | `backend/app/llm/provider.py`, `router.py`, `chain.py`, `providers_catalog.py`, `quota.py`, `openai_compat.py` |
 | Remote MCP data sources (FactSet, S&P, ...) | `backend/app/llm/mcp.py` → `Agent.judge(mcp_servers=...)` |
 | DB access | `backend/app/repositories/` |
+| Watchlist (DB table; `WATCHLIST` env only seeds it once, migration 0005) | `backend/app/repositories/watchlist.py`, `backend/app/api/v1/endpoints/watchlist.py` |
 | Dependency wiring | `backend/app/container.py` |
 | Migrations | `backend/alembic/` (`alembic upgrade head`) |
 | FastAPI routers | `backend/app/api/v1/endpoints/` |
@@ -176,7 +177,7 @@ backend/
     repositories/     # SQL lives here only
     api/v1/endpoints/ # FastAPI routers
     schemas/          # Pydantic request/response models
-    models/           # SQLAlchemy models (AgentResult, AgentRun)
+    models/           # SQLAlchemy models (AgentResult, AgentRun, LLMCall, WatchlistItem)
     middleware/       # request_logging.py
     container.py      # Composition root
   tests/

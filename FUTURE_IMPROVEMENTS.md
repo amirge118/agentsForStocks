@@ -67,7 +67,9 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [x] One manual pipeline run at a time (409 while a run is active)
 - [ ] Persist the 'run active' lock in the DB so it also holds across several backend workers [PRIORITY: LOW]
 - [ ] Cursor pagination for /runs and /symbols/{symbol}/results instead of limit-only [PRIORITY: LOW]
-- [ ] Manage the watchlist through the API (DB table) instead of the WATCHLIST env var [PRIORITY: MED]
+- [x] Manage the watchlist through the API (`watchlist` table, `/api/v1/watchlist` add / remove / reorder; WATCHLIST only seeds it once; the scheduler reads it when the job fires)
+- [ ] Check that a ticker exists (yfinance quote) when it is added to the watchlist, not only its format [PRIORITY: MED]
+- [ ] Watchlist groups / tags (e.g. "core", "ideas") and per-group runs [PRIORITY: LOW]
 - [x] Next.js frontend: watchlist, symbol detail, run history; types generated from OpenAPI + Zod validated and checked against them
 - [ ] Symbol detail: per-agent result panels (valuation DCF scenarios, technical strategies, moat keywords) from /symbols/{symbol}/results [PRIORITY: MED]
 - [ ] Charts: recommendation score history and price history per symbol [PRIORITY: MED]

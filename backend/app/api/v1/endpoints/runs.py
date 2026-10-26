@@ -15,6 +15,7 @@ from app.container import Container
 from app.core.symbols import validate_symbol
 from app.pipeline.launcher import PipelineBusyError
 from app.repositories.agent_runs import AgentRunRepository
+from app.repositories.watchlist import WatchlistRepository
 from app.schemas.api import AgentRunOut, PipelineRunAccepted, PipelineRunRequest
 
 router = APIRouter(tags=["pipeline"])
@@ -55,8 +56,13 @@ async def list_runs(
 async def start_pipeline_run(
     body: PipelineRunRequest,
     container: Container = Depends(get_container),
+    session: AsyncSession = Depends(get_session),
 ) -> PipelineRunAccepted:
-    symbols = body.symbols or container.settings.watchlist_symbols
+    symbols = body.symbols or await WatchlistRepository(session).symbols()
+    if not symbols:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "Watchlist is empty — add a symbol first"
+        )
     try:
         run = container.launcher.launch(symbols, body.agents, force=body.force)
     except PipelineBusyError as exc:

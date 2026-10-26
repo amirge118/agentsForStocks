@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.repositories.agent_results import AgentResultRepository
 from app.repositories.llm_calls import LLMCallRepository
+from app.repositories.watchlist import WatchlistRepository
 
 POSTGRES_URL = os.environ.get("TEST_POSTGRES_URL")
 
@@ -34,6 +35,8 @@ def _alembic(direction: str, monkeypatch: pytest.MonkeyPatch) -> None:
     from app.core import config as config_module
 
     monkeypatch.setattr(config_module.settings, "database_url", POSTGRES_URL)
+    # Migration 0005 seeds the watchlist table from this setting
+    monkeypatch.setattr(config_module.settings, "watchlist", "msft, AAPL,msft")
     backend_dir = os.path.join(os.path.dirname(__file__), "..", "..")
     cfg = Config(os.path.join(backend_dir, "alembic.ini"))
     cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
@@ -57,11 +60,26 @@ async def test_migrations_create_the_expected_schema(pg_session_factory) -> None
     async with pg_session_factory() as session:
         conn = await session.connection()
         tables = await conn.run_sync(lambda c: inspect(c).get_table_names())
-        assert {"agent_results", "agent_runs", "llm_calls", "alembic_version"} <= set(tables)
+        assert {"agent_results", "agent_runs", "llm_calls", "watchlist", "alembic_version"} <= set(
+            tables
+        )
         version = (await session.execute(text("select version_num from alembic_version"))).scalar()
-        assert version == "0004"
+        assert version == "0005"
         columns = await conn.run_sync(lambda c: inspect(c).get_columns("llm_calls"))
         assert "provider" in {col["name"] for col in columns}
+
+
+async def test_watchlist_is_seeded_once_and_editable_on_postgres(pg_session_factory) -> None:
+    async with pg_session_factory() as session:
+        repo = WatchlistRepository(session)
+        # Seeded from WATCHLIST: upper-cased, de-duplicated, in the configured order
+        assert await repo.symbols() == ["MSFT", "AAPL"]
+        await repo.add("NVDA")
+        await repo.reorder(["NVDA", "MSFT", "AAPL"])
+        assert await repo.remove("MSFT") is True
+        await session.commit()
+    async with pg_session_factory() as session:
+        assert await WatchlistRepository(session).symbols() == ["NVDA", "AAPL"]
 
 
 async def test_upsert_on_postgres_is_idempotent(pg_session_factory) -> None:

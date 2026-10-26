@@ -14,6 +14,7 @@ from app.main import app
 from app.pipeline.launcher import PipelineLauncher
 from app.pipeline.orchestrator import PipelineOrchestrator
 from app.repositories.agent_results import AgentResultRepository
+from app.repositories.watchlist import WatchlistRepository
 from tests.factories import FakeLLM, make_context
 
 D1 = date(2026, 10, 22)
@@ -48,7 +49,7 @@ def _recommendation(action: str, signal: str, score: float) -> dict:
 
 @pytest.fixture
 async def api(concurrent_session_factory) -> AsyncIterator[httpx.AsyncClient]:
-    settings = Settings(openviking_enabled=False, watchlist="AAPL,MSFT")
+    settings = Settings(openviking_enabled=False)
     container = build_container(settings, concurrent_session_factory)
     # Swap the launcher for one whose agents use fake providers and a fake LLM
     ctx = make_context(llm=FakeLLM(), results=SessionResultsReader(concurrent_session_factory))
@@ -61,6 +62,8 @@ async def api(concurrent_session_factory) -> AsyncIterator[httpx.AsyncClient]:
     app.state.container = container
 
     async with concurrent_session_factory() as session:
+        for symbol in ("AAPL", "MSFT"):
+            await WatchlistRepository(session).add(symbol)
         repo = AgentResultRepository(session)
         await repo.upsert(
             agent_type="recommendation",
@@ -180,6 +183,52 @@ async def test_trigger_defaults_to_watchlist_and_all_agents(api: httpx.AsyncClie
     assert body["symbols"] == ["AAPL", "MSFT"]
     assert body["agents"][-1] == "recommendation"
     assert app.state.container.launcher.active == 1
+
+
+@pytest.mark.integration
+async def test_watchlist_crud_drives_symbols_and_runs(api: httpx.AsyncClient) -> None:
+    listed = await api.get("/api/v1/watchlist")
+    assert listed.status_code == 200
+    assert [(i["symbol"], i["position"]) for i in listed.json()] == [("AAPL", 0), ("MSFT", 1)]
+
+    added = await api.post("/api/v1/watchlist", json={"symbol": " nvda "})
+    assert added.status_code == 201
+    assert added.json()["symbol"] == "NVDA" and added.json()["position"] == 2
+    assert (await api.post("/api/v1/watchlist", json={"symbol": "NVDA"})).status_code == 409
+    assert (await api.post("/api/v1/watchlist", json={"symbol": "BAD$"})).status_code == 422
+
+    reordered = await api.put("/api/v1/watchlist/order", json={"symbols": ["NVDA", "AAPL", "MSFT"]})
+    assert reordered.status_code == 200
+    assert [i["symbol"] for i in reordered.json()] == ["NVDA", "AAPL", "MSFT"]
+    assert (await api.put("/api/v1/watchlist/order", json={"symbols": ["NVDA"]})).status_code == 422
+
+    # /symbols follows the stored list and its order
+    assert [o["symbol"] for o in (await api.get("/api/v1/symbols")).json()] == [
+        "NVDA",
+        "AAPL",
+        "MSFT",
+    ]
+
+    assert (await api.delete("/api/v1/watchlist/AAPL")).status_code == 204
+    assert (await api.delete("/api/v1/watchlist/AAPL")).status_code == 404
+    assert (await api.delete("/api/v1/watchlist/BAD$")).status_code == 422
+    overview = (await api.get("/api/v1/symbols")).json()
+    assert [o["symbol"] for o in overview] == ["NVDA", "MSFT"]
+
+    # Removing a symbol keeps its analyses: adding it back shows the stored recommendation
+    await api.post("/api/v1/watchlist", json={"symbol": "AAPL"})
+    aapl = next(o for o in (await api.get("/api/v1/symbols")).json() if o["symbol"] == "AAPL")
+    assert aapl["recommendation"]["action"] == "BUY"
+
+
+@pytest.mark.integration
+async def test_trigger_with_an_empty_watchlist_is_rejected(api: httpx.AsyncClient) -> None:
+    for symbol in ("AAPL", "MSFT"):
+        await api.delete(f"/api/v1/watchlist/{symbol}")
+    resp = await api.post("/api/v1/pipeline/runs", json={})
+    assert resp.status_code == 422
+    assert "Watchlist is empty" in resp.json()["detail"]
+    assert app.state.container.launcher.active == 0
 
 
 @pytest.mark.integration

@@ -95,7 +95,8 @@ class Settings(BaseSettings):
     # development; in production set RUN_SCHEDULER=false and run `python -m app.worker`
     # once, so several API workers don't each trigger the daily pipeline.
     run_scheduler: bool = True
-    # Comma-separated symbols, e.g. WATCHLIST=AAPL,MSFT
+    # Initial watchlist, comma-separated (WATCHLIST=AAPL,MSFT). Only seeds the `watchlist`
+    # table once (migration 0005); after that the list is managed through /api/v1/watchlist.
     watchlist: str = "AAPL,MSFT,NVDA,GOOGL,AMZN,TSLA,META,SPY,QQQ"
     max_concurrent_symbols: int = 2
     max_concurrent_agents: int = 4

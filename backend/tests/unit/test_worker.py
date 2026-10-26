@@ -12,7 +12,7 @@ async def test_worker_runs_scheduler_until_stopped(session_factory, caplog) -> N
     caplog.set_level(logging.INFO, logger="app.worker")
     stop = asyncio.Event()
     task = asyncio.create_task(
-        run_worker(Settings(openviking_enabled=False, watchlist="AAPL"), session_factory, stop)
+        run_worker(Settings(openviking_enabled=False), session_factory, stop)
     )
     await asyncio.sleep(0.05)
     assert "Scheduler worker started" in caplog.text
