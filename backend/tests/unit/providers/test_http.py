@@ -34,6 +34,16 @@ async def test_client_errors_are_not_retried(make_http) -> None:
 
 
 @pytest.mark.unit
+async def test_a_redirect_is_an_error_not_an_empty_page(make_http) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(301, headers={"Location": "https://api.example/y"})
+
+    http = make_http(handler)
+    with pytest.raises(ProviderError, match=r"HTTP 301 from api.example/x → https://api.example/y"):
+        await http.get_text("https://api.example/x")
+
+
+@pytest.mark.unit
 async def test_connection_errors_are_retried(make_http) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("refused")
