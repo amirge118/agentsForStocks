@@ -77,6 +77,26 @@ class SymbolOverview(BaseModel):
     recommendation: Recommendation | None
 
 
+class PriceBarOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    date: date
+    open: float | None
+    high: float | None
+    low: float | None
+    close: float
+    volume: float | None
+    sma20: float | None
+    sma50: float | None
+    rsi14: float | None
+
+
+class PriceHistory(BaseModel):
+    symbol: str
+    range: Literal["1M", "3M", "6M", "1Y"]
+    bars: list[PriceBarOut]
+
+
 class WatchlistItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
