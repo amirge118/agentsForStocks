@@ -75,7 +75,7 @@ export function WatchlistTable() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    <span className={cn("rounded px-1.5 py-0.5", toneClasses(rec.weighted_score))}>
+                    <span className={cn("rounded-sm px-1.5 py-0.5", toneClasses(rec.weighted_score))}>
                       {formatScore(rec.weighted_score)}
                     </span>
                   </TableCell>

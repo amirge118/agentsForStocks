@@ -40,7 +40,7 @@ export function AgentBreakdownTable({ breakdown }: { breakdown: readonly Contrib
             </TableCell>
             <TableCell className="text-right font-mono">{c.weight}</TableCell>
             <TableCell className="text-right font-mono">
-              <span className={cn("rounded px-1.5 py-0.5", toneClasses(c.contribution))}>
+              <span className={cn("rounded-sm px-1.5 py-0.5", toneClasses(c.contribution))}>
                 {formatScore(c.contribution)}
               </span>
             </TableCell>
