@@ -12,7 +12,11 @@ from app.middleware.request_logging import redact_query
 
 
 @pytest.fixture
-def client_with_state(session_factory):
+def client_with_state(session_factory, monkeypatch):
+    from app import main
+
+    monkeypatch.setattr(main.settings, "scheduler_enabled", True)
+
     def _make(*, scheduler_running: bool = True, session_factory_override=None):
         app.state.container = SimpleNamespace(
             session_factory=session_factory_override or session_factory
@@ -66,7 +70,10 @@ def test_redact_query_is_case_insensitive() -> None:
 
 
 @pytest.mark.integration
-async def test_lifespan_starts_and_stops_scheduler() -> None:
+async def test_lifespan_starts_and_stops_scheduler(monkeypatch) -> None:
+    from app import main
+
+    monkeypatch.setattr(main.settings, "scheduler_enabled", True)
     async with lifespan(app):
         assert app.state.scheduler.running
         assert app.state.container.registry.names()
@@ -90,3 +97,17 @@ async def test_lifespan_without_scheduler(monkeypatch) -> None:
     monkeypatch.setattr(main.settings, "run_scheduler", False)
     async with lifespan(app):
         assert app.state.scheduler is None
+
+
+@pytest.mark.integration
+async def test_nothing_is_scheduled_by_default(client_with_state, monkeypatch) -> None:
+    from app import main
+
+    monkeypatch.setattr(main.settings, "scheduler_enabled", False)
+    async with lifespan(app):
+        assert app.state.scheduler is None  # RUN_SCHEDULER=true, but the master switch is off
+        async with client_with_state() as client:
+            app.state.scheduler = None
+            resp = await client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json()["checks"] == {"database": "ok", "scheduler": "disabled"}
