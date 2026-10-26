@@ -15,6 +15,10 @@ updates:
     groups:
       python-minor-and-patch:
         update-types: [minor, patch]
+    # Held on purpose — see FUTURE_IMPROVEMENTS.md (Dependencies); remove when unblocked
+    ignore:
+      - dependency-name: aiosqlite
+        versions: [">=0.21"]
 
   - package-ecosystem: npm
     directory: /frontend
@@ -28,6 +32,10 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
+    # Held on purpose — see FUTURE_IMPROVEMENTS.md (Dependencies); remove when unblocked
+    ignore:
+      - dependency-name: typescript
+        versions: [">=7"]
 
   - package-ecosystem: docker
     directories: [/backend, /frontend]
