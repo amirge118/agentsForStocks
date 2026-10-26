@@ -1,20 +1,19 @@
 """
 FastAPI application entrypoint.
-Builds the dependency container and, when RUN_SCHEDULER is on, starts the daily
-pipeline scheduler (in production it runs in its own process: app/worker.py).
+Builds the dependency container and, when SCHEDULER_ENABLED and RUN_SCHEDULER are
+both on, starts the scheduled jobs (in production they run in app/worker.py).
 """
 
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from functools import partial
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from app.agents.scheduler import create_scheduler, prune_llm_calls
+from app.agents.scheduler import build_scheduler
 from app.api.v1.router import api_router
 from app.container import build_container
 from app.core.config import settings
@@ -35,14 +34,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.container = container
     app.state.scheduler = None
     if settings.run_scheduler:
-        app.state.scheduler = create_scheduler(
-            container.orchestrator,
-            settings.watchlist_symbols,
-            maintenance=partial(
-                prune_llm_calls, container.session_factory, settings.llm_call_retention_days
-            ),
-            settler=container.settler,
+        app.state.scheduler = build_scheduler(
+            settings, container.orchestrator, container.session_factory, settler=container.settler
         )
+    if app.state.scheduler is not None:
         app.state.scheduler.start()
         logger.info("Agent scheduler started in the API process")
     yield
@@ -84,7 +79,9 @@ async def health(request: Request) -> JSONResponse:
         logger.error("Health check: database unavailable", extra={"error": str(exc)})
         checks["database"] = "unavailable"
     scheduler = request.app.state.scheduler
-    if scheduler is None:
+    if not settings.scheduler_enabled:
+        checks["scheduler"] = "disabled"  # SCHEDULER_ENABLED=false: nothing runs on its own
+    elif scheduler is None:
         checks["scheduler"] = "external"  # runs in app.worker, not in this process
     else:
         checks["scheduler"] = "ok" if scheduler.running else "stopped"

@@ -96,7 +96,7 @@ class FakeFmp:
                 "companyName": "Apple",
                 "industry": "Consumer Electronics",
                 "sector": "Technology",
-                "mktCap": 2.0e12,
+                "marketCap": 2.0e12,
                 "description": "Phones.",
             },
             "income": [
@@ -136,14 +136,13 @@ class FakeFmp:
                     "netProfitMargin": 0.25,
                     "operatingProfitMargin": 0.3,
                     "returnOnEquity": 1.5,
+                    "debtToEquityRatio": 1.5,
+                    "currentRatio": 1.0,
                 }
                 for y in years
             ],
             "key_metrics": [{"debtToEquity": 1.5, "currentRatio": 1.0}],
-            "surprises": [
-                {"date": "2025-10-30", "actualEarningResult": 1.6, "estimatedEarning": 1.5}
-            ]
-            * 4,
+            "surprises": [{"date": "2025-10-30", "epsActual": 1.6, "epsEstimated": 1.5}] * 4,
             "transcripts": {
                 (2026, 2): {
                     "quarter": 2,
@@ -155,9 +154,9 @@ class FakeFmp:
             "estimates": [
                 {
                     "date": "2027-09-30",
-                    "estimatedRevenueAvg": 4.5e11,
-                    "estimatedEpsAvg": 7.5,
-                    "numberAnalystEstimatedRevenue": 30,
+                    "revenueAvg": 4.5e11,
+                    "epsAvg": 7.5,
+                    "numAnalystsRevenue": 30,
                 }
             ],
             "holders": [

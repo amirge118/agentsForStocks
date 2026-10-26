@@ -85,10 +85,8 @@ def _format_estimates(estimates: list[dict]) -> str:
         return "No analyst estimates available."
     lines = ["Year | Est. revenue | Est. EPS | # analysts"]
     for e in estimates[:4]:
-        rev, eps = e.get("estimatedRevenueAvg"), e.get("estimatedEpsAvg")
-        analysts = (
-            e.get("numberAnalystEstimatedRevenue") or e.get("numberAnalystsEstimatedEps") or 0
-        )
+        rev, eps = e.get("revenueAvg"), e.get("epsAvg")
+        analysts = e.get("numAnalystsRevenue") or e.get("numAnalystsEps") or 0
         lines.append(
             f"{str(e.get('date') or '?')[:4]} | {f'${rev / 1e9:.2f}B' if rev else 'N/A'} | "
             f"{f'${eps:.2f}' if eps else 'N/A'} | {analysts}"

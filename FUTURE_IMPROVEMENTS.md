@@ -20,6 +20,7 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [x] Outcome settlement, phase 3: `outcome_review` agent writes a lesson per settled recommendation; the recommendation prompt gets a point-in-time track record (hit rate, alpha captured, lessons)
 - [x] Outcome settlement, phase 4: `evals.capture --outcomes` + `evals.run --suite outcomes` — replays captured prompts and grades a configuration by hit rate and alpha captured against what really followed
 - [ ] Outcome settlement, phase 2 (deferred): track-record read side — `OutcomeRepository.track_record(agent, horizon, since)` (hit rate, mean alpha, confidence buckets per agent and signal), `GET /api/v1/outcomes/track-record` and `/symbols/{symbol}/outcomes`, `scripts.track_report`, a "Track record" card on the symbol page and a `/track-record` page — see `docs/plans/outcome-settlement.md` [PRIORITY: MED]
+- [ ] Yahoo chart fallback for `YFinanceClient.get_closes` (settlement), like `get_history` has: when yfinance's crumb is refused on a cloud host, settlement gets no prices and windows go unavailable after 5 nights. Needs the chart's `indicators.adjclose` (the fallback's `to_frame` reads unadjusted `quote.close`) and a range covering `start` [PRIORITY: HIGH]
 - [ ] Risk override caps the signal at HOLD in code but not the confidence: the `risk_override/recommendation` eval case averages 58–59% against its 55% limit (Gemini, 10 repeats). Cap the confidence too in `risk_capped`, or relabel the case [PRIORITY: MED]
 - [ ] Run the outcome eval suite live once a few weeks of recommendations have settled (current prompt as the baseline for every later prompt/model change) [PRIORITY: HIGH]
 - [ ] Hit rate per analyst agent in its own prompt ("your bullish calls on this symbol were right 3/7 times") — easy with phase 2's query; measure with the outcome suite first [PRIORITY: LOW]
@@ -63,6 +64,9 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Add OpenViking connectivity to /health (only when OPENVIKING_ENABLED) [PRIORITY: LOW]
 - [ ] Add Redis for task queue (Celery or ARQ) if APScheduler proves insufficient [PRIORITY: LOW]
 - [x] Scheduler in a dedicated worker process (`python -m app.worker`, RUN_SCHEDULER=false on the API)
+- [x] Scheduled jobs off by default (`SCHEDULER_ENABLED`), one jobs table with a crontab setting per job, `python -m scripts.schedules` lists them
+- [ ] Show the scheduled jobs and their next runs on the dashboard (`GET /api/v1/schedules`) [PRIORITY: LOW]
+- [ ] Alert when a scheduled run is missed or fails (the worker is up but the job never finished) [PRIORITY: MEDIUM]
 - [ ] Postgres advisory lock around the daily job so even two workers can never both run it [PRIORITY: LOW]
 - [x] Preflight (`python -m scripts.preflight`) and manual run CLI (`python -m scripts.run_pipeline`)
 - [ ] First real pipeline run against live Claude / FMP / Yahoo / SEC — blocked in the cloud environment until its network policy allows those hosts and the API keys are configured [PRIORITY: HIGH]
@@ -84,10 +88,13 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [x] One manual pipeline run at a time (409 while a run is active)
 - [ ] Persist the 'run active' lock in the DB so it also holds across several backend workers [PRIORITY: LOW]
 - [ ] Cursor pagination for /runs and /symbols/{symbol}/results instead of limit-only [PRIORITY: LOW]
-- [ ] Manage the watchlist through the API (DB table) instead of the WATCHLIST env var [PRIORITY: MED]
+- [x] Manage the watchlist through the API (`watchlist` table, `/api/v1/watchlist` add / remove / reorder; WATCHLIST only seeds it once; the scheduler reads it when the job fires)
+- [ ] Check that a ticker exists (yfinance quote) when it is added to the watchlist, not only its format [PRIORITY: MED]
+- [ ] Watchlist groups / tags (e.g. "core", "ideas") and per-group runs [PRIORITY: LOW]
 - [x] Next.js frontend: watchlist, symbol detail, run history; types generated from OpenAPI + Zod validated and checked against them
 - [ ] Symbol detail: per-agent result panels (valuation DCF scenarios, technical strategies, moat keywords) from /symbols/{symbol}/results [PRIORITY: MED]
-- [ ] Charts: recommendation score history and price history per symbol [PRIORITY: MED]
+- [ ] Charts: recommendation score history and price history per symbol — backend done (`GET /symbols/{symbol}/prices`: OHLCV + SMA20/50 + RSI14; score history from `/results?agent=recommendation`), frontend in progress [PRIORITY: MED]
+- [ ] Price chart: weekly bars for ranges over 1Y, and intraday for 1D/5D [PRIORITY: LOW]
 - [ ] Agents page from GET /api/v1/agents (dependency graph + weights) [PRIORITY: LOW]
 - [ ] shadcn CLI was unreachable from the build environment — primitives in src/components/ui were written from the shadcn source; re-sync with `npx shadcn add` when online [PRIORITY: LOW]
 - [ ] Move to Next.js 16 when CLAUDE.md allows — Next 15 bundles a vulnerable postcss, currently forced to 8.5.31 via npm overrides [PRIORITY: MED]
@@ -112,6 +119,12 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [x] First live eval on Gemini free tier (gemini-3.5-flash-lite, scenario suite): 100% label accuracy on 22 labelled cases, 0 fallbacks, $0 — it surfaced the fundamentals missing-data bug (fixed)
 - [ ] Audit the other domain scorers (valuation DCF / owner earnings / EV-EBITDA, financials) for "missing field = 0" defaults, like the fundamentals vote had [PRIORITY: MED]
 - [ ] Run the free_gemini preset against a Claude baseline with --repeats 3 --judge once ANTHROPIC_API_KEY is available, then decide the default provider [PRIORITY: HIGH]
+- [x] First full live pipeline run (AAPL, MSFT): all 13 agents complete on the free LLM chain at $0, after moving FMP to /stable/, fixing EDGAR's archive URL and adding the Yahoo chart fallback; the valuation no longer divides by a price x 1-share market cap
+- [x] Fill yfinance `info` fundamentals from FMP when Yahoo returns only a quote (`FmpClient.get_info_fields`) — live: 26/26 agent runs complete, fundamentals and all three valuation methods on real data
+- [ ] FMP budget: ~21 calls per symbol per run (~190/250 for 9 symbols). Share one statements fetch per symbol across agents (they ask for different `limit`s, so the cache misses), or raise the cache TTL to a day for annual statements [PRIORITY: MED]
+- [ ] Review the valuation model's calibration: with real data it calls AAPL and MSFT bearish at 95% (intrinsic ~$1.9T vs a $5T market cap) — the 15% DCF haircut and 12x owner-earnings multiple may be too conservative for mega-caps; decide with an outcome eval [PRIORITY: MED]
+- [ ] Earnings-call transcripts and institutional ownership need a paid FMP plan, or another source (SEC 13F filings for ownership) [PRIORITY: MED]
+- [ ] FMP marks ETFs with isEtf=true and still gives them a sector — skip company-only agents (moat, fundamentals, valuation) for ETFs such as SPY / QQQ [PRIORITY: MED]
 - [ ] Alert when a free tier passes 90% of its daily limit (Grafana alert on the "use today" query) [PRIORITY: LOW]
 - [ ] Run the free_chain / free_gemini presets against the baseline in a live eval before making the chain the default [PRIORITY: HIGH]
 - [ ] More chain steps: OpenRouter `:free` models (50 req/day, 1,000 after a one-time $10 top-up), Mistral's free tier (trains on inputs), a local Ollama [PRIORITY: LOW]

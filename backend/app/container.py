@@ -37,6 +37,7 @@ from app.providers.edgar import EdgarClient
 from app.providers.fmp import DailyCallBudget, FmpClient
 from app.providers.http import HttpClient
 from app.providers.rate_limit import RateLimiter
+from app.providers.yahoo_chart import YahooChartClient
 from app.providers.yfinance import YFinanceClient
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ _RATE_LIMITS = {
     "www.sec.gov": 5.0,
     "data.sec.gov": 5.0,
     "yahoo": 2.0,
+    "query1.finance.yahoo.com": 2.0,  # the chart fallback (YahooChartClient)
 }
 
 
@@ -167,9 +169,17 @@ def build_container(
         if settings.openviking_enabled
         else NullKnowledgeStore()
     )
+    fmp = FmpClient(http, settings.fmp_api_key, DailyCallBudget(settings.fmp_daily_call_limit))
     context = AgentContext(
-        yfinance=YFinanceClient(rate_limiter=rate_limiter, cache=cache),
-        fmp=FmpClient(http, settings.fmp_api_key, DailyCallBudget(settings.fmp_daily_call_limit)),
+        yfinance=YFinanceClient(
+            rate_limiter=rate_limiter,
+            cache=cache,
+            # When Yahoo refuses yfinance's crumb (cloud hosts): prices from the chart
+            # endpoint, fundamentals from FMP
+            fallback=YahooChartClient(http),
+            fundamentals=fmp.get_info_fields if settings.fmp_api_key else None,
+        ),
+        fmp=fmp,
         edgar=EdgarClient(http, settings.edgar_user_agent),
         llm=llm,
         results=SessionResultsReader(session_factory),

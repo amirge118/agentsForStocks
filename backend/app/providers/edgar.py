@@ -78,7 +78,11 @@ class EdgarClient:
             accession, document = filing
             raw_html = await self._http.get_text(
                 _ARCHIVE_URL.format(
-                    cik=cik, accession=accession.replace("-", ""), document=document
+                    # Archive paths take the CIK without its zero padding; the padded
+                    # form gets an empty 301 redirect
+                    cik=int(cik),
+                    accession=accession.replace("-", ""),
+                    document=document,
                 ),
                 headers=self._headers,
             )

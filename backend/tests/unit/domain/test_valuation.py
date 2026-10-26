@@ -8,7 +8,7 @@ from app.domain.valuation import (
     ev_ebitda_value,
     owner_earnings_value,
     summarize,
-    with_fcf_fallback,
+    with_fmp_fallbacks,
 )
 
 
@@ -54,12 +54,37 @@ def test_summary_signals_by_margin_of_safety() -> None:
     rich = {**cheap, "marketCap": 2_000e9}
     assert summarize(cheap).signal == "bullish"
     assert summarize(rich).signal == "bearish"
-    fair = summarize({"marketCap": 100.0})
-    assert (fair.signal, fair.confidence, fair.margin_of_safety) == ("neutral", 50.0, 0.0)
+    intrinsic = summarize(cheap).avg_intrinsic_value
+    fair = summarize({**cheap, "marketCap": intrinsic})
+    assert (fair.signal, fair.confidence) == ("neutral", 50.0)
+    assert fair.margin_of_safety == pytest.approx(0.0)
+    # A market cap but no intrinsic estimate is no evidence, not a fair price
+    unknown = summarize({"marketCap": 100.0})
+    assert (unknown.signal, unknown.confidence, unknown.margin_of_safety) == ("neutral", 0.0, 0.0)
 
 
 @pytest.mark.unit
 def test_fcf_fallback_only_when_missing() -> None:
-    assert with_fcf_fallback({}, [{"freeCashFlow": 5}]) == {"freeCashflow": 5}
-    assert with_fcf_fallback({"freeCashflow": 1}, [{"freeCashFlow": 5}]) == {"freeCashflow": 1}
-    assert with_fcf_fallback({}, []) == {}
+    assert with_fmp_fallbacks({}, [{"freeCashFlow": 5}], {}) == {"freeCashflow": 5}
+    assert with_fmp_fallbacks({"freeCashflow": 1}, [{"freeCashFlow": 5}], {}) == {"freeCashflow": 1}
+    assert with_fmp_fallbacks({}, [], {}) == {}
+    # yfinance info with only a quote: the market cap comes from FMP's profile
+    quote_only = {"regularMarketPrice": 517.0}
+    filled = with_fmp_fallbacks(quote_only, [], {"marketCap": 3.8e12})
+    assert filled == {"regularMarketPrice": 517.0, "marketCap": 3.8e12}
+    assert with_fmp_fallbacks({"marketCap": 1.0}, [], {"marketCap": 2.0})["marketCap"] == 1.0
+
+
+@pytest.mark.unit
+def test_no_market_cap_means_no_valuation_not_a_huge_margin_of_safety() -> None:
+    # Live run, MSFT: info had a price but no marketCap / sharesOutstanding, and the
+    # market cap fell back to price x 1 share -> "intrinsic value vastly exceeds market
+    # cap", bullish 90%. Now: neutral at 0% confidence, nothing to compare against.
+    info = {"regularMarketPrice": 517.0, "freeCashflow": 7e10, "ebitda": 1.5e11}
+    v = summarize(info)
+    assert v.avg_intrinsic_value > 0
+    assert (v.market_cap, v.margin_of_safety, v.signal, v.confidence) == (0.0, 0.0, "neutral", 0.0)
+    # With shares, the market cap is price x shares again
+    assert summarize({**info, "sharesOutstanding": 7.4e9}).market_cap == pytest.approx(
+        517.0 * 7.4e9
+    )

@@ -105,7 +105,10 @@ def ev_ebitda_value(info: dict) -> float | None:
 
 def summarize(info: dict) -> ValuationSummary:
     price = info.get("regularMarketPrice") or info.get("currentPrice") or 0.0
-    market_cap = info.get("marketCap") or price * (info.get("sharesOutstanding") or 1)
+    shares = info.get("sharesOutstanding") or 0
+    # 0.0 = unknown. (It used to fall back to price × 1 share, which made any
+    # intrinsic value look like an enormous margin of safety.)
+    market_cap = info.get("marketCap") or price * shares
 
     dcf = dcf_scenarios(info)
     oe_value = owner_earnings_value(info)
@@ -114,7 +117,9 @@ def summarize(info: dict) -> ValuationSummary:
     intrinsic = mean(estimates)
 
     mos = (intrinsic - market_cap) / market_cap if intrinsic > 0 and market_cap > 0 else 0.0
-    if mos > MARGIN_OF_SAFETY_THRESHOLD:
+    if intrinsic <= 0 or market_cap <= 0:  # nothing to compare: no evidence either way
+        signal, confidence = "neutral", 0.0
+    elif mos > MARGIN_OF_SAFETY_THRESHOLD:
         signal: SignalLabel = "bullish"
         confidence = min(mos * 200, 90.0)
     elif mos < -MARGIN_OF_SAFETY_THRESHOLD:
@@ -135,9 +140,16 @@ def summarize(info: dict) -> ValuationSummary:
     )
 
 
-def with_fcf_fallback(info: dict, cash_flow_rows: list[dict]) -> dict:
-    """Use FMP's latest freeCashFlow when yfinance has none (common for some tickers)."""
-    if info.get("freeCashflow") or not cash_flow_rows:
-        return info
-    fmp_fcf = cash_flow_rows[0].get("freeCashFlow")
-    return {**info, "freeCashflow": fmp_fcf} if fmp_fcf else info
+def with_fmp_fallbacks(info: dict, cash_flow_rows: list[dict], profile: dict) -> dict:
+    """
+    Fill what yfinance didn't return from FMP: the latest freeCashFlow and the
+    market cap (yfinance's info can come back with only a quote — see
+    providers/yahoo_chart.py — and without a market cap there is no valuation).
+    """
+    filled = dict(info)
+    fmp_fcf = cash_flow_rows[0].get("freeCashFlow") if cash_flow_rows else None
+    if not filled.get("freeCashflow") and fmp_fcf:
+        filled["freeCashflow"] = fmp_fcf
+    if not filled.get("marketCap") and profile.get("marketCap"):
+        filled["marketCap"] = profile["marketCap"]
+    return filled

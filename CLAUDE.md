@@ -49,6 +49,9 @@ cd backend && python -m evals.compare evals/reports/<a>.json evals/reports/<b>.j
 cd backend && python -m evals.capture --days 7     # real prompts from the ledger → evals/datasets/ledger.jsonl
 cd backend && python -m evals.capture --outcomes && python -m evals.run --suite outcomes --label x --yes  # vs realised alpha
 
+# What runs on its own, and when (everything is OFF until SCHEDULER_ENABLED=true)
+cd backend && python -m scripts.schedules
+
 # Production scheduler: API processes with RUN_SCHEDULER=false + exactly one worker
 cd backend && python -m app.worker
 
@@ -85,7 +88,7 @@ All calls to `yfinance`, financial APIs, or any external service MUST go through
 - Exponential backoff + retry on transient errors only (3 attempts, 1s/2s/4s)
 - Per-domain rate limiting (`RateLimiter`, limits in `app/container.py`)
 - Timeout of 10s max per request, plus a TTL cache shared by all agents
-FMP calls also count against `DailyCallBudget` (free tier = 250/day). Claude is called only through `app/llm/client.py` (structured outputs).
+FMP calls also count against `DailyCallBudget` (free tier = 250/day). FMP is called on `/stable/<endpoint>?symbol=` (the old `/api/v3/` is closed to new accounts); an endpoint outside the plan (HTTP 402 — on the free plan: transcripts, institutional ownership) returns no data instead of failing the agent. When yfinance can't get prices (Yahoo refuses its crumb on cloud hosts), `YahooChartClient` (`providers/yahoo_chart.py`) fills in history and the quote; data with no chart equivalent (earnings dates, insider trades, news) comes back empty, so the agent runs on with a data gap. When `info` comes back without a market cap (a quote-only answer), `FmpClient.get_info_fields` fills the fundamentals under yfinance's names and units (`providers/fmp.py` `to_info_fields`: D/E in percent, margins and growth as fractions); yfinance's own values always win. That costs about 21 FMP calls per symbol per run — about 105 of the 250 free calls for the 5-symbol watchlist. A missing field is no evidence: never default it to 0 in a calculation (see the fundamentals vote and `valuation.summarize`). Claude is called only through `app/llm/client.py` (structured outputs).
 
 ### 6. TanStack Query v5 Patterns
 Use `isPending` for loading skeletons (NOT `isLoading` — that's v4). Get query client via `useQueryClient()` hook. On mutation success: `invalidateQueries`. On mutation error: `toast({ variant: "destructive" })`.
@@ -135,6 +138,22 @@ Model training data lags the registries, so a version "remembered" is usually a 
 - Holding a dependency back is a decision, not a default: write the reason in `FUTURE_IMPROVEMENTS.md` (Dependencies) and add an `ignore` for it in `.github/dependabot.yml` (see aiosqlite, TypeScript 7).
 - A major upgrade ships with evidence: the CI commands below green, the official codemod/upgrade tool where one exists (reviewed, not trusted blindly — `@tailwindcss/upgrade` renamed cva variant keys), and a before/after screenshot comparison when it touches the UI.
 
+### 19. Design Skills (`.claude/skills/`)
+Two design skills are vendored in the repo (sources and update steps: `.claude/skills/VENDORED.md`):
+- `hallmark` — the design system for the dashboard. Its description says to use it on an existing design only when the user names it; the owner has named it for this project, so UI work on the dashboard follows it (`/hallmark redesign <path>`, `/hallmark audit <path>`). Port its HTML/CSS output into Tailwind 4 tokens and React components; its floor rules (tokens only, no `transition: all`, `:focus-visible` everywhere, ...) apply to all frontend code.
+- `scroll-craft` — scroll-driven storytelling pages (e.g. a per-symbol analysis story). Use its taste and verification rules; don't drop its vanilla-JS engine into React-owned DOM.
+- Charts follow the `dataviz` skill. Every frontend PR attaches desktop and mobile screenshots (Playwright).
+
+### 20. Scheduled Jobs Are Off Until Turned On
+Nothing runs on its own unless `SCHEDULER_ENABLED=true` (default false: the app isn't live, and a run costs FMP and LLM quota). Every job is in one table, `jobs()` in `app/agents/scheduler.py`, each with a crontab setting in New York time; an empty value turns that job off:
+
+| Job | Setting (default) | What it does |
+|---|---|---|
+| `daily_pipeline` | `PIPELINE_SCHEDULE` (`30 18 * * mon-fri`) | full pipeline for the watchlist |
+| `nightly_maintenance` | `MAINTENANCE_SCHEDULE` (`15 3 * * *`) | prune `llm_calls` past `LLM_CALL_RETENTION_DAYS` |
+
+Where they run: `RUN_SCHEDULER=true` runs them in the API process (development); in production `RUN_SCHEDULER=false` on the API plus one `python -m app.worker` (which idles while the switch is off). `/health` reports the scheduler as `disabled`, `external`, `ok` or `stopped`. Outside the app, only CI (push/PR) and Dependabot (weekly PRs) are scheduled. A new job goes in `jobs()` and `build_scheduler`, with its own `*_SCHEDULE` setting.
+
 ## Key File Map
 
 | What you need | Where |
@@ -153,6 +172,7 @@ Model training data lags the registries, so a version "remembered" is usually a 
 | Model providers: contract, router, chain, free tiers, quotas | `backend/app/llm/provider.py`, `router.py`, `chain.py`, `providers_catalog.py`, `quota.py`, `openai_compat.py` |
 | Remote MCP data sources (FactSet, S&P, ...) | `backend/app/llm/mcp.py` → `Agent.judge(mcp_servers=...)` |
 | DB access | `backend/app/repositories/` |
+| Watchlist (DB table; `WATCHLIST` env only seeds it once, migration 0005) | `backend/app/repositories/watchlist.py`, `backend/app/api/v1/endpoints/watchlist.py` |
 | Dependency wiring | `backend/app/container.py` |
 | Migrations | `backend/alembic/` (`alembic upgrade head`) |
 | FastAPI routers | `backend/app/api/v1/endpoints/` |
@@ -177,7 +197,7 @@ backend/
     repositories/     # SQL lives here only
     api/v1/endpoints/ # FastAPI routers
     schemas/          # Pydantic request/response models
-    models/           # SQLAlchemy models (AgentResult, AgentRun)
+    models/           # SQLAlchemy models (AgentResult, AgentRun, LLMCall, WatchlistItem)
     middleware/       # request_logging.py
     container.py      # Composition root
   tests/

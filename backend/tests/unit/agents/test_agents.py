@@ -177,7 +177,7 @@ async def test_earnings_without_data_records_no_misser_pattern() -> None:
 
 @pytest.mark.unit
 async def test_earnings_frequent_misser_pattern() -> None:
-    misses = [{"date": "2025-10-30", "actualEarningResult": 1.0, "estimatedEarning": 1.5}] * 4
+    misses = [{"date": "2025-10-30", "epsActual": 1.0, "epsEstimated": 1.5}] * 4
     agent, result = await _run(EarningsAgent, fmp=FakeFmp(surprises=misses))
     assert "misser" in agent.learnings("AAPL", result)[1].content
 

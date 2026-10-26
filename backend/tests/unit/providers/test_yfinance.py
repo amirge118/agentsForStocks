@@ -101,3 +101,138 @@ async def test_closes_empty_when_yahoo_has_none() -> None:
             return pd.DataFrame()
 
     assert (await _client(NoData).get_closes("AAPL", date(2026, 1, 1), date(2026, 2, 1))).empty
+
+
+class _CrumbBlocked(_FakeTicker):
+    """What yfinance does when Yahoo refuses its crumb: no price, errors elsewhere."""
+
+    @property
+    def info(self) -> dict:
+        return {"symbol": self.symbol, "sector": "Technology"}  # no price
+
+    def history(self, period: str, interval: str) -> pd.DataFrame:
+        raise RuntimeError("401 Invalid Crumb")
+
+    def get_insider_transactions(self) -> pd.DataFrame:
+        raise RuntimeError("401 Invalid Crumb")
+
+    def get_news(self, count: int = 10) -> list[dict]:
+        raise RuntimeError("401 Invalid Crumb")
+
+
+class _Chart:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def get_quote(self, symbol: str) -> dict:
+        self.calls.append(f"quote {symbol}")
+        return {"regularMarketPrice": 345.0, "currentPrice": 345.0, "_source": "yahoo_chart"}
+
+    async def get_history(self, symbol: str, period: str, interval: str) -> pd.DataFrame:
+        self.calls.append(f"history {symbol} {period}")
+        return pd.DataFrame({"Close": [344.0, 345.0]})
+
+
+def _with_fallback(factory, chart: _Chart) -> YFinanceClient:
+    return YFinanceClient(
+        rate_limiter=RateLimiter({}, default_rps=1000),
+        cache=TTLCache(60),
+        retry_policy=RetryPolicy(max_attempts=2, timeout_seconds=1.0, base_backoff_seconds=0.0),
+        ticker_factory=factory,
+        fallback=chart,
+    )
+
+
+@pytest.mark.unit
+async def test_the_chart_fills_in_when_yfinance_has_no_prices() -> None:
+    chart = _Chart()
+    yf = _with_fallback(_CrumbBlocked, chart)
+    info = await yf.get_info("AAPL")
+    # yfinance's own fields are kept; the chart adds the price
+    assert (info["sector"], info["regularMarketPrice"], info["_source"]) == (
+        "Technology",
+        345.0,
+        "yahoo_chart",
+    )
+    assert list((await yf.get_history("AAPL", period="1y"))["Close"]) == [344.0, 345.0]
+    # Data the chart can't give degrades to empty instead of failing the agent
+    assert await yf.get_insider_transactions("AAPL") == []
+    assert await yf.get_news("AAPL") == []
+    assert chart.calls == ["quote AAPL", "history AAPL 1y"]
+
+
+@pytest.mark.unit
+async def test_the_chart_is_not_asked_when_yfinance_works() -> None:
+    chart = _Chart()
+    yf = _with_fallback(_FakeTicker, chart)
+    assert (await yf.get_info("AAPL"))["regularMarketPrice"] == 10.0
+    assert list((await yf.get_history("AAPL"))["Close"]) == [1.0, 2.0]
+    assert chart.calls == []
+
+
+@pytest.mark.unit
+async def test_without_a_fallback_failures_still_raise() -> None:
+    with pytest.raises(ProviderError):
+        await _client(_CrumbBlocked).get_insider_transactions("AAPL")
+
+
+@pytest.mark.unit
+async def test_fundamentals_fill_a_quote_only_info_and_yfinance_wins() -> None:
+    asked: list[str] = []
+
+    async def fundamentals(symbol: str) -> dict:
+        asked.append(symbol)
+        return {"marketCap": 5.0e12, "trailingPE": 34.0, "sector": "Tech (FMP)"}
+
+    yf = YFinanceClient(
+        rate_limiter=RateLimiter({}, default_rps=1000),
+        cache=TTLCache(60),
+        retry_policy=RetryPolicy(max_attempts=2, timeout_seconds=1.0, base_backoff_seconds=0.0),
+        ticker_factory=_CrumbBlocked,
+        fallback=_Chart(),
+        fundamentals=fundamentals,
+    )
+    info = await yf.get_info("AAPL")
+    assert (info["marketCap"], info["trailingPE"], info["regularMarketPrice"]) == (
+        5.0e12,
+        34.0,
+        345.0,
+    )
+    assert info["sector"] == "Technology"  # yfinance's own value wins over FMP's
+    assert asked == ["AAPL"]
+
+
+@pytest.mark.unit
+async def test_fundamentals_are_not_fetched_when_yfinance_has_a_market_cap() -> None:
+    class _Full(_FakeTicker):
+        @property
+        def info(self) -> dict:
+            return {"symbol": self.symbol, "regularMarketPrice": 10.0, "marketCap": 1.0e9}
+
+    async def fundamentals(symbol: str) -> dict:
+        raise AssertionError("FMP should not be called")
+
+    yf = YFinanceClient(
+        rate_limiter=RateLimiter({}, default_rps=1000),
+        cache=TTLCache(60),
+        ticker_factory=_Full,
+        fundamentals=fundamentals,
+    )
+    assert (await yf.get_info("AAPL"))["marketCap"] == 1.0e9
+
+
+@pytest.mark.unit
+async def test_a_failing_fundamentals_source_leaves_the_quote() -> None:
+    async def fundamentals(symbol: str) -> dict:
+        raise ProviderError("FMP daily budget of 250 calls exhausted")
+
+    yf = YFinanceClient(
+        rate_limiter=RateLimiter({}, default_rps=1000),
+        cache=TTLCache(60),
+        retry_policy=RetryPolicy(max_attempts=2, timeout_seconds=1.0, base_backoff_seconds=0.0),
+        ticker_factory=_CrumbBlocked,
+        fallback=_Chart(),
+        fundamentals=fundamentals,
+    )
+    info = await yf.get_info("AAPL")
+    assert info["regularMarketPrice"] == 345.0 and "marketCap" not in info

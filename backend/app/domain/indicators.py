@@ -63,17 +63,21 @@ def adx(df: pd.DataFrame, period: int = 14) -> float:
 # ---------------------------------------------------------------------------
 
 
-def rsi(prices: pd.Series, period: int = 14) -> float:
-    """
-    Relative Strength Index (0-100).
-    >70 = overbought, <30 = oversold.
-    """
+def rsi_series(prices: pd.Series, period: int = 14) -> pd.Series:
+    """Relative Strength Index (0-100) for every bar; NaN where it is undefined."""
     delta = prices.diff()
     gain = delta.clip(lower=0).ewm(com=period - 1, adjust=False).mean()
     loss = (-delta.clip(upper=0)).ewm(com=period - 1, adjust=False).mean()
     rs = gain / loss.replace(0, np.nan)
-    rsi_series = 100 - (100 / (1 + rs))
-    return float(rsi_series.iloc[-1])
+    return 100 - (100 / (1 + rs))
+
+
+def rsi(prices: pd.Series, period: int = 14) -> float:
+    """
+    Relative Strength Index (0-100) of the last bar.
+    >70 = overbought, <30 = oversold.
+    """
+    return float(rsi_series(prices, period).iloc[-1])
 
 
 def macd(

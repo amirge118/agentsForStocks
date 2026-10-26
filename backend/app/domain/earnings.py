@@ -29,15 +29,20 @@ def surprise_pct(actual: float | None, estimated: float | None) -> float | None:
     return (actual - estimated) / abs(estimated) * 100
 
 
+def reported(surprises: list[dict]) -> list[dict]:
+    """Quarters already reported — FMP lists the upcoming one first, with epsActual = None."""
+    return [s for s in surprises if s.get("epsActual") is not None]
+
+
 def surprise_stats(surprises: list[dict]) -> SurpriseStats:
     pcts: list[float] = []
     beats = 0
-    for s in surprises[:QUARTERS_ANALYZED]:
-        pct = surprise_pct(s.get("actualEarningResult"), s.get("estimatedEarning"))
+    for s in reported(surprises)[:QUARTERS_ANALYZED]:
+        pct = surprise_pct(s.get("epsActual"), s.get("epsEstimated"))
         if pct is None:
             continue
         pcts.append(pct)
-        beats += s["actualEarningResult"] > s["estimatedEarning"]
+        beats += s["epsActual"] > s["epsEstimated"]
     total = len(pcts)
     return SurpriseStats(
         beats=beats,

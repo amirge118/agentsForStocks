@@ -1,15 +1,17 @@
 import httpx
 import pytest
 
-from app.providers.errors import QuotaExceededError
+from app.providers.errors import ProviderError, QuotaExceededError
 from app.providers.fmp import DailyCallBudget, FmpClient
 
 
 def _routes(table: dict[str, object]):
+    """Answers /stable/<endpoint>?symbol=X from table["<endpoint> X"]."""
+
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.params["apikey"] == "k"
-        path = request.url.path.removeprefix("/api/v3/")
-        return httpx.Response(200, json=table.get(path, []))
+        path = request.url.path.removeprefix("/stable/")
+        return httpx.Response(200, json=table.get(f"{path} {request.url.params['symbol']}", []))
 
     return handler
 
@@ -17,14 +19,14 @@ def _routes(table: dict[str, object]):
 @pytest.fixture
 def fmp(make_http):
     table = {
-        "profile/AAPL": [{"companyName": "Apple"}],
-        "income-statement/AAPL": [{"revenue": 2}, {"revenue": 1}],
-        "institutional-holder/AAPL": [
+        "profile AAPL": [{"companyName": "Apple"}],
+        "income-statement AAPL": [{"revenue": 2}, {"revenue": 1}],
+        "institutional-ownership/extract-analytics/holder AAPL": [
             {"holder": "small", "shares": 1},
             {"holder": "big", "shares": 9},
         ],
-        "earning_call_transcript/AAPL": [{"quarter": 1, "content": "x" * 20_000}],
-        "ratios/AAPL": {"unexpected": "shape"},
+        "earning-call-transcript AAPL": [{"quarter": 1, "content": "x" * 20_000}],
+        "ratios AAPL": {"unexpected": "shape"},
     }
     return FmpClient(make_http(_routes(table)), api_key="k", budget=DailyCallBudget(limit=100))
 
@@ -55,28 +57,51 @@ async def test_transcript_truncated_and_missing_is_empty(fmp: FmpClient) -> None
 
 
 @pytest.mark.unit
-async def test_other_endpoints_hit_expected_paths(make_http) -> None:
-    seen: list[str] = []
+async def test_other_endpoints_hit_expected_stable_paths(make_http) -> None:
+    seen: list[tuple[str, dict]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        seen.append(request.url.path.removeprefix("/api/v3/"))
+        params = {k: v for k, v in request.url.params.items() if k != "apikey"}
+        seen.append((request.url.path.removeprefix("/stable/"), params))
         return httpx.Response(200, json=[])
 
     client = FmpClient(make_http(handler), api_key="k", budget=DailyCallBudget(limit=100))
-    await client.get_balance_sheets("AAPL")
+    await client.get_balance_sheets("aapl")
     await client.get_cash_flow_statements("AAPL")
     await client.get_key_metrics("AAPL")
     await client.get_earnings_surprises("AAPL")
     await client.get_analyst_estimates("AAPL")
     await client.get_13f_institutional_ownership("AAPL")
-    assert seen == [
-        "balance-sheet-statement/AAPL",
-        "cash-flow-statement/AAPL",
-        "key-metrics/AAPL",
-        "earnings-surprises/AAPL",
-        "analyst-estimates/AAPL",
-        "institutional-ownership/symbol-ownership",
+    assert [path for path, _ in seen] == [
+        "balance-sheet-statement",
+        "cash-flow-statement",
+        "key-metrics",
+        "earnings",
+        "analyst-estimates",
+        "institutional-ownership/symbol-positions-summary",
     ]
+    assert seen[0][1] == {"symbol": "AAPL", "limit": "5", "period": "annual"}
+    assert seen[3][1] == {"symbol": "AAPL", "limit": "5"}  # the free plan's maximum
+
+
+@pytest.mark.unit
+async def test_an_endpoint_outside_the_plan_is_no_data_not_a_failure(make_http, caplog) -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if "earning-call-transcript" in request.url.path:
+            return httpx.Response(402, text="Restricted Endpoint: not available under your plan")
+        return httpx.Response(403, text="Legacy Endpoint")
+
+    client = FmpClient(make_http(handler), api_key="k", budget=DailyCallBudget(limit=100))
+    with caplog.at_level("WARNING"):
+        assert await client.get_earnings_call_transcript("AAPL", 2026, 1) == {}
+        assert await client.get_earnings_call_transcript("AAPL", 2025, 4) == {}
+    assert caplog.text.count("not in your plan") == 1  # one warning per endpoint
+    with pytest.raises(ProviderError, match="403"):  # anything else still fails the call
+        await client.get_company_profile("AAPL")
 
 
 @pytest.mark.unit
@@ -90,3 +115,51 @@ async def test_budget_counts_only_uncached_calls_and_stops_at_limit(make_http) -
     await client.get_company_profile("MSFT")
     with pytest.raises(QuotaExceededError):
         await client.get_company_profile("NVDA")
+
+
+@pytest.mark.unit
+def test_fmp_fields_take_yfinance_names_and_units() -> None:
+    from app.providers.fmp import to_info_fields
+
+    info = to_info_fields(
+        profile={"companyName": "Apple Inc.", "sector": "Technology", "marketCap": 5.0e12},
+        ratios=[{"debtToEquityRatio": 1.5241, "priceToEarningsRatio": 34.1, "currentRatio": 0.89}],
+        metrics=[{"returnOnEquity": 1.52}],
+        income=[
+            {"revenue": 4.16e11, "netIncome": 1.12e11},
+            {"revenue": 3.91e11, "netIncome": None},
+        ],
+        balance=[{"totalDebt": 1.12e11, "cashAndShortTermInvestments": 5.5e10}],
+        cash_flow=[{"freeCashFlow": 9.88e10, "capitalExpenditure": -1.2e10}],
+    )
+    assert info["longName"] == "Apple Inc." and info["marketCap"] == 5.0e12
+    assert info["debtToEquity"] == pytest.approx(152.41)  # yfinance reports percent
+    assert info["trailingPE"] == 34.1 and info["returnOnEquity"] == 1.52
+    assert info["revenueGrowth"] == pytest.approx(4.16 / 3.91 - 1)
+    assert "earningsGrowth" not in info  # no previous year → missing, never 0
+    assert info["totalCash"] == 5.5e10 and info["freeCashflow"] == 9.88e10
+    assert to_info_fields({}, [], [], [], [], []) == {}
+
+
+@pytest.mark.unit
+async def test_info_fields_fetch_the_six_endpoints_once(make_http) -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.path.removeprefix("/stable/"))
+        if request.url.path.endswith("/profile"):
+            return httpx.Response(200, json=[{"marketCap": 1.0e9}])
+        return httpx.Response(200, json=[])
+
+    client = FmpClient(make_http(handler), api_key="k", budget=DailyCallBudget(limit=100))
+    assert await client.get_info_fields("AAPL") == {"marketCap": 1.0e9}
+    assert sorted(seen) == sorted(
+        [
+            "profile",
+            "ratios",
+            "key-metrics",
+            "income-statement",
+            "balance-sheet-statement",
+            "cash-flow-statement",
+        ]
+    )

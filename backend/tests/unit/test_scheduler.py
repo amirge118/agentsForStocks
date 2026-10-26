@@ -3,17 +3,29 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.agents.runner import RunOutcome
-from app.agents.scheduler import DAILY_JOB_ID, create_scheduler, run_daily_pipeline
+from app.agents.scheduler import (
+    DAILY_JOB_ID,
+    MAINTENANCE_JOB_ID,
+    build_scheduler,
+    create_scheduler,
+    jobs,
+    load_watchlist,
+    run_daily_pipeline,
+)
+from app.core.config import Settings
 from app.pipeline.orchestrator import PipelineReport
 
 
 @pytest.mark.unit
 def test_daily_job_runs_weekdays_after_close() -> None:
     orchestrator = AsyncMock()
-    scheduler = create_scheduler(orchestrator, ["AAPL"])
+    provider = AsyncMock(return_value=["AAPL"])
+    scheduler = create_scheduler(orchestrator, provider)
     job = scheduler.get_job(DAILY_JOB_ID)
-    assert str(job.trigger) == "cron[day_of_week='mon-fri', hour='18', minute='30']"
-    assert job.args == (orchestrator, ["AAPL"])
+    assert str(job.trigger) == (
+        "cron[month='*', day='*', day_of_week='mon-fri', hour='18', minute='30']"
+    )
+    assert job.args == (orchestrator, provider)
     assert job.kwargs == {"settler": None}
     assert str(scheduler.timezone) == "America/New_York"
 
@@ -24,22 +36,45 @@ async def test_run_daily_pipeline_runs_watchlist(caplog) -> None:
     orchestrator = AsyncMock()
     orchestrator.run.return_value = PipelineReport("p1", run_date=None, outcomes=(failed,))
 
-    await run_daily_pipeline(orchestrator, ["AAPL"])
+    await run_daily_pipeline(orchestrator, AsyncMock(return_value=["AAPL"]))
 
     orchestrator.run.assert_awaited_once_with(["AAPL"])
     assert "finished with failures" in caplog.text
 
 
 @pytest.mark.unit
+async def test_run_daily_pipeline_skips_an_empty_watchlist(caplog) -> None:
+    orchestrator = AsyncMock()
+
+    await run_daily_pipeline(orchestrator, AsyncMock(return_value=[]))
+
+    orchestrator.run.assert_not_awaited()
+    assert "watchlist is empty" in caplog.text
+
+
+@pytest.mark.unit
+async def test_load_watchlist_reads_the_current_list(session_factory) -> None:
+    from app.repositories.watchlist import WatchlistRepository
+
+    assert await load_watchlist(session_factory) == []
+    async with session_factory() as session:
+        await WatchlistRepository(session).add("MSFT")
+        await WatchlistRepository(session).add("AAPL")
+        await session.commit()
+    # Read when the job fires, so a symbol added after startup is picked up
+    assert await load_watchlist(session_factory) == ["MSFT", "AAPL"]
+
+
+@pytest.mark.unit
 def test_maintenance_job_is_registered_when_given() -> None:
     from app.agents.scheduler import MAINTENANCE_JOB_ID
 
-    assert create_scheduler(AsyncMock(), ["AAPL"]).get_job(MAINTENANCE_JOB_ID) is None
+    assert create_scheduler(AsyncMock(), AsyncMock()).get_job(MAINTENANCE_JOB_ID) is None
     maintenance = AsyncMock()
-    job = create_scheduler(AsyncMock(), ["AAPL"], maintenance=maintenance).get_job(
+    job = create_scheduler(AsyncMock(), AsyncMock(), maintenance=maintenance).get_job(
         MAINTENANCE_JOB_ID
     )
-    assert str(job.trigger) == "cron[hour='3', minute='15']"
+    assert str(job.trigger) == "cron[month='*', day='*', day_of_week='*', hour='3', minute='15']"
     assert job.func is maintenance
 
 
@@ -75,7 +110,51 @@ async def test_prune_llm_calls_deletes_rows_past_retention(session_factory, capl
 
 
 @pytest.mark.unit
-async def test_daily_job_settles_outcomes_before_the_agents() -> None:
+def test_nothing_is_scheduled_unless_enabled(session_factory) -> None:
+    assert Settings().scheduler_enabled is False
+    assert build_scheduler(Settings(), AsyncMock(), session_factory) is None
+
+    settings = Settings(scheduler_enabled=True, pipeline_schedule="0 7 * * 1")
+    scheduler = build_scheduler(settings, AsyncMock(), session_factory)
+    assert scheduler is not None
+    assert {j.id for j in scheduler.get_jobs()} == {DAILY_JOB_ID, MAINTENANCE_JOB_ID}
+    assert "day_of_week='1', hour='7', minute='0'" in str(scheduler.get_job(DAILY_JOB_ID).trigger)
+
+
+@pytest.mark.unit
+def test_an_empty_schedule_turns_one_job_off(session_factory) -> None:
+    settings = Settings(scheduler_enabled=True, maintenance_schedule="")
+    scheduler = build_scheduler(settings, AsyncMock(), session_factory)
+    assert [j.id for j in scheduler.get_jobs()] == [DAILY_JOB_ID]
+    assert [(j.job_id, j.enabled) for j in jobs(settings)] == [
+        (DAILY_JOB_ID, True),
+        (MAINTENANCE_JOB_ID, False),
+    ]
+
+
+@pytest.mark.unit
+def test_next_run_is_in_new_york_time() -> None:
+    from datetime import UTC, datetime
+
+    daily, maintenance = jobs(Settings())
+    # Monday 2026-10-26 12:00 UTC = 08:00 New York → today's 18:30 run
+    now = datetime(2026, 10, 26, 12, tzinfo=UTC)
+    assert daily.next_run(now).isoformat() == "2026-10-26T18:30:00-04:00"
+    # Friday evening → the following Monday
+    assert daily.next_run(datetime(2026, 10, 30, 23, tzinfo=UTC)).day == 2
+    assert maintenance.next_run(now).isoformat() == "2026-10-27T03:15:00-04:00"
+    assert jobs(Settings(pipeline_schedule=" "))[0].next_run(now) is None
+
+
+@pytest.mark.unit
+def test_a_bad_schedule_fails_at_startup(session_factory) -> None:
+    settings = Settings(scheduler_enabled=True, pipeline_schedule="every day")
+    with pytest.raises(ValueError):
+        build_scheduler(settings, AsyncMock(), session_factory)
+
+
+@pytest.mark.unit
+async def test_daily_job_settles_outcomes_before_the_agents(session_factory) -> None:
     calls: list[str] = []
     settler = AsyncMock()
     settler.settle.side_effect = lambda: calls.append("settle")
@@ -84,12 +163,21 @@ async def test_daily_job_settles_outcomes_before_the_agents() -> None:
         calls.append("run") or PipelineReport("p1", run_date=None, outcomes=())
     )
 
-    await run_daily_pipeline(orchestrator, ["AAPL"], settler=settler)
+    await run_daily_pipeline(orchestrator, AsyncMock(return_value=["AAPL"]), settler=settler)
 
     assert calls == ["settle", "run"]
-    assert create_scheduler(orchestrator, ["AAPL"], settler=settler).get_job(
-        DAILY_JOB_ID
-    ).kwargs == {"settler": settler}
+    settings = Settings(scheduler_enabled=True)
+    scheduler = build_scheduler(settings, orchestrator, session_factory, settler=settler)
+    assert scheduler.get_job(DAILY_JOB_ID).kwargs == {"settler": settler}
+
+
+@pytest.mark.unit
+async def test_settlement_runs_even_with_an_empty_watchlist() -> None:
+    settler = AsyncMock()
+    orchestrator = AsyncMock()
+    await run_daily_pipeline(orchestrator, AsyncMock(return_value=[]), settler=settler)
+    settler.settle.assert_awaited_once()
+    orchestrator.run.assert_not_awaited()
 
 
 @pytest.mark.unit
@@ -99,7 +187,7 @@ async def test_settlement_failure_does_not_stop_the_pipeline(caplog) -> None:
     orchestrator = AsyncMock()
     orchestrator.run.return_value = PipelineReport("p1", run_date=None, outcomes=())
 
-    await run_daily_pipeline(orchestrator, ["AAPL"], settler=settler)
+    await run_daily_pipeline(orchestrator, AsyncMock(return_value=["AAPL"]), settler=settler)
 
     orchestrator.run.assert_awaited_once_with(["AAPL"])
     assert "Outcome settlement failed" in caplog.text

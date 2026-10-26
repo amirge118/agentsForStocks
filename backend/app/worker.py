@@ -2,18 +2,19 @@
 Scheduler worker — runs the daily pipeline scheduler in its own process.
 
 Production layout: N API processes with RUN_SCHEDULER=false, plus exactly ONE
-`python -m app.worker`. Agent runs are idempotent, so an accidental second
-worker wastes API calls but never corrupts or duplicates results.
+`python -m app.worker`. With SCHEDULER_ENABLED=false (the default) the worker
+starts, schedules nothing and idles until stopped. Agent runs are idempotent,
+so an accidental second worker wastes API calls but never corrupts or
+duplicates results.
 """
 
 import asyncio
 import logging
 import signal
-from functools import partial
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.agents.scheduler import create_scheduler, prune_llm_calls
+from app.agents.scheduler import build_scheduler
 from app.container import build_container
 from app.core.config import Settings
 
@@ -27,18 +28,17 @@ async def run_worker(
 ) -> None:
     """Start the scheduler and keep it running until `stop` is set."""
     container = build_container(settings, session_factory)
-    scheduler = create_scheduler(
-        container.orchestrator,
-        settings.watchlist_symbols,
-        maintenance=partial(prune_llm_calls, session_factory, settings.llm_call_retention_days),
-        settler=container.settler,
+    scheduler = build_scheduler(
+        settings, container.orchestrator, session_factory, settler=container.settler
     )
-    scheduler.start()
-    logger.info("Scheduler worker started", extra={"symbols": settings.watchlist_symbols})
+    if scheduler is not None:
+        scheduler.start()
+    logger.info("Scheduler worker started", extra={"scheduling": scheduler is not None})
     try:
         await stop.wait()
     finally:
-        scheduler.shutdown(wait=False)
+        if scheduler is not None:
+            scheduler.shutdown(wait=False)
         await container.aclose()
         logger.info("Scheduler worker stopped")
 

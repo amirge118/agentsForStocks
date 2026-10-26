@@ -3,17 +3,28 @@ Symbol endpoints:
   GET /symbols                          — watchlist with each symbol's latest recommendation
   GET /symbols/{symbol}/recommendation  — latest recommendation for one symbol
   GET /symbols/{symbol}/results         — stored agent results (filter by agent / date)
+  GET /symbols/{symbol}/prices          — daily OHLCV + SMA20/50 + RSI14 for the price chart
 """
 
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_container, get_session, symbol_param
 from app.container import Container
+from app.domain.price_chart import fetch_period, price_bars
+from app.providers.errors import ProviderError
 from app.repositories.agent_results import AgentResultRepository
-from app.schemas.api import AgentResultOut, Recommendation, SymbolOverview
+from app.repositories.watchlist import WatchlistRepository
+from app.schemas.api import (
+    AgentResultOut,
+    PriceBarOut,
+    PriceHistory,
+    Recommendation,
+    SymbolOverview,
+)
 
 router = APIRouter(prefix="/symbols", tags=["symbols"])
 
@@ -21,11 +32,8 @@ _RECOMMENDATION = "recommendation"
 
 
 @router.get("", response_model=list[SymbolOverview])
-async def list_symbols(
-    container: Container = Depends(get_container),
-    session: AsyncSession = Depends(get_session),
-) -> list[SymbolOverview]:
-    symbols = container.settings.watchlist_symbols
+async def list_symbols(session: AsyncSession = Depends(get_session)) -> list[SymbolOverview]:
+    symbols = await WatchlistRepository(session).symbols()
     latest = await AgentResultRepository(session).latest_per_symbol(_RECOMMENDATION, symbols)
     return [
         SymbolOverview(
@@ -67,3 +75,26 @@ async def list_results(
         symbol, agent_type=agent, run_date=run_date, limit=limit
     )
     return [AgentResultOut.model_validate(row) for row in rows]
+
+
+@router.get(
+    "/{symbol}/prices",
+    response_model=PriceHistory,
+    responses={502: {"description": "The price provider is unavailable"}},
+)
+async def get_prices(
+    symbol: str = Depends(symbol_param),
+    price_range: Literal["1M", "3M", "6M", "1Y"] = Query(default="6M", alias="range"),
+    container: Container = Depends(get_container),
+) -> PriceHistory:
+    # Through YFinanceClient: rate limit, retries and the shared TTL cache
+    try:
+        history = await container.agent_context.yfinance.get_history(
+            symbol, period=fetch_period(price_range), interval="1d"
+        )
+    except ProviderError as exc:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, f"Price data for {symbol} is unavailable"
+        ) from exc
+    bars = [PriceBarOut.model_validate(bar) for bar in price_bars(history, price_range)]
+    return PriceHistory(symbol=symbol, range=price_range, bars=bars)
