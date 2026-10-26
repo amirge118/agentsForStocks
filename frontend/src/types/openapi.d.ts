@@ -438,9 +438,9 @@ export interface components {
             rpm: number | null;
             /**
              * Structured Mode
-             * @description None for Claude (native structured outputs)
+             * @description native (Claude), json_schema or json_object
              */
-            structured_mode: string | null;
+            structured_mode: string;
             /** Tpd */
             tpd: number | null;
             /** Tpm */

@@ -19,15 +19,15 @@ from app.agents.runner import AgentRunner, SessionResultsReader
 from app.core.config import Settings
 from app.knowledge.openviking_store import OpenVikingStore
 from app.knowledge.store import KnowledgeStore, NullKnowledgeStore
-from app.llm.chain import CHAIN, FallbackChain, parse_chain
+from app.llm.chain import FallbackChain, parse_chain
 from app.llm.client import LLMClient
 from app.llm.openai_compat import OpenAICompatibleClient
-from app.llm.pricing import Price
 from app.llm.profiles import ProfileBook
-from app.llm.providers_catalog import configured, load_specs
+from app.llm.provider import ALT, ANTHROPIC, LLMProvider
+from app.llm.providers_catalog import alt_spec, configured, load_specs
 from app.llm.quota import ProviderQuota, UsageLoader
 from app.llm.recording import DbLLMCallRecorder, LedgerUsage, LLMCallRecorder
-from app.llm.router import ALT, ANTHROPIC, LLMProvider, LLMRouter
+from app.llm.router import LLMRouter
 from app.pipeline.launcher import PipelineLauncher
 from app.pipeline.orchestrator import PipelineOrchestrator
 from app.providers.cache import TTLCache
@@ -91,6 +91,14 @@ def build_llm_router(
         )
     }
     specs = load_specs(settings.llm_providers, settings.llm_providers_file)
+    if settings.alt_llm_configured:
+        specs[ALT] = alt_spec(
+            settings.llm_alt_base_url,
+            settings.llm_alt_model,
+            input_price=settings.llm_alt_input_price,
+            output_price=settings.llm_alt_output_price,
+            timeout_seconds=settings.llm_alt_timeout_seconds,
+        )
     for spec, key in configured(specs, _provider_keys(settings)):
         providers[spec.name] = OpenAICompatibleClient(
             base_url=spec.base_url,
@@ -100,31 +108,20 @@ def build_llm_router(
             structured_mode=spec.structured_mode,
             extra_body=spec.extra_body,
             reasoning_tokens=spec.reasoning_tokens,
-            quota=ProviderQuota(
-                spec.name,
-                spec.limits,
-                max_wait_seconds=settings.llm_quota_max_wait_seconds,
-                load_usage=usage,
+            quota=(
+                ProviderQuota(
+                    spec.name,
+                    spec.limits,
+                    max_wait_seconds=settings.llm_quota_max_wait_seconds,
+                    load_usage=usage,
+                )
+                if spec.limits.bounded
+                else None
             ),
             recorder=recorder,
             capture_content=settings.llm_capture_content,
-            prices={spec.model: _flat_price(spec.input_price, spec.output_price)},
+            prices={spec.model: spec.price},
             timeout_seconds=spec.timeout_seconds,
-        )
-    if settings.alt_llm_configured:
-        providers[ALT] = OpenAICompatibleClient(
-            base_url=settings.llm_alt_base_url,
-            api_key=settings.llm_alt_api_key,
-            default_model=settings.llm_alt_model,
-            name=ALT,
-            recorder=recorder,
-            capture_content=settings.llm_capture_content,
-            prices={
-                settings.llm_alt_model: _flat_price(
-                    settings.llm_alt_input_price, settings.llm_alt_output_price
-                )
-            },
-            timeout_seconds=settings.llm_alt_timeout_seconds,
         )
     # Claude without a key would only add a failed call to every chain run
     in_chain = {
@@ -132,29 +129,25 @@ def build_llm_router(
         for name, client in providers.items()
         if name != ANTHROPIC or settings.anthropic_api_key
     }
-    providers[CHAIN] = FallbackChain(parse_chain(settings.llm_chain), in_chain)
-    if settings.llm_provider not in providers:
+    chain = FallbackChain(parse_chain(settings.llm_chain), in_chain)
+    router = LLMRouter(providers, default_provider=settings.llm_provider, chain=chain)
+    if not router.configured(settings.llm_provider):
         logger.warning(
             "LLM_PROVIDER is not configured — agents will use their rule-based fallback",
             extra={"provider": settings.llm_provider},
         )
-    return LLMRouter(providers, default_provider=settings.llm_provider)
+    return router
 
 
 def _provider_keys(settings: Settings) -> dict[str, str]:
     """API keys by variable name: the built-in ones from settings (.env), others from env."""
     return {
         **os.environ,
+        "LLM_ALT_API_KEY": settings.llm_alt_api_key,
         "GEMINI_API_KEY": settings.gemini_api_key,
         "GROQ_API_KEY": settings.groq_api_key,
         "CEREBRAS_API_KEY": settings.cerebras_api_key,
     }
-
-
-def _flat_price(input_price: float, output_price: float) -> Price:
-    return Price(
-        input=input_price, output=output_price, cache_read=input_price, cache_write=input_price
-    )
 
 
 def build_container(

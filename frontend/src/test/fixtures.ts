@@ -87,7 +87,7 @@ export const gemini: LLMProvider = {
   day_start: "2026-10-23T07:00:00Z", day_requests: 950, day_tokens: 410000,
 }
 export const claude: LLMProvider = {
-  name: "anthropic", model: "claude-haiku-4-5", structured_mode: null,
+  name: "anthropic", model: "claude-haiku-4-5", structured_mode: "native",
   chain_position: null, rpm: null, tpm: null, rpd: null, tpd: null,
   day_start: "2026-10-23T00:00:00Z", day_requests: 12, day_tokens: 30000,
 }

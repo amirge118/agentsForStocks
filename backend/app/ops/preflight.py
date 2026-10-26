@@ -10,15 +10,15 @@ sends one tiny structured-output request (~100 tokens) to the configured model.
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Literal
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.container import Container
 from app.core.config import Settings
-from app.llm.chain import CHAIN
-from app.llm.router import ANTHROPIC
+from app.llm.openai_compat import OpenAICompatibleClient
+from app.llm.provider import ALT, ANTHROPIC, CHAIN
 from app.schemas.signals import LLMSignal
 
 CheckStatus = Literal["ok", "missing", "failed"]
@@ -121,7 +121,7 @@ async def check_llm(container: Container, settings: Settings) -> CheckResult:
     return await _guard("claude", lambda: _probe_llm(container, "anthropic"), required=required)
 
 
-async def _probe_compat(client: Any) -> str:
+async def _probe_compat(client: OpenAICompatibleClient) -> str:
     """An OpenAI-compatible provider: the model exists, and a structured reply parses."""
     model = client.default_model
     offered = await client.list_models()
@@ -135,54 +135,51 @@ async def _probe_compat(client: Any) -> str:
         prompt_name="preflight",
     )
     detail = f"{model} {client.structured_mode} output ok (signal={reply.signal})"
-    quota = getattr(client, "quota", None)
-    if quota is not None:
-        lim = quota.limits
+    if client.quota is not None:
+        lim = client.quota.limits
         parts = [f"{v} {k}" for k, v in (("rpm", lim.rpm), ("rpd", lim.rpd), ("tpd", lim.tpd)) if v]
         detail += f"; free tier {', '.join(parts)}"
     return detail
 
 
+def _check_name(provider: str) -> str:
+    return "claude" if provider == ANTHROPIC else f"llm:{provider}"
+
+
 async def check_llm_providers(container: Container, settings: Settings) -> list[CheckResult]:
-    """Every configured non-Claude provider, plus the chain when it is the default."""
-    llm = container.llm
-    names = [n for n in getattr(llm, "names", []) if n not in (ANTHROPIC, CHAIN)]
+    """Every configured provider besides Claude (checked by check_llm)."""
+    others = [p for p in container.llm.providers() if p.name != ANTHROPIC]
     results = list(
         await asyncio.gather(
             *(
                 _guard(
-                    f"llm:{name}",
-                    lambda c=llm.provider(name): _probe_compat(c),
-                    required=settings.llm_provider == name,
+                    _check_name(p.name),
+                    lambda c=p: _probe_compat(c),
+                    required=settings.llm_provider == p.name,
                 )
-                for name in names
+                for p in others
             )
         )
     )
-    default = settings.llm_provider
-    if default not in (ANTHROPIC, CHAIN) and default not in names:
-        hint = "LLM_ALT_BASE_URL / LLM_ALT_MODEL" if default == "alt" else "its API key"
-        results.append(CheckResult(f"llm:{default}", "missing", f"not configured ({hint})"))
+    if not container.llm.configured(settings.llm_provider):
+        default = settings.llm_provider
+        hint = "LLM_ALT_BASE_URL / LLM_ALT_MODEL" if default == ALT else "its API key"
+        results.append(CheckResult(_check_name(default), "missing", f"not configured ({hint})"))
     return results
 
 
 def check_chain(
     container: Container, settings: Settings, results: list[CheckResult]
 ) -> CheckResult | None:
-    """Ready when at least one step of the chain passed its own check."""
+    """When the chain is the default: ready if at least one of its steps passed its check."""
     if settings.llm_provider != CHAIN:
         return None
-    chain = getattr(container.llm, "provider", lambda _: None)(CHAIN)
-    steps = list(getattr(chain, "steps", []))
-    if not steps:
+    order = container.llm.chain_order()
+    if not order:
         return CheckResult("llm:chain", "missing", "no step of LLM_CHAIN has a configured provider")
     healthy = {r.name for r in results if r.status == "ok"}
-    alive = [
-        s.label
-        for s in steps
-        if ("claude" if s.provider == ANTHROPIC else f"llm:{s.provider}") in healthy
-    ]
-    detail = f"{' → '.join(s.label for s in steps)} ({len(alive)} of {len(steps)} healthy)"
+    alive = [name for name in order if _check_name(name) in healthy]
+    detail = f"{' → '.join(order)} ({len(alive)} of {len(order)} healthy)"
     return CheckResult("llm:chain", "ok" if alive else "failed", detail)
 
 

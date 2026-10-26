@@ -33,3 +33,10 @@ def test_unknown_model_costs_none_and_warns_once(caplog, monkeypatch) -> None:
     assert cost_usd("mystery-model", TokenUsage(input_tokens=10)) is None
     assert cost_usd("mystery-model", TokenUsage(input_tokens=10)) is None
     assert caplog.text.count("No price known") == 1
+
+
+@pytest.mark.unit
+def test_flat_price_charges_cached_tokens_as_input() -> None:
+    from app.llm.pricing import Price
+
+    assert Price.flat(0.3, 1.2) == Price(input=0.3, output=1.2, cache_read=0.3, cache_write=0.3)

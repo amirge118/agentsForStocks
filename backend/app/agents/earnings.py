@@ -7,7 +7,7 @@ from datetime import date
 import pandas as pd
 
 from app.agents.base import Agent, AnalysisResult, neutral_fallback
-from app.agents.formatting import memory_block
+from app.agents.formatting import knowledge_block
 from app.agents.registry import register_agent
 from app.domain.earnings import (
     QUARTERS_ANALYZED,
@@ -70,21 +70,18 @@ Average post-earnings return: 1 day {reaction.avg_1d_return_pct:+.1f}%, \
 3 days {reaction.avg_3d_return_pct:+.1f}%
 Next earnings date: {upcoming}
 
-Knowledge base context:
-{memory_block(memory)}""",
+{knowledge_block(memory)}""",
             fallback=neutral_fallback(),
         )
-        return EarningsResult(
-            signal=judgement.signal,
-            confidence=judgement.confidence,
-            reasoning=judgement.reasoning,
+        return EarningsResult.from_judgement(
+            "Earnings",
+            judgement,
+            detail=f"beat_rate={stats.beat_rate:.0%}",
             quarters_analyzed=stats.total,
             beat_rate=stats.beat_rate,
             avg_surprise_pct=stats.avg_surprise_pct,
             avg_1d_return=reaction.avg_1d_return_pct,
             next_earnings=upcoming,
-            summary=f"Earnings: {judgement.signal} ({judgement.confidence:.0f}%) "
-            f"beat_rate={stats.beat_rate:.0%} — {judgement.reasoning}",
         )
 
     def learnings(self, symbol: str, result: EarningsResult) -> list[Learning]:

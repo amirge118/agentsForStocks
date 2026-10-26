@@ -15,10 +15,10 @@ from app.agents.base import AgentContext
 from app.agents.catalog import load_agents
 from app.agents.contracts import apply_contract, missing_inputs
 from app.agents.market_scanner import ScanJudgement
-from app.agents.sentiment import _NewsSentiment
+from app.agents.sentiment import NewsSentiment
 from app.core.context import bind_run
-from app.llm.client import LLMError
-from app.llm.pricing import PRICES, Price
+from app.llm.errors import LLMError
+from app.llm.pricing import Price
 from app.llm.profiles import AgentProfile, ProfileBook
 from app.llm.skills import compose_system
 from app.schemas.signals import LLMSignal
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 SYMBOL = "EVAL"
 _REPLAY_SCHEMAS: dict[str, type[BaseModel]] = {
     "market_scanner": ScanJudgement,
-    "news_sentiment": _NewsSentiment,
+    "news_sentiment": NewsSentiment,
 }
 # Rough sizes for the pre-run estimate: ~4 characters per token, plus the JSON
 # schema the API adds to every structured request and a typical short reply
@@ -280,11 +280,7 @@ def _price_estimate(
 
 
 def _price(model: str, config: EvalConfig) -> Price | None:
-    for provider in getattr(config.llm, "_providers", {}).values():
-        prices = getattr(provider, "_prices", None) or {}
-        if model in prices:
-            return prices[model]
-    return PRICES.get(model)
+    return config.llm.price(model)
 
 
 # ---------------------------------------------------------------- grading

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.agents.base import Agent, AnalysisResult, neutral_fallback
-from app.agents.formatting import billions, memory_block, pct, table
+from app.agents.formatting import billions, knowledge_block, pct, table
 from app.agents.registry import register_agent
 from app.domain.financials import growth_rates
 from app.knowledge.store import Learning
@@ -63,15 +63,13 @@ class FinancialHistoryAgent(Agent[FinancialHistoryData, FinancialHistoryResult])
         judgement = await self.judge(
             _prompt(symbol, data, rates, memory), fallback=neutral_fallback()
         )
-        return FinancialHistoryResult(
-            signal=judgement.signal,
-            confidence=judgement.confidence,
-            reasoning=judgement.reasoning,
+        return FinancialHistoryResult.from_judgement(
+            "Financial history",
+            judgement,
+            detail=f"RevCAGR={rates.revenue_cagr:+.1%}",
             revenue_cagr=rates.revenue_cagr,
             fcf_cagr=rates.fcf_cagr,
             net_income_cagr=rates.net_income_cagr,
-            summary=f"Financial history: {judgement.signal} ({judgement.confidence:.0f}%) "
-            f"RevCAGR={rates.revenue_cagr:+.1%} — {judgement.reasoning}",
         )
 
     def learnings(self, symbol: str, result: FinancialHistoryResult) -> list[Learning]:
@@ -145,5 +143,4 @@ Five-year CAGRs (0% when not computable):
   Revenue: {rates.revenue_cagr:+.1%} | FCF: {rates.fcf_cagr:+.1%}
   Net income: {rates.net_income_cagr:+.1%}
 
-Knowledge base context:
-{memory_block(memory)}"""
+{knowledge_block(memory)}"""

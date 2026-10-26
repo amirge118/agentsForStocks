@@ -12,8 +12,10 @@ def pct(value: float | None) -> str:
     return "N/A" if value is None else f"{value * 100:.1f}%"
 
 
-def memory_block(memory: list[str]) -> str:
-    return "\n".join(f"- {item}" for item in memory) if memory else "None"
+def knowledge_block(memory: list[str]) -> str:
+    """The prompt section with what the knowledge base recalled for this symbol."""
+    items = "\n".join(f"- {item}" for item in memory) if memory else "None"
+    return f"Knowledge base context:\n{items}"
 
 
 def table(

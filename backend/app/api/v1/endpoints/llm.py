@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_container, get_session
 from app.container import Container
 from app.core.clock import utcnow
-from app.llm.chain import CHAIN
 from app.llm.quota import QuotaLimits, day_start
 from app.repositories.llm_calls import GroupBy, LLMCallRepository
 from app.schemas.api import LLMCallOut, LLMProviderOut, LLMUsageReport, LLMUsageRow
@@ -72,25 +71,20 @@ async def llm_providers(
 ) -> list[LLMProviderOut]:
     """Usage today comes from the ledger, so it includes the worker's scheduled run."""
     llm = container.llm
-    chain = llm.provider(CHAIN)
-    order = [s.provider for s in getattr(chain, "steps", [])]
+    order = llm.chain_order()
     repo = LLMCallRepository(session)
     now = utcnow()
     out = []
-    for name in llm.names:
-        if name == CHAIN:
-            continue
-        client = llm.provider(name)
-        quota = getattr(client, "quota", None)
-        limits = quota.limits if quota is not None else QuotaLimits()
+    for client in llm.providers():
+        limits = client.quota.limits if client.quota is not None else QuotaLimits()
         start = day_start(limits.reset_tz, now)
-        requests, tokens = await repo.provider_totals(name, start)
+        requests, tokens = await repo.provider_totals(client.name, start)
         out.append(
             LLMProviderOut(
-                name=name,
+                name=client.name,
                 model=client.default_model,
-                structured_mode=getattr(client, "structured_mode", None),
-                chain_position=order.index(name) + 1 if name in order else None,
+                structured_mode=client.structured_mode,
+                chain_position=order.index(client.name) + 1 if client.name in order else None,
                 rpm=limits.rpm,
                 tpm=limits.tpm,
                 rpd=limits.rpd,

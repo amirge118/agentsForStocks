@@ -124,7 +124,7 @@ async def test_technicals_short_history_skips_llm() -> None:
 async def test_sentiment_classifies_news_with_llm() -> None:
     llm = FakeLLM()
     _, result = await _run(SentimentAgent, llm=llm)
-    assert [c["schema"].__name__ for c in llm.calls] == ["_NewsSentiment", "LLMSignal"]
+    assert [c["schema"].__name__ for c in llm.calls] == ["NewsSentiment", "LLMSignal"]
     assert result.insider.signal == "bullish"
     assert result.news.detail == "2 headlines analyzed"
 
@@ -296,3 +296,19 @@ async def test_flagged_recommendation_reasoning_is_kept_with_findings() -> None:
     assert result.compliance.status == "flag"
     assert result.compliance.findings[0].rule == "missing_risk_discussion"
     assert result.reasoning == "Great growth and strong margins."
+
+
+@pytest.mark.unit
+def test_results_from_a_judgement_share_one_summary_format() -> None:
+    from app.agents.moat import MoatResult
+    from app.schemas.signals import LLMSignal
+
+    judgement = LLMSignal(signal="bullish", confidence=72.4, reasoning="Durable brand")
+    fields = dict(avg_gross_margin=0.4, gross_margin_variance=0.01, intangibles_pct=0.1)
+    plain = MoatResult.from_judgement("Moat", judgement, moat_keywords=[], **fields)
+    assert plain.summary == "Moat: bullish (72%) — Durable brand"
+    assert (plain.signal, plain.confidence, plain.reasoning) == ("bullish", 72.4, "Durable brand")
+    detailed = MoatResult.from_judgement(
+        "Moat", judgement, detail="keywords=2", moat_keywords=["brand", "network"], **fields
+    )
+    assert detailed.summary == "Moat: bullish (72%) keywords=2 — Durable brand"

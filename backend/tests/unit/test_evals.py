@@ -16,12 +16,11 @@ from app.llm.recording import DbLLMCallRecorder, LLMCallRecord
 from evals import capture, cases, compare, report
 from evals import run as eval_run
 from evals.harness import EvalConfig, Run, estimate, grade, judge_faithfulness, run_case
+from tests.factories import RouterStub
 
 
-class ScriptedLLM:
+class ScriptedLLM(RouterStub):
     """Answers like a sensible model: neutral when told inputs are missing, else bullish."""
-
-    default_provider = "anthropic"
 
     def __init__(self, faithful: bool = True) -> None:
         self.calls: list[dict] = []

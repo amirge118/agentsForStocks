@@ -23,15 +23,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from app.llm.client import LLMError
+from app.llm.errors import LLMError, QuotaExhaustedError
 from app.llm.mcp import McpServer
-from app.llm.openai_compat import QuotaExhaustedError
+from app.llm.provider import ANTHROPIC, CHAIN, LLMProvider
 from app.observability import metrics
 
 logger = logging.getLogger(__name__)
-
-CHAIN = "chain"
-_ANTHROPIC = "anthropic"
 
 
 @dataclass(frozen=True)
@@ -56,7 +53,7 @@ def parse_chain(spec: str) -> list[ChainStep]:
 
 
 class FallbackChain:
-    def __init__(self, steps: Sequence[ChainStep], providers: Mapping[str, Any]) -> None:
+    def __init__(self, steps: Sequence[ChainStep], providers: Mapping[str, LLMProvider]) -> None:
         # Only steps whose provider exists; the rest are skipped once, here
         self.steps = [s for s in steps if s.provider in providers and s.provider != CHAIN]
         self._providers = providers
@@ -81,9 +78,9 @@ class FallbackChain:
     ) -> Any:
         failures: list[str] = []
         for i, step in enumerate(self.steps):
-            if mcp_servers and step.provider != _ANTHROPIC:
+            if mcp_servers and step.provider != ANTHROPIC:
                 continue
-            chosen = step.model or (model if step.provider == _ANTHROPIC else None)
+            chosen = step.model or (model if step.provider == ANTHROPIC else None)
             try:
                 return await self._providers[step.provider].generate(
                     model=chosen, mcp_servers=mcp_servers, **kwargs
@@ -102,6 +99,3 @@ class FallbackChain:
         if not failures:
             raise LLMError("no provider in the LLM chain can serve this call")
         raise LLMError("every provider in the LLM chain failed — " + "; ".join(failures))
-
-    async def aclose(self) -> None:
-        """The router closes the underlying providers."""

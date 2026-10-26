@@ -282,7 +282,7 @@ async def test_llm_providers_show_chain_order_limits_and_use_today(
     assert (claude["chain_position"], claude["rpd"], claude["structured_mode"]) == (
         None,
         None,
-        None,
+        "native",
     )
     await container.llm.aclose()
 

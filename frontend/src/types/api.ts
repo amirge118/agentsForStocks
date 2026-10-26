@@ -151,7 +151,7 @@ export const LLMUsageReportSchema = z.object({
 export const LLMProviderSchema = z.object({
   name: z.string(),
   model: z.string(),
-  structured_mode: z.string().nullable(),
+  structured_mode: z.string(),
   chain_position: z.number().nullable(),
   rpm: z.number().nullable(),
   tpm: z.number().nullable(),

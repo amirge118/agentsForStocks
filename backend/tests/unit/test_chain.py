@@ -9,9 +9,9 @@ from app.agents.market_scanner import MarketScannerAgent
 from app.agents.runner import AgentRunner
 from app.knowledge.store import NullKnowledgeStore
 from app.llm.chain import ChainStep, FallbackChain, parse_chain
-from app.llm.client import LLMError
+from app.llm.errors import LLMError, QuotaExhaustedError
 from app.llm.mcp import McpServer
-from app.llm.openai_compat import OpenAICompatibleClient, QuotaExhaustedError
+from app.llm.openai_compat import OpenAICompatibleClient
 from app.llm.quota import ProviderQuota, QuotaLimits
 from app.llm.recording import DbLLMCallRecorder
 from app.llm.router import LLMRouter
@@ -178,7 +178,7 @@ async def test_agent_run_end_to_end_rate_limited_free_tier_falls_to_the_next(
         "groq": _free("groq", groq, ProviderQuota("groq", QuotaLimits()), recorder, "json_object"),
     }
     chain = FallbackChain(parse_chain("gemini,groq,anthropic"), providers)
-    router = LLMRouter({"anthropic": FakeLLM(), **providers, "chain": chain}, "chain")
+    router = LLMRouter({"anthropic": FakeLLM(), **providers}, "chain", chain=chain)
     agent = MarketScannerAgent(make_context(llm=router))
 
     outcome = await AgentRunner(session_factory, NullKnowledgeStore()).run(agent, "AAPL", RUN_DATE)
@@ -208,7 +208,7 @@ async def test_agent_falls_back_to_its_rule_based_signal_when_the_chain_fails(
 
     providers = {"gemini": _free("gemini", down, None, DbLLMCallRecorder(session_factory))}
     chain = FallbackChain(parse_chain("gemini"), providers)
-    router = LLMRouter({"anthropic": FakeLLM(), **providers, "chain": chain}, "chain")
+    router = LLMRouter({"anthropic": FakeLLM(), **providers}, "chain", chain=chain)
     agent = MarketScannerAgent(make_context(llm=router))
 
     outcome = await AgentRunner(session_factory, NullKnowledgeStore()).run(agent, "AAPL", RUN_DATE)

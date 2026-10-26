@@ -4,9 +4,9 @@ import httpx
 import pytest
 
 from app.core.context import bind_run
-from app.llm.client import LLMError
+from app.llm.errors import LLMError, QuotaExhaustedError
 from app.llm.mcp import McpServer
-from app.llm.openai_compat import OpenAICompatibleClient, QuotaExhaustedError
+from app.llm.openai_compat import OpenAICompatibleClient
 from app.llm.pricing import Price
 from app.llm.quota import ProviderQuota, QuotaLimits
 from app.providers.retry import RetryPolicy

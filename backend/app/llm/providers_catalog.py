@@ -26,6 +26,8 @@ from pathlib import Path
 from typing import Any
 
 from app.llm.openai_compat import StructuredMode
+from app.llm.pricing import Price
+from app.llm.provider import ALT
 from app.llm.quota import QuotaLimits
 
 logger = logging.getLogger(__name__)
@@ -46,6 +48,28 @@ class ProviderSpec:
     output_price: float = 0.0
     timeout_seconds: float = 60.0
     enabled: bool = True
+    # False for a local server (Ollama) that takes no key
+    key_required: bool = True
+
+    @property
+    def price(self) -> Price:
+        return Price.flat(self.input_price, self.output_price)
+
+
+def alt_spec(
+    base_url: str, model: str, *, input_price: float, output_price: float, timeout_seconds: float
+) -> ProviderSpec:
+    """The LLM_ALT_* provider: any OpenAI-compatible API, no free-tier limits, key optional."""
+    return ProviderSpec(
+        name=ALT,
+        base_url=base_url,
+        model=model,
+        key_env="LLM_ALT_API_KEY",
+        input_price=input_price,
+        output_price=output_price,
+        timeout_seconds=timeout_seconds,
+        key_required=False,
+    )
 
 
 BUILTIN: dict[str, ProviderSpec] = {
@@ -121,6 +145,6 @@ def configured(
     out = []
     for spec in specs.values():
         key = keys.get(spec.key_env, "")
-        if spec.enabled and key:
+        if spec.enabled and (key or not spec.key_required):
             out.append((spec, key))
     return out

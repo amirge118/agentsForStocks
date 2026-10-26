@@ -1,7 +1,7 @@
 "use client"
 
+import { Empty, LoadError, Loading } from "@/components/features/common/query-states"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import { formatTokens } from "@/lib/format"
 import { useLLMProviders } from "@/lib/hooks/queries"
 import type { LLMProvider } from "@/types/api"
@@ -10,15 +10,11 @@ import type { LLMProvider } from "@/types/api"
 export function ProviderQuotas() {
   const { data, isPending, isError, error } = useLLMProviders()
 
-  if (isPending) return <Skeleton className="h-28 w-full" aria-label="Loading providers" />
+  if (isPending) return <Loading label="Loading providers" className="h-28" />
   if (isError) {
-    return (
-      <p role="alert" className="text-sm text-red-400">
-        Could not load providers: {error.message}
-      </p>
-    )
+    return <LoadError what="providers" error={error} className="p-0" />
   }
-  if (data.length === 0) return <p className="text-sm text-zinc-400">No model provider configured.</p>
+  if (data.length === 0) return <Empty className="p-0">No model provider configured.</Empty>
 
   // Chain steps first, in order; providers outside the chain after them
   const sorted = [...data].sort(

@@ -28,31 +28,27 @@ from collections.abc import Sequence
 from typing import Any, Literal, TypeVar
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
-from app.llm.client import LLMError
+from app.llm.errors import QuotaExhaustedError
 from app.llm.mcp import McpServer
 from app.llm.pricing import Price, TokenUsage
+from app.llm.provider import ALT
 from app.llm.quota import ProviderQuota, estimate_tokens
 from app.llm.recording import LLMCallRecorder, NullRecorder
 from app.llm.schema import output_schema
 from app.llm.tracking import CallTracker
 from app.providers.errors import ProviderError, RetryableError
-from app.providers.retry import RetryPolicy, with_retry
+from app.providers.retry import RETRYABLE_STATUS, RetryPolicy, with_retry
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
-_RETRYABLE_STATUS = {408, 409, 425, 429, 500, 502, 503, 504}
 # Without a Retry-After header, leave a rate-limited free tier alone for this long
 _DEFAULT_COOLDOWN_SECONDS = 60.0
 
 StructuredMode = Literal["json_schema", "json_object"]
-
-
-class QuotaExhaustedError(LLMError):
-    """The provider's free-tier quota has no room now — nothing was sent."""
 
 
 class _RateLimitedError(ProviderError):
@@ -68,7 +64,7 @@ class OpenAICompatibleClient:
         base_url: str,
         api_key: str,
         default_model: str,
-        name: str = "alt",
+        name: str = ALT,
         structured_mode: StructuredMode = "json_schema",
         extra_body: dict[str, Any] | None = None,
         quota: ProviderQuota | None = None,
@@ -145,13 +141,11 @@ class OpenAICompatibleClient:
         except _RateLimitedError as exc:
             if self.quota is not None:
                 self.quota.cool_down(exc.retry_after)
-            error = f"{self.name} {chosen} rate limited: {exc}"
-            await call.finish("error", error=error)
-            raise QuotaExhaustedError(error) from exc
+            raise await call.fail(
+                f"{self.name} {chosen} rate limited: {exc}", exc_type=QuotaExhaustedError
+            ) from exc
         except ProviderError as exc:
-            error = f"{chosen} request failed: {exc}"
-            await call.finish("error", error=error)
-            raise LLMError(error) from exc
+            raise await call.fail(f"{chosen} request failed: {exc}") from exc
 
         choice = (payload.get("choices") or [{}])[0]
         text = (choice.get("message") or {}).get("content") or ""
@@ -169,19 +163,11 @@ class OpenAICompatibleClient:
         )
         if slot is not None and self.quota is not None:
             self.quota.settle(slot, call.usage.total_input + call.usage.output_tokens)
-        if choice.get("finish_reason") in ("length", "content_filter"):
-            error = f"{chosen} stopped with {choice.get('finish_reason')}"
-            await call.finish("error", error=error)
-            raise LLMError(error)
-        try:
-            result = schema.model_validate_json(_strip_fences(text))
-        except ValidationError as exc:
-            logger.warning("Model reply failed schema validation: %.200s", text)
-            error = f"{chosen} reply did not match {schema.__name__}"
-            await call.finish("error", error=error)
-            raise LLMError(error) from exc
-        await call.finish("ok")
-        return result
+        return await call.parse(
+            schema,
+            _strip_fences(text),
+            cut_off=choice.get("finish_reason") in ("length", "content_filter"),
+        )
 
     def _response_format(self, schema: type[BaseModel]) -> dict[str, Any]:
         if self.structured_mode == "json_object":
@@ -227,7 +213,7 @@ class OpenAICompatibleClient:
     def _decode(self, resp: httpx.Response) -> dict[str, Any]:
         if resp.status_code == 429 and self.quota is not None:
             raise _RateLimitedError(_retry_after(resp))
-        if resp.status_code in _RETRYABLE_STATUS:
+        if resp.status_code in RETRYABLE_STATUS:
             raise RetryableError(f"HTTP {resp.status_code}")
         if resp.status_code >= 400:
             raise ProviderError(f"HTTP {resp.status_code}: {resp.text[:200]}")
@@ -235,6 +221,9 @@ class OpenAICompatibleClient:
             return dict(resp.json())
         except json.JSONDecodeError as exc:
             raise ProviderError("response is not JSON") from exc
+
+    def price(self, model: str) -> Price | None:
+        return (self._prices or {}).get(model)
 
     async def aclose(self) -> None:
         await self._http.aclose()

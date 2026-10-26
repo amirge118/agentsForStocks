@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.agents.base import Agent, AnalysisResult, neutral_fallback
-from app.agents.formatting import memory_block
+from app.agents.formatting import knowledge_block
 from app.agents.registry import register_agent
 from app.domain.financials import HIGH_RISK_KEYWORDS, liquidity_trend
 from app.domain.stats import find_keywords, relevant_excerpt
@@ -70,22 +70,19 @@ High-risk phrases in Risk Factors: {', '.join(keywords) or 'none'}
 10-K Risk Factors (Item 1A):
 {relevant_excerpt(data.risk_text, HIGH_RISK_KEYWORDS, _RISK_TEXT_CHARS) or 'Not available'}
 
-Knowledge base context:
-{memory_block(memory)}
+{knowledge_block(memory)}
 
 Bearish = high risk, bullish = low risk.""",
             fallback=neutral_fallback(),
         )
-        return RiskResult(
-            signal=judgement.signal,
-            confidence=judgement.confidence,
-            reasoning=judgement.reasoning,
+        return RiskResult.from_judgement(
+            "Risk",
+            judgement,
+            detail=f"D/E={debt_to_equity:.1f}",
             debt_to_equity=debt_to_equity,
             current_ratio=current_ratio,
             beta=beta,
             risk_keywords=keywords,
-            summary=f"Risk: {judgement.signal} ({judgement.confidence:.0f}%) "
-            f"D/E={debt_to_equity:.1f} — {judgement.reasoning}",
         )
 
     def learnings(self, symbol: str, result: RiskResult) -> list[Learning]:

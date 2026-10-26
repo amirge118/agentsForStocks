@@ -15,18 +15,18 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, ClassVar, Generic, Literal, Protocol, TypeVar
+from typing import Any, ClassVar, Generic, Literal, Protocol, Self, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.context import note_fallback
 from app.domain.signals import SignalLabel
 from app.knowledge.store import Learning
-from app.llm.chain import CHAIN
-from app.llm.client import LLMError
+from app.llm.errors import LLMError
 from app.llm.mcp import McpServer
 from app.llm.profiles import AgentProfile, ProfileBook
-from app.llm.router import ANTHROPIC, LLMRouter
+from app.llm.provider import ANTHROPIC, CHAIN
+from app.llm.router import LLMRouter
 from app.llm.skills import compose_system, prompt_label
 from app.providers.edgar import EdgarClient
 from app.providers.fmp import FmpClient
@@ -48,6 +48,14 @@ class ComplianceView(BaseModel):
     original_reasoning: str | None = None
 
 
+class Judgement(Protocol):
+    """What a model judgement carries (LLMSignal, or a richer schema like ScanJudgement)."""
+
+    signal: SignalLabel
+    confidence: float
+    reasoning: str
+
+
 class AnalysisResult(BaseModel):
     """Fields every agent result has. Agents subclass it to add their own metrics."""
 
@@ -63,6 +71,26 @@ class AnalysisResult(BaseModel):
     contract_violations: list[str] = Field(default_factory=list)
     # ... and the compliance review of the reasoning (app/agents/compliance.py)
     compliance: ComplianceView | None = None
+
+    @classmethod
+    def from_judgement(
+        cls, label: str, judgement: Judgement, *, detail: str = "", **fields: Any
+    ) -> Self:
+        """
+        The usual result: the model's signal, confidence and reasoning plus the
+        agent's own fields, with the one-line summary every agent writes —
+        "<label>: <signal> (<confidence>%) [detail] — <reasoning>".
+        """
+        head = f"{label}: {judgement.signal} ({judgement.confidence:.0f}%)"
+        if detail:
+            head = f"{head} {detail}"
+        return cls(
+            signal=judgement.signal,
+            confidence=judgement.confidence,
+            reasoning=judgement.reasoning,
+            summary=f"{head} — {judgement.reasoning}",
+            **fields,
+        )
 
 
 class ResultsReader(Protocol):

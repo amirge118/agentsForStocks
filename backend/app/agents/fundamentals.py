@@ -5,7 +5,7 @@ from datetime import date
 from pydantic import BaseModel
 
 from app.agents.base import Agent, AnalysisResult, quant_fallback
-from app.agents.formatting import memory_block
+from app.agents.formatting import knowledge_block
 from app.agents.registry import register_agent
 from app.domain.fundamentals import FundamentalsVote, vote
 
@@ -48,16 +48,13 @@ class FundamentalsAgent(Agent[dict, FundamentalsResult]):
                 result.majority, result.confidence, "four-factor majority vote"
             ),
         )
-        return FundamentalsResult(
-            signal=judgement.signal,
-            confidence=judgement.confidence,
-            reasoning=judgement.reasoning,
+        return FundamentalsResult.from_judgement(
+            "Fundamentals",
+            judgement,
             factors=[
                 FactorView(name=f.name, signal=f.signal, score=f.score, detail=f.detail)
                 for f in result.factors
             ],
-            summary=f"Fundamentals: {judgement.signal} ({judgement.confidence:.0f}%) "
-            f"— {judgement.reasoning}",
         )
 
 
@@ -72,5 +69,4 @@ Factor scores:
 Majority vote: {result.majority} ({result.agreeing}/4 agree)
 Base confidence: {result.confidence:.0f}%
 
-Knowledge base context:
-{memory_block(memory)}"""
+{knowledge_block(memory)}"""
