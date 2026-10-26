@@ -64,6 +64,11 @@ async def capture(
     return rows
 
 
+def write_jsonl(out: Path, rows: list[dict]) -> None:
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+
+
 async def main(argv: list[str]) -> int:
     from app.db.session import AsyncSessionLocal
 
@@ -77,8 +82,7 @@ async def main(argv: list[str]) -> int:
         AsyncSessionLocal, days=args.days, agents=args.agents, per_prompt=args.per_prompt
     )
     out = Path(args.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    await asyncio.to_thread(write_jsonl, out, rows)  # file I/O off the event loop
     sys.stdout.write(f"Wrote {len(rows)} cases to {out}\n")
     return 0
 

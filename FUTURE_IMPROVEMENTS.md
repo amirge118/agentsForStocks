@@ -117,4 +117,5 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 ## Dependencies
 - [x] Split requirements: runtime / dev / optional knowledge (OpenViking pulls ~300 packages)
 - [x] fastapi 0.115 → 0.162 with starlette 1.10 (0.38.x had 14 known vulnerabilities); removed unused python-jose + bcrypt
-- [ ] Upgrade the remaining old pins (yfinance 0.2.50, pandas 2.2, SQLAlchemy 2.0.36) one at a time with the test suite — anthropic done [PRIORITY: MED]
+- [ ] Upgrade the remaining old pins (yfinance 0.2.50, pandas 2.2) one at a time with the test suite — anthropic and SQLAlchemy (2.1.6) done [PRIORITY: MED]
+- [ ] Unpin aiosqlite (held at 0.20.0, test-only): with SQLAlchemy 2.1.6, 0.22.1 hangs the event loop at teardown after a session is cancelled mid-query (force-close via stop() leaves SQLAlchemy's shielded graceful close pending). Retry when either library fixes it — check with `pytest tests/integration/test_api.py` [PRIORITY: LOW]

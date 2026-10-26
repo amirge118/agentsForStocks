@@ -259,3 +259,15 @@ async def test_estimate_shows_the_share_of_a_free_tiers_daily_limit() -> None:
     ]
     assert eval_run.quota_notes(groq, "anthropic", 100) == []
     await router.aclose()
+
+
+@pytest.mark.unit
+def test_capture_writes_one_json_object_per_line(tmp_path) -> None:
+    out = tmp_path / "nested" / "ledger.jsonl"
+    capture.write_jsonl(out, [{"call_id": "c1"}, {"call_id": "c2", "expected": None}])
+
+    lines = out.read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line) for line in lines] == [
+        {"call_id": "c1"},
+        {"call_id": "c2", "expected": None},
+    ]
