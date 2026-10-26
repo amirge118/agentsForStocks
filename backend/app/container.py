@@ -30,6 +30,7 @@ from app.llm.recording import DbLLMCallRecorder, LedgerUsage, LLMCallRecorder
 from app.llm.router import LLMRouter
 from app.pipeline.launcher import PipelineLauncher
 from app.pipeline.orchestrator import PipelineOrchestrator
+from app.pipeline.settlement import OutcomeSettler
 from app.providers.cache import TTLCache
 from app.providers.edgar import EdgarClient
 from app.providers.fmp import DailyCallBudget, FmpClient
@@ -60,6 +61,7 @@ class Container:
     session_factory: async_sessionmaker[AsyncSession]
     http: HttpClient
     llm: LLMRouter
+    settler: OutcomeSettler
 
     def build_agent(self, name: str) -> Agent:
         return self.registry.get(name).agent_cls(self.agent_context)
@@ -193,4 +195,7 @@ def build_container(
         session_factory=session_factory,
         http=http,
         llm=llm,
+        settler=OutcomeSettler(
+            session_factory, context.yfinance, benchmark=settings.outcome_benchmark
+        ),
     )

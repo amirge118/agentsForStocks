@@ -10,6 +10,7 @@ from app.providers.yfinance import YFinanceClient
 
 class _FakeTicker:
     calls = 0
+    history_args: dict = {}
 
     def __init__(self, symbol: str) -> None:
         self.symbol = symbol
@@ -19,7 +20,8 @@ class _FakeTicker:
         _FakeTicker.calls += 1
         return {"symbol": self.symbol, "regularMarketPrice": 10.0}
 
-    def history(self, period: str, interval: str) -> pd.DataFrame:
+    def history(self, **kwargs: str | bool) -> pd.DataFrame:
+        _FakeTicker.history_args = kwargs
         return pd.DataFrame({"Close": [1.0, 2.0]})
 
     @property
@@ -74,3 +76,28 @@ async def test_library_errors_are_retried_then_raised() -> None:
 
     with pytest.raises(ProviderError):
         await _client(Broken).get_info("AAPL")
+
+
+@pytest.mark.unit
+async def test_closes_are_adjusted_and_end_exclusive() -> None:
+    from datetime import date
+
+    closes = await _client().get_closes("aapl", date(2026, 10, 1), date(2026, 10, 20))
+    assert list(closes) == [1.0, 2.0]
+    assert _FakeTicker.history_args == {
+        "start": "2026-10-01",
+        "end": "2026-10-20",
+        "interval": "1d",
+        "auto_adjust": True,
+    }
+
+
+@pytest.mark.unit
+async def test_closes_empty_when_yahoo_has_none() -> None:
+    from datetime import date
+
+    class NoData(_FakeTicker):
+        def history(self, **kwargs: str | bool) -> pd.DataFrame:
+            return pd.DataFrame()
+
+    assert (await _client(NoData).get_closes("AAPL", date(2026, 1, 1), date(2026, 2, 1))).empty

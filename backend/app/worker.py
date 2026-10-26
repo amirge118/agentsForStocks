@@ -31,6 +31,7 @@ async def run_worker(
         container.orchestrator,
         settings.watchlist_symbols,
         maintenance=partial(prune_llm_calls, session_factory, settings.llm_call_retention_days),
+        settler=container.settler,
     )
     scheduler.start()
     logger.info("Scheduler worker started", extra={"symbols": settings.watchlist_symbols})

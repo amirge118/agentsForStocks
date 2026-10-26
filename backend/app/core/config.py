@@ -99,6 +99,8 @@ class Settings(BaseSettings):
     watchlist: str = "AAPL,MSFT,NVDA,GOOGL,AMZN,TSLA,META,SPY,QQQ"
     max_concurrent_symbols: int = 2
     max_concurrent_agents: int = 4
+    # Outcome settlement: alpha of every decision is measured against this ticker
+    outcome_benchmark: str = "SPY"
 
     @property
     def watchlist_symbols(self) -> list[str]:

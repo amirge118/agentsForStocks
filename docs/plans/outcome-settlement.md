@@ -1,6 +1,6 @@
 # Plan: Outcome settlement and lessons (closing the loop)
 
-Status: draft, not started. Idea source: TradingAgents (`tradingagents/memory/settlement.py`,
+Status: phase 1 (settlement) implemented; phases 2–4 open. Idea source: TradingAgents (`tradingagents/memory/settlement.py`,
 `reflection.py`, `backtest.py`, Apache-2.0); adapted to our runner, ledger and DB.
 
 ## Problem

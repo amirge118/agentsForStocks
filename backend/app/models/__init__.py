@@ -3,6 +3,7 @@
 from app.models.agent_result import AgentResult
 from app.models.agent_run import AgentRun
 from app.models.base import Base
+from app.models.decision_outcome import DecisionOutcome
 from app.models.llm_call import LLMCall
 
-__all__ = ["AgentResult", "AgentRun", "Base", "LLMCall"]
+__all__ = ["AgentResult", "AgentRun", "Base", "DecisionOutcome", "LLMCall"]

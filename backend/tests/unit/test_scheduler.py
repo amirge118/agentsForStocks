@@ -14,6 +14,7 @@ def test_daily_job_runs_weekdays_after_close() -> None:
     job = scheduler.get_job(DAILY_JOB_ID)
     assert str(job.trigger) == "cron[day_of_week='mon-fri', hour='18', minute='30']"
     assert job.args == (orchestrator, ["AAPL"])
+    assert job.kwargs == {"settler": None}
     assert str(scheduler.timezone) == "America/New_York"
 
 
@@ -71,3 +72,34 @@ async def test_prune_llm_calls_deletes_rows_past_retention(session_factory, capl
     caplog.set_level(logging.INFO, logger="app.agents.scheduler")
     assert await prune_llm_calls(session_factory, retention_days=90) == 1
     assert "Pruned LLM call ledger" in caplog.text
+
+
+@pytest.mark.unit
+async def test_daily_job_settles_outcomes_before_the_agents() -> None:
+    calls: list[str] = []
+    settler = AsyncMock()
+    settler.settle.side_effect = lambda: calls.append("settle")
+    orchestrator = AsyncMock()
+    orchestrator.run.side_effect = lambda symbols: (
+        calls.append("run") or PipelineReport("p1", run_date=None, outcomes=())
+    )
+
+    await run_daily_pipeline(orchestrator, ["AAPL"], settler=settler)
+
+    assert calls == ["settle", "run"]
+    assert create_scheduler(orchestrator, ["AAPL"], settler=settler).get_job(
+        DAILY_JOB_ID
+    ).kwargs == {"settler": settler}
+
+
+@pytest.mark.unit
+async def test_settlement_failure_does_not_stop_the_pipeline(caplog) -> None:
+    settler = AsyncMock()
+    settler.settle.side_effect = RuntimeError("db gone")
+    orchestrator = AsyncMock()
+    orchestrator.run.return_value = PipelineReport("p1", run_date=None, outcomes=())
+
+    await run_daily_pipeline(orchestrator, ["AAPL"], settler=settler)
+
+    orchestrator.run.assert_awaited_once_with(["AAPL"])
+    assert "Outcome settlement failed" in caplog.text

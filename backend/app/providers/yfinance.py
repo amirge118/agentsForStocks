@@ -9,6 +9,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Callable
+from datetime import date
 from typing import Any, TypeVar
 
 import pandas as pd
@@ -92,6 +93,23 @@ class YFinanceClient:
             return df if df is not None else pd.DataFrame()
 
         return await self._call(("history", ticker, period, interval), _fetch)
+
+    async def get_closes(self, symbol: str, start: date, end: date) -> pd.Series:
+        """
+        Split- and dividend-adjusted daily closes for the sessions in [start, end) —
+        `end` is exclusive, as in yfinance. Empty Series when Yahoo has none.
+        """
+        ticker = validate_symbol(symbol)
+
+        def _fetch() -> pd.Series:
+            df = self._ticker(ticker).history(
+                start=start.isoformat(), end=end.isoformat(), interval="1d", auto_adjust=True
+            )
+            if df is None or df.empty or "Close" not in df:
+                return pd.Series(dtype=float)
+            return df["Close"]
+
+        return await self._call(("closes", ticker, start.isoformat(), end.isoformat()), _fetch)
 
     async def get_earnings_dates(self, symbol: str) -> pd.DataFrame:
         ticker = validate_symbol(symbol)

@@ -41,6 +41,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             maintenance=partial(
                 prune_llm_calls, container.session_factory, settings.llm_call_retention_days
             ),
+            settler=container.settler,
         )
         app.state.scheduler.start()
         logger.info("Agent scheduler started in the API process")

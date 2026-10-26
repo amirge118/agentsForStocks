@@ -3,6 +3,10 @@ Scheduler — one daily job (weekdays 18:30 New York time, after the close) that
 runs the full pipeline for the watchlist. Ordering and concurrency are the
 orchestrator's job; runs are idempotent, so a repeated or late job is safe.
 
+Before the agents, the daily job settles past decisions against realised prices
+(app/pipeline/settlement.py) when a settler is given; a settlement failure is
+logged and never stops the pipeline.
+
 Optionally a nightly maintenance job (03:15 New York) — e.g. pruning the
 llm_calls ledger to its retention window.
 """
@@ -17,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.clock import MARKET_TZ, utcnow
 from app.pipeline.orchestrator import PipelineOrchestrator
+from app.pipeline.settlement import OutcomeSettler
 from app.repositories.llm_calls import LLMCallRepository
 
 logger = logging.getLogger(__name__)
@@ -25,7 +30,16 @@ DAILY_JOB_ID = "daily_pipeline"
 MAINTENANCE_JOB_ID = "nightly_maintenance"
 
 
-async def run_daily_pipeline(orchestrator: PipelineOrchestrator, symbols: list[str]) -> None:
+async def run_daily_pipeline(
+    orchestrator: PipelineOrchestrator,
+    symbols: list[str],
+    settler: OutcomeSettler | None = None,
+) -> None:
+    if settler is not None:
+        try:
+            await settler.settle()
+        except Exception:
+            logger.exception("Outcome settlement failed; the pipeline runs anyway")
     report = await orchestrator.run(symbols)
     if report.failed:
         logger.warning(
@@ -52,12 +66,14 @@ def create_scheduler(
     orchestrator: PipelineOrchestrator,
     symbols: list[str],
     maintenance: Callable[[], Awaitable[object]] | None = None,
+    settler: OutcomeSettler | None = None,
 ) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone=MARKET_TZ)
     scheduler.add_job(
         run_daily_pipeline,
         trigger=CronTrigger(day_of_week="mon-fri", hour=18, minute=30),
         args=[orchestrator, symbols],
+        kwargs={"settler": settler},
         id=DAILY_JOB_ID,
         replace_existing=True,
         misfire_grace_time=3600,
