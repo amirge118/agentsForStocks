@@ -29,8 +29,9 @@ class _FakeTicker:
     def get_insider_transactions(self) -> pd.DataFrame:
         return pd.DataFrame([{"Transaction": "Buy"}])
 
-    def get_news(self) -> list[dict]:
-        return [{"title": f"h{i}"} for i in range(30)]
+    def get_news(self, count: int = 10) -> list[dict]:
+        # Like yfinance 1.x: `count` articles are requested, Yahoo may send a few more
+        return [{"title": f"h{i}"} for i in range(count + 5)]
 
 
 def _client(factory=_FakeTicker) -> YFinanceClient:
