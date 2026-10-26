@@ -1,6 +1,24 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/*
+  Tailwind v3 defaults that v4 dropped, kept so the dashboard looks the same:
+  borders without a color utility were gray-200 (v4: currentcolor), and buttons
+  had a pointer cursor (v4: default).
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
 
 body {
   @apply bg-zinc-950 text-zinc-50 antialiased;

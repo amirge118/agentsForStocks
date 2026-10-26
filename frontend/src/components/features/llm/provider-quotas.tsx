@@ -60,7 +60,7 @@ function Usage({ label, used, limit }: { label: string; used: number; limit: num
       </div>
       {share !== null && (
         <div
-          className="mt-1 h-1.5 rounded bg-zinc-800"
+          className="mt-1 h-1.5 rounded-sm bg-zinc-800"
           role="meter"
           aria-label={`${label} of the daily limit`}
           aria-valuenow={Math.round(share)}
@@ -68,7 +68,7 @@ function Usage({ label, used, limit }: { label: string; used: number; limit: num
           aria-valuemax={100}
         >
           <div
-            className={`h-full rounded ${share >= 90 ? "bg-red-400" : "bg-green-400"}`}
+            className={`h-full rounded-sm ${share >= 90 ? "bg-red-400" : "bg-green-400"}`}
             style={{ width: `${share}%` }}
           />
         </div>
