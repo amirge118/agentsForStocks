@@ -1,7 +1,7 @@
 import pytest
 
 from app.ops.token_report import render_usage
-from app.repositories.llm_calls import UsageRow
+from app.repositories.llm_calls import GROUP_BY, UsageRow
 
 
 @pytest.mark.unit
@@ -14,3 +14,9 @@ def test_render_usage_table() -> None:
     text = render_usage(rows, "agent", 7)
     assert "moat" in text and "risk" in text
     assert text.splitlines()[-1].split()[:4] == ["total", "3", "1", "5,600"]
+
+
+@pytest.mark.unit
+def test_every_usage_group_comes_from_one_definition() -> None:
+    # The API, the CLI (--by) and the schema all use GroupBy / GROUP_BY
+    assert GROUP_BY == ("agent", "model", "provider", "day", "prompt_version")

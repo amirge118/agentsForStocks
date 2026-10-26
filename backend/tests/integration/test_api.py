@@ -189,10 +189,10 @@ async def test_llm_ledger_endpoints(api: httpx.AsyncClient, concurrent_session_f
     from app.llm.recording import DbLLMCallRecorder, LLMCallRecord
 
     recorder = DbLLMCallRecorder(concurrent_session_factory)
-    for call_id, agent, run_id in (
-        ("c1", "moat", "r1"),
-        ("c2", "moat", "r1"),
-        ("c3", "risk", "r2"),
+    for call_id, agent, run_id, provider in (
+        ("c1", "moat", "r1", "anthropic"),
+        ("c2", "moat", "r1", "anthropic"),
+        ("c3", "risk", "r2", "gemini"),
     ):
         await recorder.record(
             LLMCallRecord(
@@ -208,6 +208,7 @@ async def test_llm_ledger_endpoints(api: httpx.AsyncClient, concurrent_session_f
                 run_id=run_id,
                 agent=agent,
                 symbol="AAPL",
+                provider=provider,
                 system_prompt="You are a moat analyst.",
                 prompt="Symbol: AAPL",
                 response='{"signal":"bullish"}',
@@ -222,14 +223,68 @@ async def test_llm_ledger_endpoints(api: httpx.AsyncClient, concurrent_session_f
     assert usage["total_cost_usd"] == pytest.approx(0.0045)
     by_model = (await api.get("/api/v1/llm/usage", params={"group_by": "model"})).json()
     assert [r["key"] for r in by_model["rows"]] == ["claude-haiku-4-5"]
+    by_provider = (await api.get("/api/v1/llm/usage", params={"group_by": "provider"})).json()
+    assert sorted((r["key"], r["calls"]) for r in by_provider["rows"]) == [
+        ("anthropic", 2),
+        ("gemini", 1),
+    ]
     bad = await api.get("/api/v1/llm/usage", params={"group_by": "nope"})
     assert bad.status_code == 422
 
     calls = (await api.get("/api/v1/runs/r1/llm-calls")).json()
     assert [c["call_id"] for c in calls] == ["c1", "c2"]  # in call order
     assert calls[0]["system_prompt"] == "You are a moat analyst."
+    assert calls[0]["provider"] == "anthropic"
     listed = (await api.get("/api/v1/llm/calls", params={"agent": "risk"})).json()
     assert [c["call_id"] for c in listed] == ["c3"]
+
+
+@pytest.mark.integration
+async def test_llm_providers_show_chain_order_limits_and_use_today(
+    api: httpx.AsyncClient, concurrent_session_factory
+) -> None:
+    from app.container import build_llm_router
+    from app.core.clock import utcnow
+    from app.llm.pricing import TokenUsage
+    from app.llm.recording import DbLLMCallRecorder, LLMCallRecord, NullRecorder
+
+    container = app.state.container
+    container.llm = build_llm_router(
+        Settings(gemini_api_key="g", groq_api_key="q", llm_provider="chain"), NullRecorder()
+    )
+    recorder = DbLLMCallRecorder(concurrent_session_factory)
+    for call_id in ("g1", "g2"):
+        await recorder.record(
+            LLMCallRecord(
+                call_id=call_id,
+                created_at=utcnow(),
+                model="gemini-3.5-flash-lite",
+                prompt_name="moat",
+                prompt_version="v1",
+                status="ok",
+                latency_ms=100,
+                usage=TokenUsage(input_tokens=900, output_tokens=100),
+                cost_usd=0.0,
+                provider="gemini",
+            )
+        )
+
+    providers = {p["name"]: p for p in (await api.get("/api/v1/llm/providers")).json()}
+    assert list(providers) == ["anthropic", "gemini", "groq"]
+    gemini = providers["gemini"]
+    assert (gemini["chain_position"], gemini["rpd"], gemini["rpm"]) == (1, 1000, 10)
+    assert (gemini["day_requests"], gemini["day_tokens"]) == (2, 2000)
+    assert gemini["structured_mode"] == "json_schema"
+    assert gemini["day_start"].endswith(("-07:00", "-08:00"))  # midnight Pacific
+    assert providers["groq"]["chain_position"] == 2
+    # No ANTHROPIC_API_KEY: Claude is routable but not in the chain, and has no free-tier limits
+    claude = providers["anthropic"]
+    assert (claude["chain_position"], claude["rpd"], claude["structured_mode"]) == (
+        None,
+        None,
+        None,
+    )
+    await container.llm.aclose()
 
 
 @pytest.mark.integration

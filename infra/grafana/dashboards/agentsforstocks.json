@@ -937,6 +937,169 @@
       "options": {
         "showHeader": true
       }
+    },
+    {
+      "type": "row",
+      "title": "Model providers \u2014 free tiers first, Claude last (LLM_PROVIDER=chain)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 74,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 1
+    },
+    {
+      "type": "timeseries",
+      "title": "Calls by provider",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "agentsforstocks-db"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 75,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "agentsforstocks-db"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT $__timeGroupAlias(created_at, $__interval), coalesce(provider, '(unknown)') AS metric, count(*) AS calls\nFROM llm_calls WHERE $__timeFilter(created_at) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "id": 2
+    },
+    {
+      "type": "table",
+      "title": "Use today, per provider (UTC day; Gemini's quota resets at midnight Pacific)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "agentsforstocks-db"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 75,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "agentsforstocks-db"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT coalesce(provider, '(unknown)') AS provider, count(*) AS requests,\n  sum(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens) AS tokens,\n  sum(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS errors,\n  round(avg(latency_ms)) AS avg_latency_ms, coalesce(sum(cost_usd), 0) AS cost_usd\nFROM llm_calls WHERE created_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'\nGROUP BY 1 ORDER BY requests DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cost_usd"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      },
+      "id": 3
+    },
+    {
+      "type": "timeseries",
+      "title": "Chain fall-throughs: a provider skipped (quota) or failed (error)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 83,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (from, to, reason) (increase(llm_chain_fallthrough_total[$__rate_interval]))",
+          "legendFormat": "{{from}} \u2192 {{to}} ({{reason}})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "id": 4
     }
   ]
 }

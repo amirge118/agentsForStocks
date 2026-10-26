@@ -4,6 +4,7 @@ Print LLM token usage and cost from the llm_calls ledger. From backend/:
     python -m scripts.token_report                 # last 7 days, by agent
     python -m scripts.token_report --days 30 --by model
     python -m scripts.token_report --by prompt_version
+    python -m scripts.token_report --by provider        # free tiers vs Claude
 """
 
 import argparse
@@ -16,15 +17,13 @@ from app.core.config import settings
 from app.core.logging import configure_logging
 from app.db.session import AsyncSessionLocal
 from app.ops.token_report import render_usage
-from app.repositories.llm_calls import LLMCallRepository
+from app.repositories.llm_calls import GROUP_BY, LLMCallRepository
 
 
 async def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--days", type=int, default=7)
-    parser.add_argument(
-        "--by", choices=["agent", "model", "day", "prompt_version"], default="agent"
-    )
+    parser.add_argument("--by", choices=GROUP_BY, default="agent")
     args = parser.parse_args(argv)
 
     async with AsyncSessionLocal() as session:

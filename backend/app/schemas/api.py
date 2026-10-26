@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.agents.recommendation import ComplianceView, ContributionView, RecommendationResult
 from app.domain.scoring import Action
 from app.domain.signals import SignalLabel
+from app.repositories.llm_calls import GroupBy
 
 
 class AgentProfileOut(BaseModel):
@@ -107,6 +108,7 @@ class LLMCallOut(BaseModel):
     run_id: str | None
     agent: str | None
     symbol: str | None
+    provider: str | None = Field(description="Which provider answered; None before migration 0004")
     model: str
     prompt_name: str | None
     prompt_version: str
@@ -142,7 +144,7 @@ class LLMUsageRow(BaseModel):
 
 class LLMUsageReport(BaseModel):
     since: datetime
-    group_by: Literal["agent", "model", "day", "prompt_version"]
+    group_by: GroupBy
     rows: list[LLMUsageRow]
     total_calls: int
     total_input_tokens: int
@@ -164,3 +166,19 @@ class PipelineRunAccepted(BaseModel):
     symbols: list[str]
     agents: list[str]
     force: bool
+
+
+class LLMProviderOut(BaseModel):
+    """A configured model provider: its place in the fallback chain, limits and use today."""
+
+    name: str
+    model: str
+    structured_mode: str | None = Field(description="None for Claude (native structured outputs)")
+    chain_position: int | None = Field(description="1 = tried first; None = not in LLM_CHAIN")
+    rpm: int | None
+    tpm: int | None
+    rpd: int | None
+    tpd: int | None
+    day_start: datetime = Field(description="When the provider's daily quota last reset")
+    day_requests: int
+    day_tokens: int

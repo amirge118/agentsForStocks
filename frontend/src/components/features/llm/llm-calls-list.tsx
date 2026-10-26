@@ -38,6 +38,7 @@ function CallCard({ call }: { call: LLMCall }) {
       <div className="flex flex-wrap items-center gap-3">
         <Badge variant={call.status === "ok" ? "gain" : "loss"}>{call.status}</Badge>
         <span className="font-mono">{call.model}</span>
+        {call.provider && <span className="text-zinc-400">via {call.provider}</span>}
         <span className="text-zinc-400">
           {call.prompt_name ?? "—"}@{call.prompt_version}
         </span>

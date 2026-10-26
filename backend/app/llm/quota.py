@@ -44,6 +44,12 @@ class QuotaLimits:
     reset_tz: str = "UTC"  # the time zone whose midnight starts a new day
 
 
+def day_start(reset_tz: str, now: datetime) -> datetime:
+    """Midnight of `now`'s date in the provider's time zone — when its daily quota resets."""
+    tz = ZoneInfo(reset_tz)
+    return datetime.combine(now.astimezone(tz).date(), dtime.min, tzinfo=tz)
+
+
 def estimate_tokens(system: str, prompt: str, max_tokens: int) -> int:
     """Worst-case size of a request: its text plus the whole output budget."""
     return (len(system) + len(prompt)) // CHARS_PER_TOKEN + max_tokens
@@ -76,7 +82,7 @@ class ProviderQuota:
         self._monotonic = monotonic
         self._now = now
         self._sleep = sleep
-        self._tz = ZoneInfo(limits.reset_tz)
+        ZoneInfo(limits.reset_tz)  # fail fast on a misspelt time zone
         self._lock = asyncio.Lock()
         self._window: deque[Reservation] = deque()
         self._cooldown_until = 0.0
@@ -151,14 +157,13 @@ class ProviderQuota:
         return max(waits)
 
     async def _roll_day(self) -> None:
-        local = self._now().astimezone(self._tz)
-        if local.date() == self._day:
+        start = day_start(self.limits.reset_tz, self._now())
+        if start.date() == self._day:
             return
-        self._day = local.date()
+        self._day = start.date()
         self.day_requests = self.day_tokens = 0
         if self._load_usage is None:
             return
-        start = datetime.combine(self._day, dtime.min, tzinfo=self._tz)
         try:
             self.day_requests, self.day_tokens = await self._load_usage(self.name, start)
         except Exception as exc:  # the ledger is a hint; never block calls on it
