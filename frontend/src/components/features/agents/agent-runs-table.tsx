@@ -1,9 +1,9 @@
 "use client"
 
+import { Empty, LoadError, Loading } from "@/components/features/common/query-states"
 import Link from "next/link"
 
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -27,17 +27,13 @@ export function AgentRunsTable({ filters = {} }: { filters?: RunFilters }) {
   const { data, isPending, isError, error } = useRuns(filters)
 
   if (isPending) {
-    return <Skeleton className="h-48 w-full" aria-label="Loading runs" />
+    return <Loading label="Loading runs" />
   }
   if (isError) {
-    return (
-      <p role="alert" className="p-6 text-sm text-red-400">
-        Could not load runs: {error.message}
-      </p>
-    )
+    return <LoadError what="runs" error={error} />
   }
   if (data.length === 0) {
-    return <p className="p-6 text-sm text-zinc-400">No agent runs yet.</p>
+    return <Empty>No agent runs yet.</Empty>
   }
 
   return (

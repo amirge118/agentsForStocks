@@ -2,7 +2,8 @@ import pytest
 
 from app.container import build_llm_router
 from app.core.config import Settings
-from app.llm.client import LLMClient, LLMError
+from app.llm.client import LLMClient
+from app.llm.errors import LLMError
 from app.llm.openai_compat import OpenAICompatibleClient
 from app.llm.recording import NullRecorder
 from app.llm.router import LLMRouter
@@ -62,13 +63,13 @@ async def test_free_providers_join_when_their_key_is_set_and_form_the_chain() ->
         ),
         NullRecorder(),
     )
-    assert router.names == ["anthropic", "gemini", "cerebras", "chain"]
+    assert [p.name for p in router.providers()] == ["anthropic", "gemini", "cerebras"]
     gemini = router.provider("gemini")
     assert isinstance(gemini, OpenAICompatibleClient) and gemini.name == "gemini"
     assert gemini.quota is not None and gemini.quota.limits.rpm == 10
     assert router.provider("cerebras").quota.limits.rpd == 77
     # No ANTHROPIC_API_KEY: Claude stays routable but is left out of the chain
-    assert [s.label for s in router.provider("chain").steps] == ["gemini", "cerebras"]
+    assert router.chain_order() == ["gemini", "cerebras"]
     assert router.default_model() == "gemini-3.5-flash-lite"
     await router.aclose()
 
@@ -78,8 +79,8 @@ async def test_claude_is_the_chains_last_step_when_its_key_is_set(caplog) -> Non
     router = build_llm_router(
         Settings(groq_api_key="q", anthropic_api_key="a" * 40), NullRecorder()
     )
-    steps = [s.label for s in router.provider("chain").steps]
-    assert steps == ["groq", "anthropic:claude-haiku-5-5"]
+    assert router.chain_order() == ["groq", "anthropic"]
+    assert router.default_model("chain") == "openai/gpt-oss-120b"
     await router.aclose()
 
     with caplog.at_level("WARNING"):

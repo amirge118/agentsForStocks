@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+# HTTP statuses worth another attempt: timeouts, rate limits and server errors
+RETRYABLE_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
+
 
 @dataclass(frozen=True)
 class RetryPolicy:

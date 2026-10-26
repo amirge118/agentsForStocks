@@ -173,7 +173,7 @@ class LLMProviderOut(BaseModel):
 
     name: str
     model: str
-    structured_mode: str | None = Field(description="None for Claude (native structured outputs)")
+    structured_mode: str = Field(description="native (Claude), json_schema or json_object")
     chain_position: int | None = Field(description="1 = tried first; None = not in LLM_CHAIN")
     rpm: int | None
     tpm: int | None

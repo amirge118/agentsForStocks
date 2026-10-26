@@ -89,6 +89,9 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Skills with data hooks (e.g. comparable_companies fetching peers) instead of text-only guidance [PRIORITY: LOW]
 - [x] Free tiers first: Gemini / Groq / Cerebras with client-side quotas (RPM, TPM, daily limits seeded from the ledger) and a fallback chain ending on Claude Haiku 5.5 (`LLM_PROVIDER=chain`)
 - [x] Provider visibility: `llm_calls.provider` in the API, `group_by=provider`, `/llm/providers` (chain order, limits, use today), provider cards on the Tokens & cost page, Grafana provider and chain fall-through panels
+- [x] Architecture pass over PRs 1–8: one provider contract (`app/llm/provider.py`) instead of `getattr` in the API / preflight / evals, shared reply handling in `CallTracker`, `LLMError` in `app/llm/errors.py`, the alt provider as a catalog spec, `AnalysisResult.from_judgement` + `knowledge_block` for every agent, shared query states in the frontend
+- [ ] Type-check the backend with mypy in CI (strict for `app/llm`) — the provider Protocol is only checked by tests today [PRIORITY: MED]
+- [ ] Move the watchlist and recommendation card onto the shared query states (they add Retry / a 404 message, so they need a variant) [PRIORITY: LOW]
 - [ ] Alert when a free tier passes 90% of its daily limit (Grafana alert on the "use today" query) [PRIORITY: LOW]
 - [ ] Run the free_chain / free_gemini presets against the baseline in a live eval before making the chain the default [PRIORITY: HIGH]
 - [ ] More chain steps: OpenRouter `:free` models (50 req/day, 1,000 after a one-time $10 top-up), Mistral's free tier (trains on inputs), a local Ollama [PRIORITY: LOW]

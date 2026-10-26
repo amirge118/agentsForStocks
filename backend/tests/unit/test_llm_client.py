@@ -6,7 +6,8 @@ import httpx2
 import pytest
 from pydantic import BaseModel, Field
 
-from app.llm.client import LLMClient, LLMError
+from app.llm.client import LLMClient
+from app.llm.errors import LLMError
 from app.llm.mcp import MCP_BETA, McpServer
 from app.llm.prompt_loader import load_prompt
 from app.llm.schema import output_schema

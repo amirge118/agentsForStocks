@@ -1,7 +1,7 @@
 "use client"
 
+import { LoadError, Loading } from "@/components/features/common/query-states"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -17,14 +17,10 @@ export function AgentsTable() {
   const { data, isPending, isError, error } = useAgents()
 
   if (isPending) {
-    return <Skeleton className="h-48 w-full" aria-label="Loading agents" />
+    return <Loading label="Loading agents" />
   }
   if (isError) {
-    return (
-      <p role="alert" className="p-6 text-sm text-red-400">
-        Could not load agents: {error.message}
-      </p>
-    )
+    return <LoadError what="agents" error={error} />
   }
   return (
     <Table aria-label="Agents">

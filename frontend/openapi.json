@@ -655,16 +655,9 @@
             "title": "Rpm"
           },
           "structured_mode": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "None for Claude (native structured outputs)",
-            "title": "Structured Mode"
+            "description": "native (Claude), json_schema or json_object",
+            "title": "Structured Mode",
+            "type": "string"
           },
           "tpd": {
             "anyOf": [

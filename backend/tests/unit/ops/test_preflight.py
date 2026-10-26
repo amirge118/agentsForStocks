@@ -4,7 +4,7 @@ from sqlalchemy import text
 from app.container import build_container
 from app.core.config import Settings
 from app.llm.chain import FallbackChain, parse_chain
-from app.llm.client import LLMError
+from app.llm.errors import LLMError
 from app.llm.quota import ProviderQuota, QuotaLimits
 from app.llm.router import LLMRouter
 from app.ops.preflight import CheckResult, ready, render, run_preflight
@@ -130,6 +130,7 @@ def test_explain_shows_the_root_cause() -> None:
 class FakeCompat:
     """An OpenAI-compatible provider as the preflight sees it."""
 
+    name = "free"
     structured_mode = "json_object"
 
     def __init__(self, model: str, offered: list[str] | None = None, fail: bool = False) -> None:
@@ -153,9 +154,11 @@ class FakeCompat:
 
 
 def _router(**free: FakeCompat) -> LLMRouter:
+    for name, client in free.items():
+        client.name = name
     providers = {"anthropic": FakeLLM(), **free}
     chain = FallbackChain(parse_chain("gemini,groq,anthropic"), providers)
-    return LLMRouter({**providers, "chain": chain}, default_provider="chain")
+    return LLMRouter(providers, default_provider="chain", chain=chain)
 
 
 @pytest.mark.unit
@@ -197,7 +200,7 @@ async def test_a_chain_with_no_healthy_step_is_not_ready(migrated) -> None:
     assert broken["llm:chain"].status == "failed"
     assert not ready(list(broken.values()))
 
-    empty = LLMRouter({"anthropic": FakeLLM(), "chain": FallbackChain([], {})}, "chain")
+    empty = LLMRouter({"anthropic": FakeLLM()}, "chain")
     nothing = await _preflight(migrated, settings, llm=empty)
     assert nothing["llm:chain"].status == "missing"
 

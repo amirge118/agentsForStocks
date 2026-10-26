@@ -20,6 +20,11 @@ class Price:
     cache_read: float
     cache_write: float
 
+    @classmethod
+    def flat(cls, input: float, output: float) -> "Price":
+        """A provider without cache pricing: cached tokens cost what input tokens cost."""
+        return cls(input=input, output=output, cache_read=input, cache_write=input)
+
 
 PRICES: dict[str, Price] = {
     "claude-haiku-4-5": Price(input=1.00, output=5.00, cache_read=0.10, cache_write=1.25),

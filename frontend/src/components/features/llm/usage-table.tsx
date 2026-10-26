@@ -1,9 +1,9 @@
 "use client"
 
+import { Empty, LoadError, Loading } from "@/components/features/common/query-states"
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -59,13 +59,11 @@ export function UsageTable() {
         ))}
       </div>
       {isPending ? (
-        <Skeleton className="h-48 w-full" aria-label="Loading usage" />
+        <Loading label="Loading usage" />
       ) : isError ? (
-        <p role="alert" className="p-6 text-sm text-red-400">
-          Could not load usage: {error.message}
-        </p>
+        <LoadError what="usage" error={error} />
       ) : data.rows.length === 0 ? (
-        <p className="p-6 text-sm text-zinc-400">No LLM calls in this period.</p>
+        <Empty>No LLM calls in this period.</Empty>
       ) : (
         <>
           <dl className="grid grid-cols-2 gap-4 px-6 md:grid-cols-4" aria-label="Totals">

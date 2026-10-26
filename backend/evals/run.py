@@ -25,6 +25,7 @@ from app.container import build_llm_router
 from app.core.config import Settings, settings
 from app.core.logging import configure_logging
 from app.llm.profiles import ProfileBook
+from app.llm.provider import CHAIN
 from app.llm.recording import NullRecorder
 from evals import cases as eval_cases
 from evals import report
@@ -77,18 +78,15 @@ def quota_notes(config: EvalConfig, default_provider: str, calls: int) -> list[s
     wanted = {default_provider} | {
         o["provider"] for o in config.profiles.overrides.values() if o.get("provider")
     }
+    if CHAIN in wanted:  # the chain's first step answers while it has quota
+        wanted = (wanted - {CHAIN}) | set(llm.chain_order()[:1])
     notes = []
     for name in sorted(wanted):
-        client = llm.provider(name) if hasattr(llm, "provider") else None
-        steps = getattr(client, "steps", None)
-        if steps:  # a chain: the first step answers while it has quota
-            name = steps[0].provider
-            client = llm.provider(name)
-        quota = getattr(client, "quota", None)
-        if quota is not None and quota.limits.rpd:
-            share = 100 * calls / quota.limits.rpd
+        client = llm.provider(name)
+        if client is not None and client.quota is not None and client.quota.limits.rpd:
+            rpd = client.quota.limits.rpd
             notes.append(
-                f"{name} free tier: ~{calls} of {quota.limits.rpd} requests/day ({share:.0f}%)"
+                f"{name} free tier: ~{calls} of {rpd} requests/day ({100 * calls / rpd:.0f}%)"
             )
     return notes
 

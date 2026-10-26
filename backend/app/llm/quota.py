@@ -43,6 +43,11 @@ class QuotaLimits:
     tpd: int | None = None  # tokens per day
     reset_tz: str = "UTC"  # the time zone whose midnight starts a new day
 
+    @property
+    def bounded(self) -> bool:
+        """At least one limit is set (a free tier); unbounded providers get no quota."""
+        return any(v is not None for v in (self.rpm, self.tpm, self.rpd, self.tpd))
+
 
 def day_start(reset_tz: str, now: datetime) -> datetime:
     """Midnight of `now`'s date in the provider's time zone — when its daily quota resets."""

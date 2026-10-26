@@ -49,3 +49,20 @@ def test_only_enabled_providers_with_a_key_are_configured() -> None:
     specs = load_specs('{"cerebras": {"enabled": false}}')
     keys = {"GEMINI_API_KEY": "g", "GROQ_API_KEY": "", "CEREBRAS_API_KEY": "c"}
     assert [(s.name, k) for s, k in configured(specs, keys)] == [("gemini", "g")]
+
+
+@pytest.mark.unit
+def test_the_alt_provider_is_a_spec_too_and_needs_no_key() -> None:
+    from app.llm.providers_catalog import alt_spec
+
+    spec = alt_spec(
+        "http://localhost:11434/v1",
+        "qwen3:8b",
+        input_price=0.0,
+        output_price=0.0,
+        timeout_seconds=60,
+    )
+    assert not spec.limits.bounded  # no free-tier quota: a 429 is retried as before
+    assert [s.name for s, _ in configured({"alt": spec}, {})] == ["alt"]  # Ollama takes no key
+    assert spec.price.cache_read == 0.0
+    assert BUILTIN["gemini"].limits.bounded

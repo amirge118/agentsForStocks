@@ -9,7 +9,7 @@ import pandas as pd
 from pydantic import BaseModel, Field
 
 from app.agents.base import Agent, AnalysisResult
-from app.agents.formatting import memory_block
+from app.agents.formatting import knowledge_block
 from app.agents.registry import register_agent
 from app.domain.market_scan import ScanMetrics, scan_metrics
 from app.domain.signals import SignalLabel
@@ -63,10 +63,10 @@ class MarketScannerAgent(Agent[MarketScanData, MarketScanResult]):
                 risk_level="medium",
             ),
         )
-        return MarketScanResult(
-            signal=judgement.signal,
-            confidence=judgement.confidence,
-            reasoning=judgement.reasoning,
+        return MarketScanResult.from_judgement(
+            "Market scan",
+            judgement,
+            detail=f"risk={judgement.risk_level}",
             observations=judgement.observations,
             risk_level=judgement.risk_level,
             metrics={
@@ -77,8 +77,6 @@ class MarketScannerAgent(Agent[MarketScanData, MarketScanResult]):
                 "price_vs_sma20_pct": m.price_vs_sma20_pct,
                 "volume_ratio": m.volume_ratio,
             },
-            summary=f"Market scan: {judgement.signal} ({judgement.confidence:.0f}%) "
-            f"risk={judgement.risk_level} — {judgement.reasoning}",
         )
 
     def learnings(self, symbol: str, result: MarketScanResult) -> list[Learning]:
@@ -105,5 +103,4 @@ Trailing P/E: {info.get('trailingPE') or 'N/A'} | Forward P/E: {info.get('forwar
 SMA20: {m.sma_20} | Price vs SMA20: {m.price_vs_sma20_pct}% | SMA50: {m.sma_50}
 Volume vs average: {m.volume_ratio}x
 
-Knowledge base context:
-{memory_block(memory)}"""
+{knowledge_block(memory)}"""
