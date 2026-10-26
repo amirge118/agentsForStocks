@@ -98,7 +98,9 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Audit the other domain scorers (valuation DCF / owner earnings / EV-EBITDA, financials) for "missing field = 0" defaults, like the fundamentals vote had [PRIORITY: MED]
 - [ ] Run the free_gemini preset against a Claude baseline with --repeats 3 --judge once ANTHROPIC_API_KEY is available, then decide the default provider [PRIORITY: HIGH]
 - [x] First full live pipeline run (AAPL, MSFT): all 13 agents complete on the free LLM chain at $0, after moving FMP to /stable/, fixing EDGAR's archive URL and adding the Yahoo chart fallback; the valuation no longer divides by a price x 1-share market cap
-- [ ] Fill yfinance `info` fundamentals from FMP (profile, ratios, key-metrics, statements) when Yahoo returns only a quote — today fundamentals, and the valuation's EV/EBITDA and owner-earnings methods, have no data on cloud hosts [PRIORITY: HIGH]
+- [x] Fill yfinance `info` fundamentals from FMP when Yahoo returns only a quote (`FmpClient.get_info_fields`) — live: 26/26 agent runs complete, fundamentals and all three valuation methods on real data
+- [ ] FMP budget: ~21 calls per symbol per run (~190/250 for 9 symbols). Share one statements fetch per symbol across agents (they ask for different `limit`s, so the cache misses), or raise the cache TTL to a day for annual statements [PRIORITY: MED]
+- [ ] Review the valuation model's calibration: with real data it calls AAPL and MSFT bearish at 95% (intrinsic ~$1.9T vs a $5T market cap) — the 15% DCF haircut and 12x owner-earnings multiple may be too conservative for mega-caps; decide with an outcome eval [PRIORITY: MED]
 - [ ] Earnings-call transcripts and institutional ownership need a paid FMP plan, or another source (SEC 13F filings for ownership) [PRIORITY: MED]
 - [ ] FMP marks ETFs with isEtf=true and still gives them a sector — skip company-only agents (moat, fundamentals, valuation) for ETFs such as SPY / QQQ [PRIORITY: MED]
 - [ ] Alert when a free tier passes 90% of its daily limit (Grafana alert on the "use today" query) [PRIORITY: LOW]

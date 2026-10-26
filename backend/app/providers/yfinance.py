@@ -12,7 +12,7 @@ and the quote fields of `info` from Yahoo's public chart endpoint.
 import asyncio
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
 
 import pandas as pd
@@ -43,8 +43,10 @@ class YFinanceClient:
         retry_policy: RetryPolicy | None = None,
         ticker_factory: Callable[[str], Any] = yf.Ticker,
         fallback: YahooChartClient | None = None,
+        fundamentals: Callable[[str], Awaitable[dict]] | None = None,
     ) -> None:
         self._fallback = fallback
+        self._fundamentals = fundamentals
         self._rate_limiter = rate_limiter
         self._cache = cache
         self._retry = retry_policy or RetryPolicy()
@@ -102,21 +104,36 @@ class YFinanceClient:
             return empty
 
     async def get_info(self, symbol: str) -> dict:
-        """Ticker.info; with no price in it, the chart fallback adds the quote fields."""
+        """
+        Ticker.info. When Yahoo only half answers, the gaps are filled — yfinance's
+        own values always win: with no price, the chart fallback adds the quote;
+        with no market cap (a quote-only answer), `fundamentals` (FMP) adds the
+        financial fields under the same names.
+        """
         ticker = validate_symbol(symbol)
         try:
             info = await self._call(("info", ticker), lambda: self._ticker(ticker).info or {})
         except ProviderError:
-            if self._fallback is None:
+            if self._fallback is None and self._fundamentals is None:
                 raise
             info = {}
-        if self._fallback is None or _has_price(info):
-            return info
-        quote = await self._fallback.get_quote(ticker)
-        if quote:
-            _note_fallback("info", ticker)
-        # yfinance's own values win; the chart only fills what is missing
-        return {**quote, **{k: v for k, v in info.items() if v is not None}}
+        own = {k: v for k, v in info.items() if v is not None}
+        quote: dict = {}
+        if self._fallback is not None and not _has_price(own):
+            quote = await self._fallback.get_quote(ticker)
+            if quote:
+                _note_fallback("info", ticker)
+        extra: dict = {}
+        if self._fundamentals is not None and own.get("marketCap") is None:
+            try:
+                extra = await self._fundamentals(ticker)
+            except ProviderError as exc:  # incl. the FMP daily budget
+                logger.warning(
+                    "Fundamentals fallback unavailable", extra={"symbol": ticker, "error": str(exc)}
+                )
+            if extra:
+                _note_fallback("fundamentals", ticker)
+        return {**extra, **quote, **own}
 
     async def get_history(
         self, symbol: str, period: str = "1mo", interval: str = "1d"

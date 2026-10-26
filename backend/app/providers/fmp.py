@@ -12,6 +12,7 @@ On the free plan that is: earnings-call transcripts and institutional ownership,
 and `earnings` only up to limit=5.
 """
 
+import asyncio
 import logging
 from datetime import date
 from typing import Any
@@ -137,3 +138,79 @@ class FmpClient:
         return await self._get_list(
             "institutional-ownership/symbol-positions-summary", symbol, limit=limit
         )
+
+    async def get_info_fields(self, symbol: str) -> dict[str, Any]:
+        """
+        yfinance-style `info` fundamentals built from FMP (see to_info_fields) — for
+        when Yahoo only returns a quote. Six calls, all cached and shared with the
+        agents that ask for the same statements.
+        """
+        profile, ratios, metrics, income, balance, cash_flow = await asyncio.gather(
+            self.get_company_profile(symbol),
+            self.get_financial_ratios(symbol, limit=1),
+            self.get_key_metrics(symbol, limit=1),
+            self.get_income_statements(symbol, limit=2),
+            self.get_balance_sheets(symbol, limit=1),
+            self.get_cash_flow_statements(symbol, limit=1),
+        )
+        return to_info_fields(profile, ratios, metrics, income, balance, cash_flow)
+
+
+def _first(rows: list[dict]) -> dict:
+    return rows[0] if rows else {}
+
+
+def _growth(new: Any, old: Any) -> float | None:
+    if not isinstance(new, int | float) or not isinstance(old, int | float) or old <= 0:
+        return None
+    return new / old - 1
+
+
+def to_info_fields(
+    profile: dict,
+    ratios: list[dict],
+    metrics: list[dict],
+    income: list[dict],
+    balance: list[dict],
+    cash_flow: list[dict],
+) -> dict[str, Any]:
+    """
+    FMP's stable fields under the names yfinance's Ticker.info uses, so the agents
+    read one vocabulary. Units follow yfinance: debtToEquity in percent (FMP gives
+    a ratio), margins and growth as fractions. Growth is annual year over year
+    (yfinance's is quarterly). Missing values are left out, never set to 0.
+    """
+    r, m, cf, b = _first(ratios), _first(metrics), _first(cash_flow), _first(balance)
+    latest, previous = _first(income), _first(income[1:])
+    de = r.get("debtToEquityRatio")
+    fields: dict[str, Any] = {
+        "longName": profile.get("companyName"),
+        "sector": profile.get("sector"),
+        "industry": profile.get("industry"),
+        "marketCap": profile.get("marketCap"),
+        "beta": profile.get("beta"),
+        "averageVolume": profile.get("averageVolume"),
+        "returnOnEquity": m.get("returnOnEquity"),
+        "enterpriseValue": m.get("enterpriseValue"),
+        "profitMargins": r.get("netProfitMargin"),
+        "operatingMargins": r.get("operatingProfitMargin"),
+        "grossMargins": r.get("grossProfitMargin"),
+        "currentRatio": r.get("currentRatio"),
+        "debtToEquity": de * 100 if isinstance(de, int | float) else None,
+        "trailingPE": r.get("priceToEarningsRatio"),
+        "priceToBook": r.get("priceToBookRatio"),
+        "priceToSalesTrailing12Months": r.get("priceToSalesRatio"),
+        "bookValue": r.get("bookValuePerShare"),
+        "revenueGrowth": _growth(latest.get("revenue"), previous.get("revenue")),
+        "earningsGrowth": _growth(latest.get("netIncome"), previous.get("netIncome")),
+        "ebitda": latest.get("ebitda"),
+        "operatingIncome": latest.get("operatingIncome"),
+        "netIncomeToCommon": latest.get("netIncome"),
+        "sharesOutstanding": latest.get("weightedAverageShsOutDil"),
+        "totalDebt": b.get("totalDebt"),
+        "totalCash": b.get("cashAndShortTermInvestments"),
+        "freeCashflow": cf.get("freeCashFlow"),
+        "depreciation": cf.get("depreciationAndAmortization"),
+        "capitalExpenditures": cf.get("capitalExpenditure"),
+    }
+    return {k: v for k, v in fields.items() if v is not None}

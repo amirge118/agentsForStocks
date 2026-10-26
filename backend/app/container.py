@@ -166,11 +166,17 @@ def build_container(
         if settings.openviking_enabled
         else NullKnowledgeStore()
     )
+    fmp = FmpClient(http, settings.fmp_api_key, DailyCallBudget(settings.fmp_daily_call_limit))
     context = AgentContext(
         yfinance=YFinanceClient(
-            rate_limiter=rate_limiter, cache=cache, fallback=YahooChartClient(http)
+            rate_limiter=rate_limiter,
+            cache=cache,
+            # When Yahoo refuses yfinance's crumb (cloud hosts): prices from the chart
+            # endpoint, fundamentals from FMP
+            fallback=YahooChartClient(http),
+            fundamentals=fmp.get_info_fields if settings.fmp_api_key else None,
         ),
-        fmp=FmpClient(http, settings.fmp_api_key, DailyCallBudget(settings.fmp_daily_call_limit)),
+        fmp=fmp,
         edgar=EdgarClient(http, settings.edgar_user_agent),
         llm=llm,
         results=SessionResultsReader(session_factory),
