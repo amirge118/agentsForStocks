@@ -46,6 +46,9 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Add OpenViking connectivity to /health (only when OPENVIKING_ENABLED) [PRIORITY: LOW]
 - [ ] Add Redis for task queue (Celery or ARQ) if APScheduler proves insufficient [PRIORITY: LOW]
 - [x] Scheduler in a dedicated worker process (`python -m app.worker`, RUN_SCHEDULER=false on the API)
+- [x] Scheduled jobs off by default (`SCHEDULER_ENABLED`), one jobs table with a crontab setting per job, `python -m scripts.schedules` lists them
+- [ ] Show the scheduled jobs and their next runs on the dashboard (`GET /api/v1/schedules`) [PRIORITY: LOW]
+- [ ] Alert when a scheduled run is missed or fails (the worker is up but the job never finished) [PRIORITY: MEDIUM]
 - [ ] Postgres advisory lock around the daily job so even two workers can never both run it [PRIORITY: LOW]
 - [x] Preflight (`python -m scripts.preflight`) and manual run CLI (`python -m scripts.run_pipeline`)
 - [ ] First real pipeline run against live Claude / FMP / Yahoo / SEC — blocked in the cloud environment until its network policy allows those hosts and the API keys are configured [PRIORITY: HIGH]

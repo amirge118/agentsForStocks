@@ -90,14 +90,18 @@ class Settings(BaseSettings):
     # Same-day reruns and agents sharing a data point hit the cache instead of the API
     provider_cache_ttl_seconds: int = 6 * 60 * 60
 
-    # Pipeline
-    # Run the daily scheduler inside the API process. Fine for one process in
-    # development; in production set RUN_SCHEDULER=false and run `python -m app.worker`
-    # once, so several API workers don't each trigger the daily pipeline.
+    # Scheduled jobs (app/agents/scheduler.py) — OFF by default: nothing runs on its own
+    # until SCHEDULER_ENABLED=true. Each job's timing is a crontab line in New York time;
+    # an empty value turns that one job off. `python -m scripts.schedules` lists them.
+    scheduler_enabled: bool = False
+    pipeline_schedule: str = "30 18 * * mon-fri"  # full pipeline, after the US close
+    maintenance_schedule: str = "15 3 * * *"  # prune the llm_calls ledger
+    # Where the scheduler lives: inside the API process (development), or — in production,
+    # RUN_SCHEDULER=false on the API — in exactly one `python -m app.worker`.
     run_scheduler: bool = True
     # Initial watchlist, comma-separated (WATCHLIST=AAPL,MSFT). Only seeds the `watchlist`
     # table once (migration 0005); after that the list is managed through /api/v1/watchlist.
-    watchlist: str = "AAPL,MSFT,NVDA,GOOGL,AMZN,TSLA,META,SPY,QQQ"
+    watchlist: str = "AAPL,MSFT,NVDA,GOOGL,AMZN"
     max_concurrent_symbols: int = 2
     max_concurrent_agents: int = 4
 

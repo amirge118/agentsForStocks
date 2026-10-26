@@ -63,7 +63,8 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  # Exactly one scheduler process (the API runs with RUN_SCHEDULER=false)
+  # Exactly one scheduler process (the API runs with RUN_SCHEDULER=false).
+  # It schedules nothing until SCHEDULER_ENABLED=true in .env.
   worker:
     <<: *backend
     command: ["python", "-m", "app.worker"]
