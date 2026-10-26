@@ -16,6 +16,12 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Agent retry queue — if yfinance or FMP is down, queue the run for 30min later [PRIORITY: MED]
 - [ ] Decide recommendation weights for fundamentals / technicals / sentiment / market_scanner (currently weight 0 = informational only; set via @register_agent) [PRIORITY: MED]
 - [ ] Backtest the recommendation weights and BUY/SELL thresholds against historical prices [PRIORITY: HIGH]
+- [ ] Outcome settlement + lessons: score every stored decision against realised returns (alpha vs benchmark, 5/20/60 trading days, entry at the next close, only complete windows), turn settled recommendations into short lessons fed back point-in-time — plan in `docs/plans/outcome-settlement.md` (idea from TradingAgents `memory/settlement.py`) [PRIORITY: HIGH]
+- [ ] Grid backtest over (ticker × date) scoring decision quality only, no portfolio simulator — builds on outcome settlement (TradingAgents `backtest.py`) [PRIORITY: HIGH]
+- [ ] Point-in-time guard for historical runs: clamp every provider call to `run_date`, drop items dated after it, report "feed can't reach that window" as unavailable rather than empty, withhold live snapshots (`info`) from past dates — required before any backtest (TradingAgents `dataflows/date_window.py`) [PRIORITY: HIGH]
+- [ ] Bull/bear debate as a `recommendation` prompt variant (one bull and one bear pass, then the decision; "conflict alone is not a reason to HOLD") — ship only if an eval beats the current prompt, it multiplies calls per symbol (TradingAgents `agents/researchers/`) [PRIORITY: LOW]
+- [ ] Check that no parse/LLM failure is silently stored as a neutral HOLD; mark it as needing review instead (TradingAgents `rating.py` `REVIEW`) [PRIORITY: MED]
+- [ ] Macro regime input for risk / recommendation from FRED (fed funds, 2y/10y, curve, CPI, unemployment, VIX; free key) [PRIORITY: MED]
 
 ## Knowledge Layer (OpenViking)
 - [ ] Enable OpenViking: copy ov.conf.example → ov.conf, add ANTHROPIC_API_KEY, run `docker compose up openviking openviking-mcp`, then `python infra/openviking/seed.py`. Set OPENVIKING_ENABLED=true in .env [PRIORITY: LOW]
@@ -35,6 +41,10 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [x] EDGAR extraction: HTML entity decoding + skip table-of-contents matches
 - [ ] EDGAR: parse iXBRL/HTML structure instead of regex for unusual 10-K layouts [PRIORITY: LOW]
 - [ ] Ingest analyst estimate revisions as a scheduled data feed [PRIORITY: LOW]
+- [ ] FRED provider (`app/providers/fred.py`, free key, curated alias → series map, vintage-aware) — feeds the macro regime item under Agents [PRIORITY: MED]
+- [ ] StockTwits / Reddit posts for the sentiment agent, screened by a cheap model (drop off-topic posts, count bullish / bearish) before they reach the prompt [PRIORITY: LOW]
+- [ ] Polymarket implied probabilities (Fed decision, recession) as macro context; public API, no key [PRIORITY: LOW]
+- [ ] Per-market benchmark for alpha by ticker suffix (SPY, `.TA` → TA-35, `.L` → FTSE, ...) [PRIORITY: LOW]
 
 ## Infrastructure
 - [x] Alembic migrations setup with auto-generate (backend/alembic, `alembic upgrade head`)
