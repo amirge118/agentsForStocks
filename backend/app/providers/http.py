@@ -18,11 +18,9 @@ from app.observability import metrics
 from app.providers.cache import TTLCache
 from app.providers.errors import ProviderError, RetryableError
 from app.providers.rate_limit import RateLimiter
-from app.providers.retry import RetryPolicy, with_retry
+from app.providers.retry import RETRYABLE_STATUS, RetryPolicy, with_retry
 
 logger = logging.getLogger(__name__)
-
-_RETRYABLE_STATUS = {408, 425, 429, 500, 502, 503, 504}
 
 
 class HttpClient:
@@ -110,7 +108,7 @@ class HttpClient:
                     "attempt": attempts,
                 },
             )
-            if resp.status_code in _RETRYABLE_STATUS:
+            if resp.status_code in RETRYABLE_STATUS:
                 raise RetryableError(f"HTTP {resp.status_code} from {domain}")
             if resp.status_code >= 400:
                 # Client errors (bad key, unknown symbol) never succeed on retry

@@ -4,20 +4,28 @@ token usage, cost, and the final LLMCallRecord, which is logged, counted in
 metrics, added to the current agent run's usage and stored in the ledger.
 
 Shared by every provider client (Claude, OpenAI-compatible), so each call is
-measured the same way whichever model answers it.
+measured — and its reply judged — the same way whichever model answers it:
+a client sends the request and reads the usage; fail() and parse() decide the
+outcome, record it and return (or raise) what the agent gets.
 """
 
 import logging
 import time
+from typing import TypeVar
 from uuid import uuid4
+
+from pydantic import BaseModel, ValidationError
 
 from app.core.clock import utcnow
 from app.core.context import current_fields, current_usage
+from app.llm.errors import LLMError
 from app.llm.pricing import Price, TokenUsage, cost_usd
 from app.llm.recording import CallStatus, LLMCallRecord, LLMCallRecorder, prompt_version
 from app.observability import metrics
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class CallTracker:
@@ -31,8 +39,10 @@ class CallTracker:
         prompt_name: str | None,
         capture_content: bool,
         prices: dict[str, Price] | None = None,
+        provider: str | None = None,
     ) -> None:
         self._recorder = recorder
+        self._provider = provider
         self._model = model
         self._system = system
         self._prompt = prompt
@@ -58,6 +68,33 @@ class CallTracker:
         self.response = response
         self.request_id = request_id
 
+    async def fail(
+        self,
+        error: str,
+        *,
+        request_id: str | None = None,
+        exc_type: type[LLMError] = LLMError,
+    ) -> LLMError:
+        """Record the call as failed; returns the error for the caller to raise."""
+        await self.finish("error", error=error, request_id=request_id)
+        return exc_type(error)
+
+    async def parse(self, schema: type[T], text: str, *, cut_off: bool) -> T:
+        """
+        Validate the reply against the schema and record the outcome. A reply that
+        was cut off (max tokens, refusal, content filter) or doesn't match is an
+        LLMError, so the agent falls back — or a chain tries the next provider.
+        """
+        if cut_off:
+            raise await self.fail(f"{self._model} stopped with {self.stop_reason}")
+        try:
+            result = schema.model_validate_json(text)
+        except ValidationError as exc:
+            logger.warning("Model reply failed schema validation: %.200s", text)
+            raise await self.fail(f"{self._model} reply did not match {schema.__name__}") from exc
+        await self.finish("ok")
+        return result
+
     async def finish(
         self, status: CallStatus, *, error: str | None = None, request_id: str | None = None
     ) -> LLMCallRecord:
@@ -79,6 +116,7 @@ class CallTracker:
             run_id=fields.get("run_id"),
             agent=fields.get("agent"),
             symbol=fields.get("symbol"),
+            provider=self._provider,
             system_prompt=self._system if self._capture else None,
             prompt=self._prompt if self._capture else None,
             response=self.response if self._capture else None,
@@ -93,6 +131,7 @@ class CallTracker:
 def _log(record: LLMCallRecord) -> None:
     extra = {
         "call_id": record.call_id,
+        "provider": record.provider,
         "model": record.model,
         "prompt_name": record.prompt_name,
         "prompt_version": record.prompt_version,

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.agents.base import Agent, AnalysisResult, neutral_fallback
-from app.agents.formatting import memory_block
+from app.agents.formatting import knowledge_block
 from app.agents.registry import register_agent
 from app.domain.financials import MOAT_KEYWORDS, MarginProfile, margin_profile
 from app.domain.stats import find_keywords, relevant_excerpt
@@ -53,16 +53,13 @@ class MoatAgent(Agent[MoatData, MoatResult]):
         judgement = await self.judge(
             _prompt(symbol, data, keywords, margins, memory), fallback=neutral_fallback()
         )
-        return MoatResult(
-            signal=judgement.signal,
-            confidence=judgement.confidence,
-            reasoning=judgement.reasoning,
+        return MoatResult.from_judgement(
+            "Moat",
+            judgement,
             avg_gross_margin=margins.avg_gross_margin,
             gross_margin_variance=margins.gross_margin_variance,
             intangibles_pct=margins.intangibles_pct,
             moat_keywords=keywords,
-            summary=f"Moat: {judgement.signal} ({judgement.confidence:.0f}%) "
-            f"— {judgement.reasoning}",
         )
 
     def learnings(self, symbol: str, result: MoatResult) -> list[Learning]:
@@ -91,5 +88,4 @@ Intangibles / total assets: {m.intangibles_pct * 100:.1f}%
 10-K Business section (excerpt):
 {relevant_excerpt(d.business_text, MOAT_KEYWORDS, _BUSINESS_CHARS) or 'Not available'}
 
-Knowledge base context:
-{memory_block(memory)}"""
+{knowledge_block(memory)}"""

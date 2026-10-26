@@ -38,6 +38,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Llm Providers
+         * @description Usage today comes from the ledger, so it includes the worker's scheduled run.
+         */
+        get: operations["llm_providers_api_v1_llm_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/usage": {
         parameters: {
             query?: never;
@@ -367,6 +387,11 @@ export interface components {
             prompt_name: string | null;
             /** Prompt Version */
             prompt_version: string;
+            /**
+             * Provider
+             * @description Which provider answered; None before migration 0004
+             */
+            provider: string | null;
             /** Response */
             response: string | null;
             /** Run Id */
@@ -383,13 +408,51 @@ export interface components {
             /** System Prompt */
             system_prompt: string | null;
         };
+        /**
+         * LLMProviderOut
+         * @description A configured model provider: its place in the fallback chain, limits and use today.
+         */
+        LLMProviderOut: {
+            /**
+             * Chain Position
+             * @description 1 = tried first; None = not in LLM_CHAIN
+             */
+            chain_position: number | null;
+            /** Day Requests */
+            day_requests: number;
+            /**
+             * Day Start
+             * Format: date-time
+             * @description When the provider's daily quota last reset
+             */
+            day_start: string;
+            /** Day Tokens */
+            day_tokens: number;
+            /** Model */
+            model: string;
+            /** Name */
+            name: string;
+            /** Rpd */
+            rpd: number | null;
+            /** Rpm */
+            rpm: number | null;
+            /**
+             * Structured Mode
+             * @description native (Claude), json_schema or json_object
+             */
+            structured_mode: string;
+            /** Tpd */
+            tpd: number | null;
+            /** Tpm */
+            tpm: number | null;
+        };
         /** LLMUsageReport */
         LLMUsageReport: {
             /**
              * Group By
              * @enum {string}
              */
-            group_by: "agent" | "model" | "day" | "prompt_version";
+            group_by: "agent" | "model" | "provider" | "day" | "prompt_version";
             /** Rows */
             rows: components["schemas"]["LLMUsageRow"][];
             /**
@@ -591,11 +654,31 @@ export interface operations {
             };
         };
     };
+    llm_providers_api_v1_llm_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LLMProviderOut"][];
+                };
+            };
+        };
+    };
     llm_usage_api_v1_llm_usage_get: {
         parameters: {
             query?: {
                 days?: number;
-                group_by?: "agent" | "model" | "day" | "prompt_version";
+                group_by?: "agent" | "model" | "provider" | "day" | "prompt_version";
             };
             header?: never;
             path?: never;

@@ -83,43 +83,46 @@ All calls to `yfinance`, financial APIs, or any external service MUST go through
 - Timeout of 10s max per request, plus a TTL cache shared by all agents
 FMP calls also count against `DailyCallBudget` (free tier = 250/day). Claude is called only through `app/llm/client.py` (structured outputs).
 
-### 11. Every LLM Call Is Measured — Keep It That Way
-`LLMClient.generate` records each request (success or failure) in `llm_calls`: tokens, cost (`app/llm/pricing.py` — add a price when you add a model), latency, `prompt_version` (hash of the system prompt) and, with `LLM_CAPTURE_CONTENT=true`, the exact prompt and reply. Always pass `prompt_name=`; agents go through `Agent.judge()`, which does. On `LLMError`, call `note_fallback()` so the run's `llm_fallbacks` is counted.
-
-### 16. Change Prompts, Models and Skills Through the Evals
-Ready-made experiments live in `evals/presets/` (`--profiles @evals/presets/haiku55.json`); prompt variants are `app/llm/prompts/<agent>_v2.md`, selected with a profile's `prompt`. A prompt, model or skill change ships with an eval report: run `python -m evals.run` on the current and the new configuration (`--profiles` / `--label`) and compare them with `evals.compare`. CI runs the harness offline only (`tests/unit/test_evals.py`); live runs are manual and need `ANTHROPIC_API_KEY`. New scenario cases go in `evals/cases.py`; label a case only when the data make the right signal unambiguous.
-
-### 15. Every Model Call Goes Through `Agent.ask()` / `judge()`
-Never call `ctx.llm.generate` from an agent: `ask()` applies the prompt's profile (`app/llm/profiles.py` — provider, model, skills, `max_tokens`, `use_llm`, prompt variant), names missing inputs, labels the call for the ledger and handles fallbacks. `ctx.llm` is an `LLMRouter` (`anthropic` = Claude, `alt` = any OpenAI-compatible API, `app/llm/openai_compat.py`). Skills are markdown files in `app/llm/skills/` with front-matter; they are off by default — enable one per agent via `AGENT_PROFILES` and measure it with the evals first.
-
-### 14. Agent Contracts and Prompt Snapshots
-`AgentRunner` checks every result (`app/agents/contracts.py`): `data_gaps` lists inputs that came back empty (and `judge()` tells Claude about them), confidence is capped at 25% when *all* inputs are empty, and per-agent rules declared with `@register_agent(invariants=...)` are recorded in `contract_violations`. When a prompt states a rule, add an invariant for it. Hard business rules (the risk cap on the recommendation) are enforced in code, not left to the prompt. Prompts are snapshotted in `tests/snapshots/prompts/`; after an intended prompt change run `UPDATE_SNAPSHOTS=1 pytest tests/unit/agents/test_prompt_snapshots.py` and commit the diff. Golden scenarios (company archetypes) live in `tests/scenarios.py`.
-
-### 13. Observability (OpenTelemetry)
-`app/observability/telemetry.py` installs tracing, metrics and log export only when `OTEL_ENABLED=true`; otherwise every span and metric is a no-op, so tests need nothing. New long-running work → wrap it in `tracer.start_as_current_span(...)`; new counters/histograms go in `app/observability/metrics.py`. Exact figures (tokens, cost, run counts) come from the DB ledger, not from Prometheus: `increase()` drops a series' first sample.
-
-### 12. Run Context in Logs
-`AgentRunner` and `PipelineOrchestrator` bind `pipeline_run_id` / `run_id` / `agent` / `symbol` in contextvars (`app/core/context.py`); `ContextFilter` adds them to every log line. Don't pass these ids through `extra=` by hand. Log extras are redacted by whole word (`api_key`, `access_token`), so `input_tokens` stays readable.
-
 ### 6. TanStack Query v5 Patterns
 Use `isPending` for loading skeletons (NOT `isLoading` — that's v4). Get query client via `useQueryClient()` hook. On mutation success: `invalidateQueries`. On mutation error: `toast({ variant: "destructive" })`.
 
 ### 7. No Direct `fetch` in Components
 Use `get`/`post`/`put`/`del` from `@/lib/api/client.ts`. Never call `fetch()` directly from components or hooks.
 
-### 10. Authentication
-- Backend: every `/api/v1` route requires `X-API-Key` (keys in `API_KEYS`, checked in `app/api/auth.py`; `/health` is public). `ENVIRONMENT=production` refuses to start without keys. New routers go under `api_router`, so they inherit the check.
-- Frontend: the browser never sees the key. It calls the same-origin proxy `src/app/api/backend/[...path]/route.ts`, which adds `BACKEND_API_KEY` from server-only env (`src/lib/server/env.ts`, `import "server-only"`). The dashboard itself is protected by Basic auth in `src/middleware.ts` (`DASHBOARD_PASSWORD`; required under `next start`).
-- The proxy only forwards writes that are same-origin and `application/json` (CSRF protection — Basic-auth credentials are sent by the browser automatically).
-
-### 9. API Contract Workflow
-After changing a backend schema or route: `cd backend && python -m scripts.export_openapi`, then `cd frontend && npm run generate:api`. `tests/integration/test_openapi_contract.py` fails while `frontend/openapi.json` is stale, and `npm run typecheck` fails while a Zod schema in `src/types/api.ts` no longer matches the generated types.
-
 ### 8. Finance Number Formatting
 - Currency: `toLocaleString("en-US", { style: "currency", currency: "USD" })`
 - Percentages: `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`
 - Prices: `font-mono` class; numeric tables: `tabular-nums`
 - Gain: `text-green-400` / `bg-green-400/10`. Loss: `text-red-400` / `bg-red-400/10`
+
+### 9. API Contract Workflow
+After changing a backend schema or route: `cd backend && python -m scripts.export_openapi`, then `cd frontend && npm run generate:api`. `tests/integration/test_openapi_contract.py` fails while `frontend/openapi.json` is stale, and `npm run typecheck` fails while a Zod schema in `src/types/api.ts` no longer matches the generated types.
+
+### 10. Authentication
+- Backend: every `/api/v1` route requires `X-API-Key` (keys in `API_KEYS`, checked in `app/api/auth.py`; `/health` is public). `ENVIRONMENT=production` refuses to start without keys. New routers go under `api_router`, so they inherit the check.
+- Frontend: the browser never sees the key. It calls the same-origin proxy `src/app/api/backend/[...path]/route.ts`, which adds `BACKEND_API_KEY` from server-only env (`src/lib/server/env.ts`, `import "server-only"`). The dashboard itself is protected by Basic auth in `src/middleware.ts` (`DASHBOARD_PASSWORD`; required under `next start`).
+- The proxy only forwards writes that are same-origin and `application/json` (CSRF protection — Basic-auth credentials are sent by the browser automatically).
+
+### 11. Every LLM Call Is Measured — Keep It That Way
+`LLMClient.generate` records each request (success or failure) in `llm_calls`: tokens, cost (`app/llm/pricing.py` — add a price when you add a model), latency, `prompt_version` (hash of the system prompt) and, with `LLM_CAPTURE_CONTENT=true`, the exact prompt and reply. Always pass `prompt_name=`; agents go through `Agent.judge()`, which does. On `LLMError`, call `note_fallback()` so the run's `llm_fallbacks` is counted.
+
+### 12. Run Context in Logs
+`AgentRunner` and `PipelineOrchestrator` bind `pipeline_run_id` / `run_id` / `agent` / `symbol` in contextvars (`app/core/context.py`); `ContextFilter` adds them to every log line. Don't pass these ids through `extra=` by hand. Log extras are redacted by whole word (`api_key`, `access_token`), so `input_tokens` stays readable.
+
+### 13. Observability (OpenTelemetry)
+`app/observability/telemetry.py` installs tracing, metrics and log export only when `OTEL_ENABLED=true`; otherwise every span and metric is a no-op, so tests need nothing. New long-running work → wrap it in `tracer.start_as_current_span(...)`; new counters/histograms go in `app/observability/metrics.py`. Exact figures (tokens, cost, run counts) come from the DB ledger, not from Prometheus: `increase()` drops a series' first sample.
+
+### 14. Agent Contracts and Prompt Snapshots
+`AgentRunner` checks every result (`app/agents/contracts.py`): `data_gaps` lists inputs that came back empty (and `judge()` tells Claude about them), confidence is capped at 25% when *all* inputs are empty, and per-agent rules declared with `@register_agent(invariants=...)` are recorded in `contract_violations`. When a prompt states a rule, add an invariant for it. Hard business rules (the risk cap on the recommendation) are enforced in code, not left to the prompt. Prompts are snapshotted in `tests/snapshots/prompts/`; after an intended prompt change run `UPDATE_SNAPSHOTS=1 pytest tests/unit/agents/test_prompt_snapshots.py` and commit the diff. Golden scenarios (company archetypes) live in `tests/scenarios.py`. Build a result from the model's judgement with `ResultModel.from_judgement("Label", judgement, detail=..., **fields)` (one summary format for every agent) and end a prompt with `knowledge_block(memory)` (`app/agents/formatting.py`).
+
+### 15. Every Model Call Goes Through `Agent.ask()` / `judge()`
+Never call `ctx.llm.generate` from an agent: `ask()` applies the prompt's profile (`app/llm/profiles.py` — provider, model, skills, `max_tokens`, `use_llm`, prompt variant), names missing inputs, labels the call for the ledger and handles fallbacks. `ctx.llm` is an `LLMRouter`. Every provider follows one contract (`app/llm/provider.py`: `name`, `default_model`, `structured_mode`, `quota`, `price()`), and the two clients — `LLMClient` (Claude) and `OpenAICompatibleClient` — share the bookkeeping in `CallTracker` (`fail()` / `parse()` record and judge every reply), so a new provider only sends the request and reads the usage. Ask the router about the configuration (`providers()`, `chain_order()`, `price()`), never a client's private fields. Errors come from `app/llm/errors.py` (`LLMError`, `QuotaExhaustedError`). Skills are markdown files in `app/llm/skills/` with front-matter; they are off by default — enable one per agent via `AGENT_PROFILES` and measure it with the evals first.
+
+### 16. Change Prompts, Models and Skills Through the Evals
+Ready-made experiments live in `evals/presets/` (`--profiles @evals/presets/haiku55.json`); prompt variants are `app/llm/prompts/<agent>_v2.md`, selected with a profile's `prompt`. A prompt, model or skill change ships with an eval report: run `python -m evals.run` on the current and the new configuration (`--profiles` / `--label`) and compare them with `evals.compare`. CI runs the harness offline only (`tests/unit/test_evals.py`); live runs are manual and need `ANTHROPIC_API_KEY`. New scenario cases go in `evals/cases.py`; label a case only when the data make the right signal unambiguous.
+
+### 17. Free Tiers First, Through the Chain
+`LLM_PROVIDER=chain` sends each call along `LLM_CHAIN` (`app/llm/chain.py`): Gemini → Groq → Cerebras (`app/llm/providers_catalog.py`, on when their `*_API_KEY` is set) → Claude Haiku 5.5. Each free provider has a `ProviderQuota` (`app/llm/quota.py`): a call that won't fit its RPM/TPM within `LLM_QUOTA_MAX_WAIT_SECONDS`, or its daily limit, is skipped without being sent, and a 429 cools the provider down instead of retrying. Daily counts are seeded from `llm_calls.provider`, so record the provider on every call. Model ids and quotas change often: override them in `LLM_PROVIDERS` and confirm with `python -m scripts.preflight`, which checks each model id against the provider's `/models`. Groq and Cerebras use `json_object` mode (schema in the system prompt), so every reply is still validated by Pydantic. Where it shows: `GET /api/v1/llm/providers` (chain order, limits, use today from the ledger) and the Tokens & cost page, `/llm/usage?group_by=provider` and `token_report --by provider`, and the Grafana "Model providers" row (calls per provider, use today, chain fall-throughs).
 
 ## Key File Map
 
@@ -133,6 +136,7 @@ After changing a backend schema or route: `cd backend && python -m scripts.expor
 | Pure financial logic | `backend/app/domain/` |
 | External data clients (rate limit, retry, cache) | `backend/app/providers/` |
 | Claude client + system prompts | `backend/app/llm/client.py`, `backend/app/llm/prompts/*.md` |
+| Model providers: contract, router, chain, free tiers, quotas | `backend/app/llm/provider.py`, `router.py`, `chain.py`, `providers_catalog.py`, `quota.py`, `openai_compat.py` |
 | Remote MCP data sources (FactSet, S&P, ...) | `backend/app/llm/mcp.py` → `Agent.judge(mcp_servers=...)` |
 | DB access | `backend/app/repositories/` |
 | Dependency wiring | `backend/app/container.py` |
@@ -172,6 +176,7 @@ frontend/
     app/              # Next.js App Router pages (keep thin)
     components/
       features/       # Domain components (agents/, stocks/, dashboard/)
+      features/common/ # query-states.tsx: Loading / LoadError / Empty — use them for every query
       ui/             # Shadcn primitives (never hand-roll)
     lib/
       api/            # client.ts (only place with fetch) + repositories.ts + repository-context

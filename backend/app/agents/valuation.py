@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.agents.base import Agent, AnalysisResult, quant_fallback
-from app.agents.formatting import billions, memory_block
+from app.agents.formatting import billions, knowledge_block
 from app.agents.registry import register_agent
 from app.domain.valuation import (
     MARGIN_OF_SAFETY_THRESHOLD,
@@ -64,18 +64,16 @@ class ValuationAgent(Agent[ValuationData, ValuationResult]):
             _prompt(symbol, v, memory),
             fallback=quant_fallback(v.signal, v.confidence, "margin-of-safety rule"),
         )
-        return ValuationResult(
-            signal=judgement.signal,
-            confidence=judgement.confidence,
-            reasoning=judgement.reasoning,
+        return ValuationResult.from_judgement(
+            "Valuation",
+            judgement,
+            detail=f"MoS={v.margin_of_safety:+.1%}",
             dcf=v.dcf,
             owner_earnings_value=v.owner_earnings_value,
             ev_ebitda_value=v.ev_ebitda_value,
             avg_intrinsic_value=v.avg_intrinsic_value,
             margin_of_safety=v.margin_of_safety,
             market_cap=v.market_cap,
-            summary=f"Valuation: {judgement.signal} ({judgement.confidence:.0f}%) "
-            f"MoS={v.margin_of_safety:+.1%} — {judgement.reasoning}",
         )
 
 
@@ -94,5 +92,4 @@ Average intrinsic value: {billions(v.avg_intrinsic_value)}
 Margin of safety: {v.margin_of_safety:+.1%} (positive = undervalued)
 Rule-based signal: {v.signal} ({v.confidence:.0f}%)
 
-Knowledge base context:
-{memory_block(memory)}"""
+{knowledge_block(memory)}"""

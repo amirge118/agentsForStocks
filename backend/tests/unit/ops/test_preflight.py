@@ -3,7 +3,12 @@ from sqlalchemy import text
 
 from app.container import build_container
 from app.core.config import Settings
+from app.llm.chain import FallbackChain, parse_chain
+from app.llm.errors import LLMError
+from app.llm.quota import ProviderQuota, QuotaLimits
+from app.llm.router import LLMRouter
 from app.ops.preflight import CheckResult, ready, render, run_preflight
+from app.schemas.signals import LLMSignal
 from tests.factories import FakeEdgar, FakeFmp, FakeLLM, FakeYFinance, make_context
 
 KEY = "x" * 40
@@ -40,7 +45,6 @@ async def test_everything_ok(migrated) -> None:
     assert {n: r.status for n, r in results.items()} == {
         "database": "ok",
         "claude": "ok",
-        "alt-llm": "ok",  # not configured and not required
         "fmp": "ok",
         "yahoo_finance": "ok",
         "sec_edgar": "ok",
@@ -123,22 +127,87 @@ def test_explain_shows_the_root_cause() -> None:
     assert text_.endswith("← ConnectionError: Tunnel connection failed: 403 Forbidden")
 
 
+class FakeCompat:
+    """An OpenAI-compatible provider as the preflight sees it."""
+
+    name = "free"
+    structured_mode = "json_object"
+
+    def __init__(self, model: str, offered: list[str] | None = None, fail: bool = False) -> None:
+        self.default_model = model
+        self.offered = [model] if offered is None else offered
+        self.fail = fail
+        self.quota = ProviderQuota("free", QuotaLimits(rpm=10, rpd=1000))
+        self.calls = 0
+
+    async def list_models(self) -> list[str]:
+        return self.offered
+
+    async def generate(self, **kwargs) -> LLMSignal:
+        self.calls += 1
+        if self.fail:
+            raise LLMError("HTTP 401")
+        return LLMSignal(signal="neutral", confidence=0, reasoning="ok")
+
+    async def aclose(self) -> None:
+        return None
+
+
+def _router(**free: FakeCompat) -> LLMRouter:
+    for name, client in free.items():
+        client.name = name
+    providers = {"anthropic": FakeLLM(), **free}
+    chain = FallbackChain(parse_chain("gemini,groq,anthropic"), providers)
+    return LLMRouter(providers, default_provider="chain", chain=chain)
+
+
 @pytest.mark.unit
-async def test_alt_provider_is_checked_and_required_when_it_is_the_default(migrated) -> None:
-    llm = FakeLLM()
-    alt = _settings(
-        llm_provider="alt",
-        llm_alt_base_url="https://generativelanguage.googleapis.com/v1beta/openai",
-        llm_alt_model="gemini-flash-lite",
-        anthropic_api_key="",
+async def test_free_providers_and_the_chain_are_checked(migrated) -> None:
+    gemini, groq = FakeCompat("gemini-flash"), FakeCompat("gpt-oss-120b", fail=True)
+    settings = _settings(llm_provider="chain", anthropic_api_key="")
+    results = await _preflight(migrated, settings, llm=_router(gemini=gemini, groq=groq))
+
+    assert results["llm:gemini"].status == "ok"
+    assert results["llm:gemini"].detail == (
+        "gemini-flash json_object output ok (signal=neutral); free tier 10 rpm, 1000 rpd"
     )
-    results = await _preflight(migrated, alt, llm=llm)
-    assert results["alt-llm"].status == "ok"
-    assert results["alt-llm"].required is True
-    assert results["claude"].required is False  # Claude isn't the default any more
-    assert [c["provider"] for c in llm.calls] == ["alt"]
+    assert results["llm:groq"].status == "failed" and "HTTP 401" in results["llm:groq"].detail
+    assert not results["llm:groq"].required  # the chain survives one bad provider
+    assert results["claude"].status == "missing" and not results["claude"].required
+    chain = results["llm:chain"]
+    assert (chain.status, chain.required) == ("ok", True)
+    assert chain.detail == "gemini → groq → anthropic (1 of 3 healthy)"
     assert ready(list(results.values()))
 
-    unconfigured = await _preflight(migrated, _settings(llm_provider="alt"))
-    assert unconfigured["alt-llm"].status == "missing"
-    assert not ready(list(unconfigured.values()))
+
+@pytest.mark.unit
+async def test_an_unknown_model_id_is_reported_with_what_is_offered(migrated) -> None:
+    gemini = FakeCompat("gemini-9-flash", offered=["gemini-3.5-flash-lite", "gemini-3-flash"])
+    settings = _settings(llm_provider="gemini")
+    results = await _preflight(migrated, settings, llm=_router(gemini=gemini))
+    check = results["llm:gemini"]
+    assert (check.status, check.required) == ("failed", True)
+    assert "'gemini-9-flash' is not offered" in check.detail
+    assert "gemini-3.5-flash-lite" in check.detail
+    assert gemini.calls == 0  # no completion is spent on a model that doesn't exist
+    assert not ready(list(results.values()))
+
+
+@pytest.mark.unit
+async def test_a_chain_with_no_healthy_step_is_not_ready(migrated) -> None:
+    settings = _settings(llm_provider="chain", anthropic_api_key="")
+    broken = await _preflight(migrated, settings, llm=_router(gemini=FakeCompat("g", fail=True)))
+    assert broken["llm:chain"].status == "failed"
+    assert not ready(list(broken.values()))
+
+    empty = LLMRouter({"anthropic": FakeLLM()}, "chain")
+    nothing = await _preflight(migrated, settings, llm=empty)
+    assert nothing["llm:chain"].status == "missing"
+
+
+@pytest.mark.unit
+async def test_an_unconfigured_default_provider_is_missing(migrated) -> None:
+    results = await _preflight(migrated, _settings(llm_provider="alt"))
+    assert results["llm:alt"].status == "missing"
+    assert "LLM_ALT_BASE_URL" in results["llm:alt"].detail
+    assert not ready(list(results.values()))

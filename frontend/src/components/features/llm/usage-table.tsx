@@ -1,9 +1,9 @@
 "use client"
 
+import { Empty, LoadError, Loading } from "@/components/features/common/query-states"
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -19,12 +19,13 @@ import type { UsageGroup } from "@/types/api"
 const GROUPS: { value: UsageGroup; label: string }[] = [
   { value: "agent", label: "Agent" },
   { value: "model", label: "Model" },
+  { value: "provider", label: "Provider" },
   { value: "day", label: "Day" },
   { value: "prompt_version", label: "Prompt version" },
 ]
 const PERIODS = [1, 7, 30] as const
 
-/** Token and cost totals from the LLM ledger, grouped by agent / model / day / prompt. */
+/** Token and cost totals from the LLM ledger, grouped by agent / model / provider / day / prompt. */
 export function UsageTable() {
   const [groupBy, setGroupBy] = useState<UsageGroup>("agent")
   const [days, setDays] = useState<number>(7)
@@ -58,13 +59,11 @@ export function UsageTable() {
         ))}
       </div>
       {isPending ? (
-        <Skeleton className="h-48 w-full" aria-label="Loading usage" />
+        <Loading label="Loading usage" />
       ) : isError ? (
-        <p role="alert" className="p-6 text-sm text-red-400">
-          Could not load usage: {error.message}
-        </p>
+        <LoadError what="usage" error={error} />
       ) : data.rows.length === 0 ? (
-        <p className="p-6 text-sm text-zinc-400">No LLM calls in this period.</p>
+        <Empty>No LLM calls in this period.</Empty>
       ) : (
         <>
           <dl className="grid grid-cols-2 gap-4 px-6 md:grid-cols-4" aria-label="Totals">

@@ -5,7 +5,7 @@ from datetime import date
 import pandas as pd
 
 from app.agents.base import Agent, AnalysisResult, quant_fallback
-from app.agents.formatting import memory_block
+from app.agents.formatting import knowledge_block
 from app.agents.registry import register_agent
 from app.domain.technicals import STRATEGY_WEIGHTS, TechnicalSnapshot, analyze_price_history
 
@@ -56,14 +56,11 @@ class TechnicalsAgent(Agent[pd.DataFrame, TechnicalsResult]):
             _prompt(symbol, snapshot, memory),
             fallback=quant_fallback(snapshot.label, snapshot.confidence, "weighted composite"),
         )
-        return TechnicalsResult(
-            signal=judgement.signal,
-            confidence=judgement.confidence,
-            reasoning=judgement.reasoning,
+        return TechnicalsResult.from_judgement(
+            "Technicals",
+            judgement,
             strategies={k: float(v) for k, v in snapshot.strategies.items()},
             composite=float(snapshot.composite),
-            summary=f"Technicals: {judgement.signal} ({judgement.confidence:.0f}%) "
-            f"— {judgement.reasoning}",
         )
 
 
@@ -77,5 +74,4 @@ Strategy signals (-1 = bearish, +1 = bullish):
 {lines}
 Composite weighted signal: {snapshot.composite:+.3f} → {snapshot.label}
 
-Knowledge base context:
-{memory_block(memory)}"""
+{knowledge_block(memory)}"""

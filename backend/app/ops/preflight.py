@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.container import Container
 from app.core.config import Settings
+from app.llm.openai_compat import OpenAICompatibleClient
+from app.llm.provider import ALT, ANTHROPIC, CHAIN
 from app.schemas.signals import LLMSignal
 
 CheckStatus = Literal["ok", "missing", "failed"]
@@ -113,18 +115,72 @@ async def _probe_llm(container: Container, provider: str) -> str:
 
 
 async def check_llm(container: Container, settings: Settings) -> CheckResult:
-    required = settings.llm_provider == "anthropic"
+    required = settings.llm_provider == ANTHROPIC
     if not settings.anthropic_api_key:
         return CheckResult("claude", "missing", "ANTHROPIC_API_KEY is not set", required=required)
     return await _guard("claude", lambda: _probe_llm(container, "anthropic"), required=required)
 
 
-async def check_alt_llm(container: Container, settings: Settings) -> CheckResult:
-    required = settings.llm_provider == "alt"
-    if not settings.alt_llm_configured:
-        detail = "not configured (LLM_ALT_BASE_URL / LLM_ALT_MODEL)"
-        return CheckResult("alt-llm", "missing" if required else "ok", detail, required=required)
-    return await _guard("alt-llm", lambda: _probe_llm(container, "alt"), required=required)
+async def _probe_compat(client: OpenAICompatibleClient) -> str:
+    """An OpenAI-compatible provider: the model exists, and a structured reply parses."""
+    model = client.default_model
+    offered = await client.list_models()
+    if offered and model not in offered:
+        raise RuntimeError(f"model {model!r} is not offered; available: {', '.join(offered[:12])}")
+    reply = await client.generate(
+        system="You are a health check. Answer with a neutral signal.",
+        prompt="Reply with signal=neutral, confidence=0 and reasoning='ok'.",
+        schema=LLMSignal,
+        max_tokens=100,
+        prompt_name="preflight",
+    )
+    detail = f"{model} {client.structured_mode} output ok (signal={reply.signal})"
+    if client.quota is not None:
+        lim = client.quota.limits
+        parts = [f"{v} {k}" for k, v in (("rpm", lim.rpm), ("rpd", lim.rpd), ("tpd", lim.tpd)) if v]
+        detail += f"; free tier {', '.join(parts)}"
+    return detail
+
+
+def _check_name(provider: str) -> str:
+    return "claude" if provider == ANTHROPIC else f"llm:{provider}"
+
+
+async def check_llm_providers(container: Container, settings: Settings) -> list[CheckResult]:
+    """Every configured provider besides Claude (checked by check_llm)."""
+    others = [p for p in container.llm.providers() if p.name != ANTHROPIC]
+    results = list(
+        await asyncio.gather(
+            *(
+                _guard(
+                    _check_name(p.name),
+                    lambda c=p: _probe_compat(c),
+                    required=settings.llm_provider == p.name,
+                )
+                for p in others
+            )
+        )
+    )
+    if not container.llm.configured(settings.llm_provider):
+        default = settings.llm_provider
+        hint = "LLM_ALT_BASE_URL / LLM_ALT_MODEL" if default == ALT else "its API key"
+        results.append(CheckResult(_check_name(default), "missing", f"not configured ({hint})"))
+    return results
+
+
+def check_chain(
+    container: Container, settings: Settings, results: list[CheckResult]
+) -> CheckResult | None:
+    """When the chain is the default: ready if at least one of its steps passed its check."""
+    if settings.llm_provider != CHAIN:
+        return None
+    order = container.llm.chain_order()
+    if not order:
+        return CheckResult("llm:chain", "missing", "no step of LLM_CHAIN has a configured provider")
+    healthy = {r.name for r in results if r.status == "ok"}
+    alive = [name for name in order if _check_name(name) in healthy]
+    detail = f"{' → '.join(order)} ({len(alive)} of {len(order)} healthy)"
+    return CheckResult("llm:chain", "ok" if alive else "failed", detail)
 
 
 async def check_knowledge(container: Container, settings: Settings) -> CheckResult:
@@ -145,17 +201,20 @@ async def run_preflight(
     container: Container,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> list[CheckResult]:
-    return list(
-        await asyncio.gather(
+    core, providers = await asyncio.gather(
+        asyncio.gather(
             check_database(session_factory),
             check_llm(container, settings),
-            check_alt_llm(container, settings),
             check_fmp(container, settings),
             check_yahoo(container),
             check_edgar(container),
             check_knowledge(container, settings),
-        )
+        ),
+        check_llm_providers(container, settings),
     )
+    results = [*core, *providers]
+    chain = check_chain(container, settings, results)
+    return results if chain is None else [*results, chain]
 
 
 def ready(results: list[CheckResult]) -> bool:

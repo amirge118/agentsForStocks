@@ -2,14 +2,15 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from typing import Literal, get_args
 
 from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.llm_call import LLMCall
 
-GroupBy = Literal["agent", "model", "day", "prompt_version"]
+GroupBy = Literal["agent", "model", "provider", "day", "prompt_version"]
+GROUP_BY: tuple[str, ...] = get_args(GroupBy)
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,8 @@ class LLMCallRepository:
         key = {
             "agent": func.coalesce(LLMCall.agent, "(none)"),
             "model": LLMCall.model,
+            # Calls recorded before migration 0004 have no provider
+            "provider": func.coalesce(LLMCall.provider, "(unknown)"),
             "day": func.date(LLMCall.created_at),
             "prompt_version": func.coalesce(LLMCall.prompt_name, "(none)")
             + "@"
@@ -74,6 +77,20 @@ class LLMCallRepository:
             )
             for r in rows
         ]
+
+    async def provider_totals(self, provider: str, since: datetime) -> tuple[int, int]:
+        """Requests and tokens (input + output, cache included) sent to a provider since `since`."""
+        tokens = (
+            LLMCall.input_tokens
+            + LLMCall.output_tokens
+            + LLMCall.cache_read_tokens
+            + LLMCall.cache_write_tokens
+        )
+        stmt = select(func.count(), func.coalesce(func.sum(tokens), 0)).where(
+            LLMCall.provider == provider, LLMCall.created_at >= since
+        )
+        requests, used = (await self._session.execute(stmt)).one()
+        return int(requests), int(used)
 
     async def delete_older_than(self, cutoff: datetime) -> int:
         result = await self._session.execute(delete(LLMCall).where(LLMCall.created_at < cutoff))

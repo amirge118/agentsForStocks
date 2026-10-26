@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.agents.base import Agent, AnalysisResult, neutral_fallback
-from app.agents.formatting import memory_block
+from app.agents.formatting import knowledge_block
 from app.agents.registry import register_agent
 from app.domain.financials import yearly_revenue_growth
 
@@ -64,18 +64,14 @@ Analyst forward estimates:
 Recent earnings call transcript(s):
 {_format_transcripts(data.transcripts)}
 
-Knowledge base context:
-{memory_block(memory)}""",
+{knowledge_block(memory)}""",
             fallback=neutral_fallback(),
         )
-        return GrowthResult(
-            signal=judgement.signal,
-            confidence=judgement.confidence,
-            reasoning=judgement.reasoning,
+        return GrowthResult.from_judgement(
+            "Growth",
+            judgement,
             transcript_available=bool(data.transcripts),
             analyst_coverage=len(data.estimates),
-            summary=f"Growth: {judgement.signal} ({judgement.confidence:.0f}%) "
-            f"— {judgement.reasoning}",
         )
 
 

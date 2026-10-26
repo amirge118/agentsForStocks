@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.agents.base import Agent, AnalysisResult, neutral_fallback
-from app.agents.formatting import memory_block
+from app.agents.formatting import knowledge_block
 from app.agents.registry import register_agent
 
 # The opening of the Business section is its overview; moat and risk read the rest
@@ -65,18 +65,14 @@ Company description (FMP):
 Business section from the latest 10-K (SEC EDGAR):
 {data.business_text[:_BUSINESS_CHARS] or 'Not available'}
 
-Knowledge base context:
-{memory_block(memory)}""",
+{knowledge_block(memory)}""",
             fallback=neutral_fallback(),
         )
-        return BroadAnalysisResult(
-            signal=judgement.signal,
-            confidence=judgement.confidence,
-            reasoning=judgement.reasoning,
+        return BroadAnalysisResult.from_judgement(
+            "Broad analysis",
+            judgement,
             company_name=name,
             sector=sector,
             industry=industry,
             market_cap_b=market_cap_b,
-            summary=f"Broad analysis: {judgement.signal} ({judgement.confidence:.0f}%) "
-            f"— {judgement.reasoning}",
         )

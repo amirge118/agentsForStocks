@@ -16,10 +16,12 @@ from collections.abc import Sequence
 from typing import Any, TypeVar
 
 import anthropic
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from app.llm.mcp import MCP_BETA, McpServer, validate_servers
-from app.llm.pricing import Price, TokenUsage
+from app.llm.pricing import PRICES, Price, TokenUsage
+from app.llm.provider import ANTHROPIC
+from app.llm.quota import ProviderQuota
 from app.llm.recording import (
     LLMCallRecorder,
     NullRecorder,
@@ -32,15 +34,15 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 
-class LLMError(Exception):
-    """Claude could not produce a valid structured reply."""
-
-
 # Remote MCP tool calls make a request far slower than a plain completion
 _MCP_TIMEOUT_SECONDS = 120.0
 
 
 class LLMClient:
+    name = ANTHROPIC
+    structured_mode = "native"
+    quota: ProviderQuota | None = None  # paid: no client-side limits
+
     def __init__(
         self,
         client: anthropic.AsyncAnthropic,
@@ -83,6 +85,7 @@ class LLMClient:
             prompt_name=prompt_name,
             capture_content=self._capture_content,
             prices=self._prices,
+            provider=self.name,
         )
         request: dict[str, Any] = {
             "model": chosen,
@@ -104,13 +107,12 @@ class LLMClient:
             else:
                 message = await self._client.messages.create(**request)
         except anthropic.APIStatusError as exc:
-            error = f"{chosen} returned HTTP {exc.status_code}: {exc.message}"
-            await call.finish("error", error=error, request_id=getattr(exc, "request_id", None))
-            raise LLMError(error) from exc
+            raise await call.fail(
+                f"{chosen} returned HTTP {exc.status_code}: {exc.message}",
+                request_id=getattr(exc, "request_id", None),
+            ) from exc
         except anthropic.APIConnectionError as exc:
-            error = f"{chosen} unreachable: {exc}"
-            await call.finish("error", error=error)
-            raise LLMError(error) from exc
+            raise await call.fail(f"{chosen} unreachable: {exc}") from exc
 
         # With MCP tools the content interleaves text and mcp_tool_use/result blocks
         texts = [block.text for block in message.content if block.type == "text"]
@@ -128,20 +130,12 @@ class LLMClient:
             response=text,
             request_id=request_id if isinstance(request_id, str) else None,
         )
+        return await call.parse(
+            schema, text, cut_off=message.stop_reason in ("refusal", "max_tokens")
+        )
 
-        if message.stop_reason in ("refusal", "max_tokens"):
-            error = f"{chosen} stopped with {message.stop_reason}"
-            await call.finish("error", error=error)
-            raise LLMError(error)
-        try:
-            result = schema.model_validate_json(text)
-        except ValidationError as exc:
-            logger.warning("Claude reply failed schema validation: %.200s", text)
-            error = f"{chosen} reply did not match {schema.__name__}"
-            await call.finish("error", error=error)
-            raise LLMError(error) from exc
-        await call.finish("ok")
-        return result
+    def price(self, model: str) -> Price | None:
+        return (self._prices or PRICES).get(model)
 
     async def aclose(self) -> None:
         await self._client.close()

@@ -3,16 +3,25 @@ import userEvent from "@testing-library/user-event"
 
 import { AgentRunsTable } from "@/components/features/agents/agent-runs-table"
 import { LLMCallsList } from "@/components/features/llm/llm-calls-list"
+import { ProviderQuotas } from "@/components/features/llm/provider-quotas"
 import { UsageTable } from "@/components/features/llm/usage-table"
 import type { LLMRepository, RunRepository } from "@/lib/api/repositories"
 import { formatCost, formatTokens } from "@/lib/format"
-import { completedRun, failedRun, llmCall, llmCalls, llmUsage } from "@/test/fixtures"
+import {
+  completedRun,
+  failedRun,
+  llmCall,
+  llmCalls,
+  llmProviders,
+  llmUsage,
+} from "@/test/fixtures"
 import { pending, renderWithProviders } from "@/test/render"
 
 function llm(overrides: Partial<LLMRepository> = {}): LLMRepository {
   return {
     getUsage: jest.fn(async () => llmUsage),
     getRunCalls: jest.fn(async () => llmCalls),
+    getProviders: jest.fn(async () => llmProviders),
     ...overrides,
   }
 }
@@ -51,7 +60,46 @@ describe("UsageTable", () => {
     await userEvent.click(screen.getByRole("button", { name: "Model" }))
     await userEvent.click(screen.getByRole("button", { name: "30d" }))
     expect(repo.getUsage).toHaveBeenLastCalledWith(30, "model")
+    await userEvent.click(screen.getByRole("button", { name: "Provider" }))
+    expect(repo.getUsage).toHaveBeenLastCalledWith(30, "provider")
     expect(screen.getByRole("button", { name: "30d" })).toHaveAttribute("aria-pressed", "true")
+  })
+})
+
+describe("ProviderQuotas", () => {
+  it("shows a skeleton while loading", () => {
+    renderWithProviders(<ProviderQuotas />, { llm: llm({ getProviders: () => pending() }) })
+    expect(screen.getByLabelText("Loading providers")).toBeInTheDocument()
+  })
+
+  it("shows the error", async () => {
+    const getProviders = jest.fn(async () => {
+      throw new Error("backend down")
+    })
+    renderWithProviders(<ProviderQuotas />, { llm: llm({ getProviders }) })
+    expect(await screen.findByRole("alert")).toHaveTextContent("backend down")
+  })
+
+  it("shows an empty state", async () => {
+    renderWithProviders(<ProviderQuotas />, { llm: llm({ getProviders: jest.fn(async () => []) }) })
+    expect(await screen.findByText("No model provider configured.")).toBeInTheDocument()
+  })
+
+  it("lists chain steps first with today's use of each daily limit", async () => {
+    renderWithProviders(<ProviderQuotas />, { llm: llm() })
+    const list = await screen.findByRole("list", { name: "Model providers" })
+    const cards = within(list).getAllByRole("listitem")
+    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["gemini", "anthropic"])
+
+    const gemini = within(list).getByRole("listitem", { name: "gemini" })
+    expect(gemini).toHaveTextContent("chain #1")
+    expect(gemini).toHaveTextContent("950 / 1,000")
+    const meter = within(gemini).getByRole("meter", { name: "Requests today of the daily limit" })
+    expect(meter).toHaveAttribute("aria-valuenow", "95")
+    // Claude has no free-tier limit: a count, no meter
+    const claude = within(list).getByRole("listitem", { name: "anthropic" })
+    expect(claude).toHaveTextContent("not in chain")
+    expect(within(claude).queryByRole("meter")).not.toBeInTheDocument()
   })
 })
 
@@ -62,6 +110,7 @@ describe("LLMCallsList", () => {
 
     const list = await screen.findByRole("list", { name: "LLM calls" })
     expect(within(list).getByText("claude-haiku-4-5")).toBeInTheDocument()
+    expect(within(list).getByText("via anthropic")).toBeInTheDocument()
     expect(within(list).getByText("financial_history@3f9a1c2b7d10")).toBeInTheDocument()
     expect(within(list).getByText(/five years of financial statements/)).toBeInTheDocument()
     expect(within(list).getByText(/"signal":"bullish"/)).toBeInTheDocument()

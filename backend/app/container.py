@@ -5,6 +5,8 @@ Everything else receives what it needs through constructors, which keeps
 modules decoupled and lets tests swap in fakes (see tests/factories.py).
 """
 
+import logging
+import os
 from dataclasses import dataclass
 
 import anthropic
@@ -17,12 +19,15 @@ from app.agents.runner import AgentRunner, SessionResultsReader
 from app.core.config import Settings
 from app.knowledge.openviking_store import OpenVikingStore
 from app.knowledge.store import KnowledgeStore, NullKnowledgeStore
+from app.llm.chain import FallbackChain, parse_chain
 from app.llm.client import LLMClient
 from app.llm.openai_compat import OpenAICompatibleClient
-from app.llm.pricing import Price
 from app.llm.profiles import ProfileBook
-from app.llm.recording import DbLLMCallRecorder, LLMCallRecorder
-from app.llm.router import ALT, ANTHROPIC, LLMProvider, LLMRouter
+from app.llm.provider import ALT, ANTHROPIC, LLMProvider
+from app.llm.providers_catalog import alt_spec, configured, load_specs
+from app.llm.quota import ProviderQuota, UsageLoader
+from app.llm.recording import DbLLMCallRecorder, LedgerUsage, LLMCallRecorder
+from app.llm.router import LLMRouter
 from app.pipeline.launcher import PipelineLauncher
 from app.pipeline.orchestrator import PipelineOrchestrator
 from app.providers.cache import TTLCache
@@ -31,6 +36,8 @@ from app.providers.fmp import DailyCallBudget, FmpClient
 from app.providers.http import HttpClient
 from app.providers.rate_limit import RateLimiter
 from app.providers.yfinance import YFinanceClient
+
+logger = logging.getLogger(__name__)
 
 # Requests per second per domain (SEC allows 10/s; stay well below every limit)
 _RATE_LIMITS = {
@@ -63,8 +70,14 @@ class Container:
         await self.llm.aclose()
 
 
-def build_llm_router(settings: Settings, recorder: LLMCallRecorder) -> LLMRouter:
-    """Claude always; the OpenAI-compatible provider when LLM_ALT_* is configured."""
+def build_llm_router(
+    settings: Settings, recorder: LLMCallRecorder, usage: UsageLoader | None = None
+) -> LLMRouter:
+    """
+    Claude always; each free provider whose API key is set (app/llm/providers_catalog.py);
+    the OpenAI-compatible "alt" provider when LLM_ALT_* is configured; and "chain",
+    which tries them in LLM_CHAIN order. `usage` seeds the free-tier quotas from the ledger.
+    """
     providers: dict[str, LLMProvider] = {
         ANTHROPIC: LLMClient(
             anthropic.AsyncAnthropic(
@@ -77,23 +90,64 @@ def build_llm_router(settings: Settings, recorder: LLMCallRecorder) -> LLMRouter
             capture_content=settings.llm_capture_content,
         )
     }
+    specs = load_specs(settings.llm_providers, settings.llm_providers_file)
     if settings.alt_llm_configured:
-        price = Price(
-            input=settings.llm_alt_input_price,
-            output=settings.llm_alt_output_price,
-            cache_read=settings.llm_alt_input_price,
-            cache_write=settings.llm_alt_input_price,
-        )
-        providers[ALT] = OpenAICompatibleClient(
-            base_url=settings.llm_alt_base_url,
-            api_key=settings.llm_alt_api_key,
-            default_model=settings.llm_alt_model,
-            recorder=recorder,
-            capture_content=settings.llm_capture_content,
-            prices={settings.llm_alt_model: price},
+        specs[ALT] = alt_spec(
+            settings.llm_alt_base_url,
+            settings.llm_alt_model,
+            input_price=settings.llm_alt_input_price,
+            output_price=settings.llm_alt_output_price,
             timeout_seconds=settings.llm_alt_timeout_seconds,
         )
-    return LLMRouter(providers, default_provider=settings.llm_provider)
+    for spec, key in configured(specs, _provider_keys(settings)):
+        providers[spec.name] = OpenAICompatibleClient(
+            base_url=spec.base_url,
+            api_key=key,
+            default_model=spec.model,
+            name=spec.name,
+            structured_mode=spec.structured_mode,
+            extra_body=spec.extra_body,
+            reasoning_tokens=spec.reasoning_tokens,
+            quota=(
+                ProviderQuota(
+                    spec.name,
+                    spec.limits,
+                    max_wait_seconds=settings.llm_quota_max_wait_seconds,
+                    load_usage=usage,
+                )
+                if spec.limits.bounded
+                else None
+            ),
+            recorder=recorder,
+            capture_content=settings.llm_capture_content,
+            prices={spec.model: spec.price},
+            timeout_seconds=spec.timeout_seconds,
+        )
+    # Claude without a key would only add a failed call to every chain run
+    in_chain = {
+        name: client
+        for name, client in providers.items()
+        if name != ANTHROPIC or settings.anthropic_api_key
+    }
+    chain = FallbackChain(parse_chain(settings.llm_chain), in_chain)
+    router = LLMRouter(providers, default_provider=settings.llm_provider, chain=chain)
+    if not router.configured(settings.llm_provider):
+        logger.warning(
+            "LLM_PROVIDER is not configured — agents will use their rule-based fallback",
+            extra={"provider": settings.llm_provider},
+        )
+    return router
+
+
+def _provider_keys(settings: Settings) -> dict[str, str]:
+    """API keys by variable name: the built-in ones from settings (.env), others from env."""
+    return {
+        **os.environ,
+        "LLM_ALT_API_KEY": settings.llm_alt_api_key,
+        "GEMINI_API_KEY": settings.gemini_api_key,
+        "GROQ_API_KEY": settings.groq_api_key,
+        "CEREBRAS_API_KEY": settings.cerebras_api_key,
+    }
 
 
 def build_container(
@@ -102,7 +156,9 @@ def build_container(
     rate_limiter = RateLimiter(_RATE_LIMITS)
     cache = TTLCache(ttl_seconds=settings.provider_cache_ttl_seconds)
     http = HttpClient(rate_limiter=rate_limiter, cache=cache)
-    llm = build_llm_router(settings, DbLLMCallRecorder(session_factory))
+    llm = build_llm_router(
+        settings, DbLLMCallRecorder(session_factory), usage=LedgerUsage(session_factory)
+    )
     knowledge: KnowledgeStore = (
         OpenVikingStore(settings.openviking_url, settings.openviking_api_key or None)
         if settings.openviking_enabled

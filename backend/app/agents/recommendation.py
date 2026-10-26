@@ -24,7 +24,7 @@ from app.agents.base import (
     ComplianceView,
     quant_fallback,
 )
-from app.agents.formatting import memory_block
+from app.agents.formatting import knowledge_block
 from app.agents.registry import register_agent, registry
 from app.domain.compliance import DISCLAIMER, review_recommendation
 from app.domain.scoring import (
@@ -221,5 +221,4 @@ Agent | Signal | Confidence | Weight | Contribution
 
 Missing analysts: {', '.join(s.missing) or 'none'}
 
-Knowledge base context:
-{memory_block(memory)}"""
+{knowledge_block(memory)}"""

@@ -7,7 +7,7 @@ from datetime import date
 from pydantic import BaseModel, Field
 
 from app.agents.base import Agent, AnalysisResult, quant_fallback
-from app.agents.formatting import memory_block
+from app.agents.formatting import knowledge_block
 from app.agents.registry import register_agent
 from app.domain.sentiment import SentimentScore, blend, headlines, score_insider_trades
 from app.domain.signals import SignalLabel
@@ -52,28 +52,24 @@ Insider trading: {insider.signal} ({insider.confidence:.0f}%) — {insider.detai
 News sentiment:  {news.signal} ({news.confidence:.0f}%) — {news.detail}
 Weighted composite (insider 30% / news 70%): {combined.signal} ({combined.confidence:.0f}%)
 
-Knowledge base context:
-{memory_block(memory)}""",
+{knowledge_block(memory)}""",
             fallback=quant_fallback(combined.signal, combined.confidence, "insider/news blend"),
         )
-        return SentimentResult(
-            signal=judgement.signal,
-            confidence=judgement.confidence,
-            reasoning=judgement.reasoning,
+        return SentimentResult.from_judgement(
+            "Sentiment",
+            judgement,
             insider=ComponentView(**vars(insider)),
             news=ComponentView(**vars(news)),
-            summary=f"Sentiment: {judgement.signal} ({judgement.confidence:.0f}%) "
-            f"— {judgement.reasoning}",
         )
 
     async def _classify_news(self, symbol: str, titles: list[str]) -> SentimentScore:
         if not titles:
             return SentimentScore("neutral", 50.0, "No news available")
         bullet_list = "\n".join(f"- {t}" for t in titles)
-        unavailable = _NewsSentiment(signal="neutral", confidence=50.0, reasoning="unavailable")
+        unavailable = NewsSentiment(signal="neutral", confidence=50.0, reasoning="unavailable")
         result = await self.ask(
             f"Company: {symbol}\nHeadlines:\n{bullet_list}",
-            schema=_NewsSentiment,
+            schema=NewsSentiment,
             fallback=unavailable,
             prompt_name="news_sentiment",
             max_tokens=256,
@@ -83,7 +79,7 @@ Knowledge base context:
         return SentimentScore(result.signal, result.confidence, f"{len(titles)} headlines analyzed")
 
 
-class _NewsSentiment(BaseModel):
+class NewsSentiment(BaseModel):
     signal: SignalLabel
     confidence: float = Field(ge=0.0, le=100.0)
     reasoning: str

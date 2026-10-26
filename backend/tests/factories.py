@@ -11,7 +11,8 @@ import pandas as pd
 from pydantic import BaseModel
 
 from app.agents.base import AgentContext
-from app.llm.client import LLMError
+from app.llm.errors import LLMError
+from app.llm.pricing import PRICES
 from app.llm.profiles import ProfileBook
 
 
@@ -221,13 +222,37 @@ class FakeEdgar:
         return self.risk
 
 
-class FakeLLM:
+class RouterStub:
+    """The read-only side of LLMRouter for fakes that stand in for it: Claude only, no chain."""
+
+    default_provider = "anthropic"
+
+    def configured(self, provider: str) -> bool:
+        return provider == self.default_provider
+
+    def providers(self) -> list[Any]:
+        return []
+
+    def provider(self, name: str) -> Any:
+        return None
+
+    def chain_order(self) -> list[str]:
+        return []
+
+    def price(self, model: str) -> Any:
+        return PRICES.get(model)
+
+
+class FakeLLM(RouterStub):
     """
     Stands in for the LLMRouter: returns `reply` (dict of fields) validated against
     the requested schema, and records every call (including the provider asked for).
     """
 
-    default_provider = "anthropic"
+    # As a provider (LLMProvider): Claude-like, no free-tier quota
+    name = "anthropic"
+    structured_mode = "native"
+    quota = None
 
     def __init__(self, reply: dict | None = None, fail: bool = False) -> None:
         self.reply = reply or {"signal": "bullish", "confidence": 70.0, "reasoning": "LLM says so"}

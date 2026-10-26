@@ -492,6 +492,18 @@
             "title": "Prompt Version",
             "type": "string"
           },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which provider answered; None before migration 0004",
+            "title": "Provider"
+          },
           "response": {
             "anyOf": [
               {
@@ -563,6 +575,7 @@
           "run_id",
           "agent",
           "symbol",
+          "provider",
           "model",
           "prompt_name",
           "prompt_version",
@@ -582,12 +595,116 @@
         "title": "LLMCallOut",
         "type": "object"
       },
+      "LLMProviderOut": {
+        "description": "A configured model provider: its place in the fallback chain, limits and use today.",
+        "properties": {
+          "chain_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1 = tried first; None = not in LLM_CHAIN",
+            "title": "Chain Position"
+          },
+          "day_requests": {
+            "title": "Day Requests",
+            "type": "integer"
+          },
+          "day_start": {
+            "description": "When the provider's daily quota last reset",
+            "format": "date-time",
+            "title": "Day Start",
+            "type": "string"
+          },
+          "day_tokens": {
+            "title": "Day Tokens",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rpd": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rpd"
+          },
+          "rpm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rpm"
+          },
+          "structured_mode": {
+            "description": "native (Claude), json_schema or json_object",
+            "title": "Structured Mode",
+            "type": "string"
+          },
+          "tpd": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tpd"
+          },
+          "tpm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tpm"
+          }
+        },
+        "required": [
+          "name",
+          "model",
+          "structured_mode",
+          "chain_position",
+          "rpm",
+          "tpm",
+          "rpd",
+          "tpd",
+          "day_start",
+          "day_requests",
+          "day_tokens"
+        ],
+        "title": "LLMProviderOut",
+        "type": "object"
+      },
       "LLMUsageReport": {
         "properties": {
           "group_by": {
             "enum": [
               "agent",
               "model",
+              "provider",
               "day",
               "prompt_version"
             ],
@@ -1084,6 +1201,37 @@
         ]
       }
     },
+    "/api/v1/llm/providers": {
+      "get": {
+        "description": "Usage today comes from the ledger, so it includes the worker's scheduled run.",
+        "operationId": "llm_providers_api_v1_llm_providers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LLMProviderOut"
+                  },
+                  "title": "Response Llm Providers Api V1 Llm Providers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Llm Providers",
+        "tags": [
+          "llm"
+        ]
+      }
+    },
     "/api/v1/llm/usage": {
       "get": {
         "operationId": "llm_usage_api_v1_llm_usage_get",
@@ -1109,6 +1257,7 @@
               "enum": [
                 "agent",
                 "model",
+                "provider",
                 "day",
                 "prompt_version"
               ],

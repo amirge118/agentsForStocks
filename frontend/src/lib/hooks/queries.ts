@@ -15,6 +15,7 @@ export const queryKeys = {
   runs: (filters: RunFilters) => ["runs", filters] as const,
   llmUsage: (days: number, groupBy: UsageGroup) => ["llm", "usage", days, groupBy] as const,
   runLLMCalls: (runId: string) => ["llm", "runs", runId] as const,
+  llmProviders: ["llm", "providers"] as const,
 }
 
 export function useSymbols() {
@@ -58,6 +59,11 @@ export function useRunLLMCalls(runId: string) {
     queryKey: queryKeys.runLLMCalls(runId),
     queryFn: () => llm.getRunCalls(runId),
   })
+}
+
+export function useLLMProviders() {
+  const { llm } = useRepositories()
+  return useQuery({ queryKey: queryKeys.llmProviders, queryFn: () => llm.getProviders() })
 }
 
 export function useStartPipelineRun() {

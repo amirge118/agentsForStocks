@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.agents.base import Agent, AnalysisResult, neutral_fallback
-from app.agents.formatting import memory_block
+from app.agents.formatting import knowledge_block
 from app.agents.registry import register_agent
 from app.domain.institutional import (
     FlowDirection,
@@ -67,20 +67,17 @@ Top institutional holders:
 Quarterly 13F ownership trend:
 {_format_trend(data.ownership_trend)}
 
-Knowledge base context:
-{memory_block(memory)}""",
+{knowledge_block(memory)}""",
             fallback=neutral_fallback(),
         )
-        return InstitutionalResult(
-            signal=judgement.signal,
-            confidence=judgement.confidence,
-            reasoning=judgement.reasoning,
+        return InstitutionalResult.from_judgement(
+            "Institutional",
+            judgement,
+            detail=f"{direction}",
             institutional_pct=inst_pct,
             net_share_change=net_change,
             direction=direction,
             top5_concentration=concentration,
-            summary=f"Institutional: {judgement.signal} ({judgement.confidence:.0f}%) "
-            f"{direction} — {judgement.reasoning}",
         )
 
     def learnings(self, symbol: str, result: InstitutionalResult) -> list[Learning]:

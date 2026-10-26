@@ -4,7 +4,7 @@ import pytest
 
 from app.core.clock import utcnow
 from app.llm.pricing import TokenUsage
-from app.llm.recording import DbLLMCallRecorder, LLMCallRecord, prompt_version
+from app.llm.recording import DbLLMCallRecorder, LedgerUsage, LLMCallRecord, prompt_version
 from app.repositories.llm_calls import LLMCallRepository
 
 
@@ -17,6 +17,7 @@ def _record(
     created_at: datetime | None = None,
     cost: float | None = 0.002,
     run_id: str = "r1",
+    provider: str | None = "anthropic",
 ) -> LLMCallRecord:
     return LLMCallRecord(
         call_id=call_id,
@@ -32,6 +33,7 @@ def _record(
         pipeline_run_id="p1",
         agent=agent,
         symbol="AAPL",
+        provider=provider,
         system_prompt="sys",
         prompt="user",
         response='{"signal":"bullish"}',
@@ -116,3 +118,34 @@ async def test_recorder_failure_is_logged_not_raised(caplog) -> None:
 
     await DbLLMCallRecorder(broken_factory).record(_record("c1"))
     assert "Could not record LLM call" in caplog.text
+
+
+@pytest.mark.unit
+async def test_provider_totals_seed_the_free_tier_quotas(session_factory) -> None:
+    recorder = DbLLMCallRecorder(session_factory)
+    now = utcnow()
+    for call_id, provider, at in (
+        ("g1", "gemini", now),
+        ("g2", "gemini", now - timedelta(hours=1)),
+        ("g-old", "gemini", now - timedelta(days=2)),
+        ("q1", "groq", now),
+    ):
+        await recorder.record(_record(call_id, provider=provider, created_at=at))
+    since = now - timedelta(hours=3)
+    # 1000 input + 200 output + 50 cache read per call
+    assert await LedgerUsage(session_factory)("gemini", since) == (2, 2500)
+    assert await LedgerUsage(session_factory)("cerebras", since) == (0, 0)
+
+
+@pytest.mark.unit
+async def test_usage_by_provider_labels_calls_from_before_the_column(
+    session_factory, db_session
+) -> None:
+    recorder = DbLLMCallRecorder(session_factory)
+    await recorder.record(_record("a", provider="gemini", cost=0.0))
+    await recorder.record(_record("b", provider="gemini", cost=0.0))
+    await recorder.record(_record("c", provider=None))
+    rows = await LLMCallRepository(db_session).usage(
+        since=utcnow() - timedelta(days=1), group_by="provider"
+    )
+    assert sorted((r.key, r.calls) for r in rows) == [("(unknown)", 1), ("gemini", 2)]

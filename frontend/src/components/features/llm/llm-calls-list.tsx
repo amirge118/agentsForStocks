@@ -1,7 +1,7 @@
 "use client"
 
+import { LoadError, Loading } from "@/components/features/common/query-states"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import { formatCost, formatDateTime, formatTokens } from "@/lib/format"
 import { useRunLLMCalls } from "@/lib/hooks/queries"
 import type { LLMCall } from "@/types/api"
@@ -11,14 +11,10 @@ export function LLMCallsList({ runId }: { runId: string }) {
   const { data, isPending, isError, error } = useRunLLMCalls(runId)
 
   if (isPending) {
-    return <Skeleton className="h-48 w-full" aria-label="Loading LLM calls" />
+    return <Loading label="Loading LLM calls" />
   }
   if (isError) {
-    return (
-      <p role="alert" className="p-6 text-sm text-red-400">
-        Could not load LLM calls: {error.message}
-      </p>
-    )
+    return <LoadError what="LLM calls" error={error} />
   }
   if (data.length === 0) {
     return <p className="p-6 text-sm text-zinc-400">This run made no LLM calls.</p>
@@ -38,6 +34,7 @@ function CallCard({ call }: { call: LLMCall }) {
       <div className="flex flex-wrap items-center gap-3">
         <Badge variant={call.status === "ok" ? "gain" : "loss"}>{call.status}</Badge>
         <span className="font-mono">{call.model}</span>
+        {call.provider && <span className="text-zinc-400">via {call.provider}</span>}
         <span className="text-zinc-400">
           {call.prompt_name ?? "—"}@{call.prompt_version}
         </span>

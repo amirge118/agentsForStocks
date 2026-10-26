@@ -35,9 +35,23 @@ class Settings(BaseSettings):
     llm_default_model: str = "claude-haiku-4-5"
     llm_reasoning_model: str = "claude-sonnet-4-6"
     llm_timeout_seconds: float = 30.0
-    # Default provider for every agent prompt: "anthropic" (Claude) or "alt" (below).
-    # Per-agent choices go in AGENT_PROFILES — see app/llm/profiles.py
-    llm_provider: Literal["anthropic", "alt"] = "anthropic"
+    # Default provider for every agent prompt: "anthropic" (Claude), "chain" (free
+    # providers first, see LLM_CHAIN), one free provider ("gemini", "groq", "cerebras")
+    # or "alt" (below). Per-agent choices go in AGENT_PROFILES — see app/llm/profiles.py
+    llm_provider: str = "anthropic"
+    # Fallback order for provider "chain": each step is provider[:model]; steps whose
+    # provider has no API key are skipped (app/llm/chain.py)
+    llm_chain: str = "gemini,groq,cerebras,anthropic:claude-haiku-5-5"
+
+    # Free tiers (app/llm/providers_catalog.py) — each joins once its key is set
+    gemini_api_key: str = ""
+    groq_api_key: str = ""
+    cerebras_api_key: str = ""
+    # Overrides for those providers (model, quotas, ...) or extra ones (JSON, inline/file)
+    llm_providers: str = ""
+    llm_providers_file: str = ""
+    # A free provider that would need a longer wait for its rate limit is skipped
+    llm_quota_max_wait_seconds: float = 5.0
 
     # A second, cheaper provider: any OpenAI-compatible chat-completions API with
     # JSON-schema outputs (Gemini, OpenRouter, DeepSeek, a local Ollama, …)

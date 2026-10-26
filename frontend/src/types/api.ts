@@ -103,7 +103,7 @@ export const AgentRunSchema = z.object({
   cost_usd: z.number().nullable(),
   llm_fallbacks: z.number(),
 })
-export const UsageGroupSchema = z.enum(["agent", "model", "day", "prompt_version"])
+export const UsageGroupSchema = z.enum(["agent", "model", "provider", "day", "prompt_version"])
 export const LLMCallSchema = z.object({
   call_id: z.string(),
   created_at: z.string(),
@@ -111,6 +111,7 @@ export const LLMCallSchema = z.object({
   run_id: z.string().nullable(),
   agent: z.string().nullable(),
   symbol: z.string().nullable(),
+  provider: z.string().nullable(),
   model: z.string(),
   prompt_name: z.string().nullable(),
   prompt_version: z.string(),
@@ -147,6 +148,19 @@ export const LLMUsageReportSchema = z.object({
   total_output_tokens: z.number(),
   total_cost_usd: z.number(),
 })
+export const LLMProviderSchema = z.object({
+  name: z.string(),
+  model: z.string(),
+  structured_mode: z.string(),
+  chain_position: z.number().nullable(),
+  rpm: z.number().nullable(),
+  tpm: z.number().nullable(),
+  rpd: z.number().nullable(),
+  tpd: z.number().nullable(),
+  day_start: z.string(),
+  day_requests: z.number(),
+  day_tokens: z.number(),
+})
 
 export const PipelineRunAcceptedSchema = z.object({
   pipeline_run_id: z.string(),
@@ -174,6 +188,7 @@ export type UsageGroup = z.infer<typeof UsageGroupSchema>
 export type LLMCall = z.infer<typeof LLMCallSchema>
 export type LLMUsageRow = z.infer<typeof LLMUsageRowSchema>
 export type LLMUsageReport = z.infer<typeof LLMUsageReportSchema>
+export type LLMProvider = z.infer<typeof LLMProviderSchema>
 
 // ---------------------------------------------------------------------------
 // Compile-time contract checks: Zod schema type === generated OpenAPI type
@@ -194,4 +209,5 @@ export type ContractChecks = [
   Assert<Exact<LLMCall, Schemas["LLMCallOut"]>>,
   Assert<Exact<LLMUsageRow, Schemas["LLMUsageRow"]>>,
   Assert<Exact<LLMUsageReport, Schemas["LLMUsageReport"]>>,
+  Assert<Exact<LLMProvider, Schemas["LLMProviderOut"]>>,
 ]

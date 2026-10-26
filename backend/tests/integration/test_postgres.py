@@ -59,7 +59,9 @@ async def test_migrations_create_the_expected_schema(pg_session_factory) -> None
         tables = await conn.run_sync(lambda c: inspect(c).get_table_names())
         assert {"agent_results", "agent_runs", "llm_calls", "alembic_version"} <= set(tables)
         version = (await session.execute(text("select version_num from alembic_version"))).scalar()
-        assert version == "0003"
+        assert version == "0004"
+        columns = await conn.run_sync(lambda c: inspect(c).get_columns("llm_calls"))
+        assert "provider" in {col["name"] for col in columns}
 
 
 async def test_upsert_on_postgres_is_idempotent(pg_session_factory) -> None:
@@ -109,6 +111,7 @@ async def test_llm_usage_aggregates_on_postgres(pg_session_factory) -> None:
                 usage=TokenUsage(input_tokens=1000, output_tokens=100),
                 cost_usd=0.0015,
                 agent=agent,
+                provider="gemini" if agent == "risk" else None,
             )
         )
     since = utcnow() - timedelta(days=1)
@@ -120,6 +123,9 @@ async def test_llm_usage_aggregates_on_postgres(pg_session_factory) -> None:
         assert day.key == utcnow().date().isoformat() and day.calls == 3
         versions = {r.key for r in await repo.usage(since=since, group_by="prompt_version")}
         assert versions == {"moat@v1", "risk@v1"}
+        by_provider = {r.key: r.calls for r in await repo.usage(since=since, group_by="provider")}
+        assert by_provider == {"(unknown)": 2, "gemini": 1}
+        assert await repo.provider_totals("gemini", since) == (1, 1100)
         # agent_runs gained the usage columns with defaults for existing rows
         await session.execute(
             text(

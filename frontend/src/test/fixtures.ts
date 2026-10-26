@@ -1,4 +1,11 @@
-import type { AgentRun, LLMCall, LLMUsageReport, Recommendation, SymbolOverview } from "@/types/api"
+import type {
+  AgentRun,
+  LLMCall,
+  LLMProvider,
+  LLMUsageReport,
+  Recommendation,
+  SymbolOverview,
+} from "@/types/api"
 
 export const recommendation: Recommendation = {
   symbol: "AAPL",
@@ -64,7 +71,7 @@ export const llmUsage: LLMUsageReport = {
 
 export const llmCall: LLMCall = {
     call_id: "c1", created_at: "2026-10-23T22:30:03Z", pipeline_run_id: "p1", run_id: "r1",
-    agent: "financial_history", symbol: "AAPL", model: "claude-haiku-4-5",
+    agent: "financial_history", symbol: "AAPL", provider: "anthropic", model: "claude-haiku-4-5",
     prompt_name: "financial_history", prompt_version: "3f9a1c2b7d10", status: "ok",
     stop_reason: "end_turn", error: null, latency_ms: 1420, input_tokens: 1850,
     output_tokens: 96, cache_read_tokens: 0, cache_write_tokens: 0, cost_usd: 0.00233,
@@ -73,3 +80,15 @@ export const llmCall: LLMCall = {
     response: '{"signal":"bullish","confidence":72,"reasoning":"Steady growth"}',
 }
 export const llmCalls: LLMCall[] = [llmCall]
+
+export const gemini: LLMProvider = {
+  name: "gemini", model: "gemini-3.5-flash-lite", structured_mode: "json_schema",
+  chain_position: 1, rpm: 10, tpm: 250000, rpd: 1000, tpd: null,
+  day_start: "2026-10-23T07:00:00Z", day_requests: 950, day_tokens: 410000,
+}
+export const claude: LLMProvider = {
+  name: "anthropic", model: "claude-haiku-4-5", structured_mode: "native",
+  chain_position: null, rpm: null, tpm: null, rpd: null, tpd: null,
+  day_start: "2026-10-23T00:00:00Z", day_requests: 12, day_tokens: 30000,
+}
+export const llmProviders: LLMProvider[] = [claude, gemini]
