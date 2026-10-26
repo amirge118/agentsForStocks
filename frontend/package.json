@@ -36,16 +36,19 @@
     "@types/node": "26.6.5",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "eslint": "9.29.0",
+    "eslint": "10.13.0",
     "eslint-config-next": "16.4.3",
     "jest": "30.5.2",
     "jest-environment-jsdom": "30.5.2",
     "openapi-typescript": "7.13.0",
     "postcss": "8.5.31",
     "tailwindcss": "4.3.3",
-    "typescript": "5.9.3"
+    "typescript": "6.0.3"
   },
   "overrides": {
-    "postcss": "$postcss"
+    "postcss": "$postcss",
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }
