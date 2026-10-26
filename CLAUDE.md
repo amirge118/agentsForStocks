@@ -60,7 +60,7 @@ cd frontend && npm run test:e2e
 
 ## Architecture in One Paragraph
 
-Frontend (Next.js 15 App Router) talks to Backend (FastAPI) via JSON REST under `/api/v1/`. Frontend has zero business logic and zero direct DB access. Backend layers: HTTP router → Pydantic schemas → `pipeline/` orchestrator → `agents/` (via `AgentRunner`) → `domain/` (pure financial logic) + `providers/` (yfinance, FMP, SEC EDGAR) + `llm/` (Claude) → `repositories/` → models/DB. Dependencies are wired once in `app/container.py` and injected through `AgentContext`. Agents run once per weekday as a dependency graph (registry), are idempotent, and store typed results in PostgreSQL.
+Frontend (Next.js 16 App Router) talks to Backend (FastAPI) via JSON REST under `/api/v1/`. Frontend has zero business logic and zero direct DB access. Backend layers: HTTP router → Pydantic schemas → `pipeline/` orchestrator → `agents/` (via `AgentRunner`) → `domain/` (pure financial logic) + `providers/` (yfinance, FMP, SEC EDGAR) + `llm/` (Claude) → `repositories/` → models/DB. Dependencies are wired once in `app/container.py` and injected through `AgentContext`. Agents run once per weekday as a dependency graph (registry), are idempotent, and store typed results in PostgreSQL.
 
 ## Non-Obvious Gotchas (Read Before Writing Code)
 
