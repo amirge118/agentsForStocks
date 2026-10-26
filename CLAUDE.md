@@ -131,6 +131,12 @@ Model training data lags the registries, so a version "remembered" is usually a 
 - Holding a dependency back is a decision, not a default: write the reason in `FUTURE_IMPROVEMENTS.md` (Dependencies) and add an `ignore` for it in `.github/dependabot.yml` (see aiosqlite, TypeScript 7).
 - A major upgrade ships with evidence: the CI commands below green, the official codemod/upgrade tool where one exists (reviewed, not trusted blindly — `@tailwindcss/upgrade` renamed cva variant keys), and a before/after screenshot comparison when it touches the UI.
 
+### 19. Design Skills (`.claude/skills/`)
+Two design skills are vendored in the repo (sources and update steps: `.claude/skills/VENDORED.md`):
+- `hallmark` — the design system for the dashboard. Its description says to use it on an existing design only when the user names it; the owner has named it for this project, so UI work on the dashboard follows it (`/hallmark redesign <path>`, `/hallmark audit <path>`). Port its HTML/CSS output into Tailwind 4 tokens and React components; its floor rules (tokens only, no `transition: all`, `:focus-visible` everywhere, ...) apply to all frontend code.
+- `scroll-craft` — scroll-driven storytelling pages (e.g. a per-symbol analysis story). Use its taste and verification rules; don't drop its vanilla-JS engine into React-owned DOM.
+- Charts follow the `dataviz` skill. Every frontend PR attaches desktop and mobile screenshots (Playwright).
+
 ## Key File Map
 
 | What you need | Where |
