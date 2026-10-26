@@ -8,7 +8,7 @@ export interface DashboardAuthEnv {
   NODE_ENV?: string
 }
 
-/** Pure handler (env injected) so it can be tested; `middleware` wires in process.env. */
+/** Pure handler (env injected) so it can be tested; `proxy` wires in process.env. */
 export function handleDashboardAuth(request: NextRequest, env: DashboardAuthEnv): NextResponse {
   const expected = env.DASHBOARD_PASSWORD
     ? { user: env.DASHBOARD_USER || "admin", password: env.DASHBOARD_PASSWORD }
@@ -32,7 +32,7 @@ export function handleDashboardAuth(request: NextRequest, env: DashboardAuthEnv)
 }
 
 /** Protects every page and the backend proxy with the dashboard password. */
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   return handleDashboardAuth(request, {
     DASHBOARD_USER: process.env.DASHBOARD_USER,
     DASHBOARD_PASSWORD: process.env.DASHBOARD_PASSWORD,

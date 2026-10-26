@@ -100,7 +100,7 @@ After changing a backend schema or route: `cd backend && python -m scripts.expor
 
 ### 10. Authentication
 - Backend: every `/api/v1` route requires `X-API-Key` (keys in `API_KEYS`, checked in `app/api/auth.py`; `/health` is public). `ENVIRONMENT=production` refuses to start without keys. New routers go under `api_router`, so they inherit the check.
-- Frontend: the browser never sees the key. It calls the same-origin proxy `src/app/api/backend/[...path]/route.ts`, which adds `BACKEND_API_KEY` from server-only env (`src/lib/server/env.ts`, `import "server-only"`). The dashboard itself is protected by Basic auth in `src/middleware.ts` (`DASHBOARD_PASSWORD`; required under `next start`).
+- Frontend: the browser never sees the key. It calls the same-origin proxy `src/app/api/backend/[...path]/route.ts`, which adds `BACKEND_API_KEY` from server-only env (`src/lib/server/env.ts`, `import "server-only"`). The dashboard itself is protected by Basic auth in `src/proxy.ts` (Next 16 "proxy", formerly middleware) (`DASHBOARD_PASSWORD`; required under `next start`).
 - The proxy only forwards writes that are same-origin and `application/json` (CSRF protection — Basic-auth credentials are sent by the browser automatically).
 
 ### 11. Every LLM Call Is Measured — Keep It That Way

@@ -3,7 +3,7 @@
  */
 import { NextRequest } from "next/server"
 
-import { handleDashboardAuth, middleware } from "@/middleware"
+import { handleDashboardAuth, proxy } from "@/proxy"
 
 function request(authorization?: string): NextRequest {
   return new NextRequest("http://dash/", {
@@ -32,12 +32,12 @@ describe("dashboard auth", () => {
     expect(passed(handleDashboardAuth(request(), { NODE_ENV: "development" }))).toBe(true)
   })
 
-  it("middleware reads process.env", () => {
+  it("proxy reads process.env", () => {
     const env = process.env as Record<string, string | undefined>
     const saved = env.DASHBOARD_PASSWORD
     env.DASHBOARD_PASSWORD = "from-env"
     try {
-      expect(middleware(request()).status).toBe(401)
+      expect(proxy(request()).status).toBe(401)
     } finally {
       env.DASHBOARD_PASSWORD = saved
     }
