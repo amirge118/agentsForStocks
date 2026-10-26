@@ -1,3 +1,5 @@
+from datetime import date
+
 import pandas as pd
 import pytest
 
@@ -110,7 +112,7 @@ class _CrumbBlocked(_FakeTicker):
     def info(self) -> dict:
         return {"symbol": self.symbol, "sector": "Technology"}  # no price
 
-    def history(self, period: str, interval: str) -> pd.DataFrame:
+    def history(self, **kwargs: str | bool) -> pd.DataFrame:
         raise RuntimeError("401 Invalid Crumb")
 
     def get_insider_transactions(self) -> pd.DataFrame:
@@ -131,6 +133,10 @@ class _Chart:
     async def get_history(self, symbol: str, period: str, interval: str) -> pd.DataFrame:
         self.calls.append(f"history {symbol} {period}")
         return pd.DataFrame({"Close": [344.0, 345.0]})
+
+    async def get_adjusted_closes(self, symbol: str, start: date, end: date) -> pd.Series:
+        self.calls.append(f"closes {symbol} {start} {end}")
+        return pd.Series([340.0, 342.5], name="Close")
 
 
 def _with_fallback(factory, chart: _Chart) -> YFinanceClient:
@@ -171,9 +177,35 @@ async def test_the_chart_is_not_asked_when_yfinance_works() -> None:
 
 
 @pytest.mark.unit
+async def test_settlement_closes_come_from_the_chart_when_yfinance_fails() -> None:
+    chart = _Chart()
+    start, end = date(2026, 9, 1), date(2026, 10, 1)
+    closes = await _with_fallback(_CrumbBlocked, chart).get_closes("aapl", start, end)
+    assert list(closes) == [340.0, 342.5]
+    assert chart.calls == ["closes AAPL 2026-09-01 2026-10-01"]
+
+    class Empty(_FakeTicker):  # yfinance answers, but with no rows
+        def history(self, **kwargs: str | bool) -> pd.DataFrame:
+            return pd.DataFrame()
+
+    assert list(await _with_fallback(Empty, _Chart()).get_closes("AAPL", start, end)) == [
+        340.0,
+        342.5,
+    ]
+    working = _Chart()
+    assert list(await _with_fallback(_FakeTicker, working).get_closes("AAPL", start, end)) == [
+        1.0,
+        2.0,
+    ]
+    assert working.calls == []
+
+
+@pytest.mark.unit
 async def test_without_a_fallback_failures_still_raise() -> None:
     with pytest.raises(ProviderError):
         await _client(_CrumbBlocked).get_insider_transactions("AAPL")
+    with pytest.raises(ProviderError):
+        await _client(_CrumbBlocked).get_closes("AAPL", date(2026, 9, 1), date(2026, 10, 1))
 
 
 @pytest.mark.unit

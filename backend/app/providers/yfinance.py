@@ -162,7 +162,8 @@ class YFinanceClient:
     async def get_closes(self, symbol: str, start: date, end: date) -> pd.Series:
         """
         Split- and dividend-adjusted daily closes for the sessions in [start, end) —
-        `end` is exclusive, as in yfinance. Empty Series when Yahoo has none.
+        `end` is exclusive, as in yfinance. When yfinance has none (or fails), the chart
+        fallback's adjusted closes. Empty Series when neither has any.
         """
         ticker = validate_symbol(symbol)
 
@@ -174,7 +175,20 @@ class YFinanceClient:
                 return pd.Series(dtype=float)
             return df["Close"]
 
-        return await self._call(("closes", ticker, start.isoformat(), end.isoformat()), _fetch)
+        try:
+            closes = await self._call(
+                ("closes", ticker, start.isoformat(), end.isoformat()), _fetch
+            )
+        except ProviderError:
+            if self._fallback is None:
+                raise
+            closes = pd.Series(dtype=float)
+        if not closes.empty or self._fallback is None:
+            return closes
+        fallback = await self._fallback.get_adjusted_closes(ticker, start, end)
+        if not fallback.empty:
+            _note_fallback("closes", ticker)
+        return fallback
 
     async def get_earnings_dates(self, symbol: str) -> pd.DataFrame:
         ticker = validate_symbol(symbol)
