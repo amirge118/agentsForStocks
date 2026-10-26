@@ -24,12 +24,12 @@ const ToastViewport = React.forwardRef<
 ToastViewport.displayName = ToastPrimitives.Viewport.displayName
 
 const toastVariants = cva(
-  "group pointer-events-auto relative flex w-full items-center justify-between space-x-2 overflow-hidden rounded-md border p-4 pr-6 shadow-lg transition-all",
+  "group pointer-events-auto relative flex w-full items-center justify-between space-x-2 overflow-hidden rounded-card border p-4 pr-6 transition-[opacity,transform] duration-[var(--dur-short)]",
   {
     variants: {
       variant: {
-        default: "border-zinc-800 bg-zinc-900 text-zinc-50",
-        destructive: "border-red-500 bg-red-500 text-zinc-50",
+        default: "border-rule-2 bg-paper-2 text-ink",
+        destructive: "border-bad/40 bg-bad-soft text-ink",
       },
     },
     defaultVariants: { variant: "default" },
@@ -50,7 +50,7 @@ const ToastClose = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Close
     ref={ref}
-    className={cn("absolute right-1 top-1 rounded-md p-1 text-zinc-50/60 hover:text-zinc-50", className)}
+    className={cn("absolute right-1 top-1 rounded-control p-1 text-muted hover:text-ink", className)}
     toast-close=""
     aria-label="Close"
     {...props}
@@ -64,7 +64,7 @@ const ToastTitle = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Title>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Title>
 >(({ className, ...props }, ref) => (
-  <ToastPrimitives.Title ref={ref} className={cn("text-sm font-semibold", className)} {...props} />
+  <ToastPrimitives.Title ref={ref} className={cn("text-sm font-medium", className)} {...props} />
 ))
 ToastTitle.displayName = ToastPrimitives.Title.displayName
 

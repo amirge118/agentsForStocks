@@ -52,7 +52,7 @@ export function AgentRunsTable({ filters = {} }: { filters?: RunFilters }) {
       <TableBody>
         {data.map((run) => (
           <TableRow key={run.run_id}>
-            <TableCell className="text-zinc-400">{formatDateTime(run.started_at)}</TableCell>
+            <TableCell className="text-muted">{formatDateTime(run.started_at)}</TableCell>
             <TableCell className="font-mono">{run.symbol}</TableCell>
             <TableCell>{run.agent_type.replaceAll("_", " ")}</TableCell>
             <TableCell>
@@ -65,17 +65,17 @@ export function AgentRunsTable({ filters = {} }: { filters?: RunFilters }) {
             </TableCell>
             <TableCell className="hidden text-right font-mono tabular-nums md:table-cell">
               {run.llm_calls > 0 ? (
-                <Link href={`/runs/${encodeURIComponent(run.run_id)}`} className="hover:text-zinc-50 hover:underline">
+                <Link href={`/runs/${encodeURIComponent(run.run_id)}`} className="hover:text-ink hover:underline">
                   {formatTokens(run.input_tokens)} / {formatTokens(run.output_tokens)}
                 </Link>
               ) : (
-                <span className="text-zinc-400">—</span>
+                <span className="text-muted">None</span>
               )}
             </TableCell>
             <TableCell className="hidden text-right font-mono tabular-nums md:table-cell">
               {run.llm_calls > 0 ? formatCost(run.cost_usd) : ""}
             </TableCell>
-            <TableCell className="hidden max-w-md truncate text-red-400 md:table-cell">
+            <TableCell className="hidden max-w-md truncate text-bad md:table-cell">
               {run.error}
             </TableCell>
           </TableRow>

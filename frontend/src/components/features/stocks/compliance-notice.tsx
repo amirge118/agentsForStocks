@@ -12,7 +12,7 @@ export function ComplianceNotice({
   disclaimer: string
 }) {
   return (
-    <div className="space-y-2 border-t border-zinc-800 pt-4 text-xs text-zinc-400">
+    <div className="space-y-2 border-t border-rule pt-4 text-xs text-muted">
       {compliance.status !== "pass" && (
         <div className="flex flex-wrap items-center gap-2" aria-label="Compliance review">
           <Badge variant={compliance.status === "fail" ? "loss" : "outline"}>
