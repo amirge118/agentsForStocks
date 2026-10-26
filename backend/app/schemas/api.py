@@ -3,9 +3,10 @@
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.agents.recommendation import ComplianceView, ContributionView, RecommendationResult
+from app.core.symbols import validate_symbol
 from app.domain.scoring import Action
 from app.domain.signals import SignalLabel
 from app.repositories.llm_calls import GroupBy
@@ -74,6 +75,32 @@ class Recommendation(BaseModel):
 class SymbolOverview(BaseModel):
     symbol: str
     recommendation: Recommendation | None
+
+
+class WatchlistItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    symbol: str
+    position: int
+    added_at: datetime
+
+
+class WatchlistAdd(BaseModel):
+    symbol: str = Field(description="Ticker, e.g. AAPL or BRK.B", examples=["AAPL"])
+
+    @field_validator("symbol")
+    @classmethod
+    def _valid_symbol(cls, value: str) -> str:
+        return validate_symbol(value)
+
+
+class WatchlistOrder(BaseModel):
+    symbols: list[str] = Field(description="Every watchlist symbol, in the new order")
+
+    @field_validator("symbols")
+    @classmethod
+    def _valid_symbols(cls, value: list[str]) -> list[str]:
+        return [validate_symbol(s) for s in value]
 
 
 class AgentRunOut(BaseModel):
@@ -154,7 +181,7 @@ class LLMUsageReport(BaseModel):
 
 class PipelineRunRequest(BaseModel):
     symbols: list[str] | None = Field(
-        default=None, description="Defaults to the configured watchlist", max_length=50
+        default=None, description="Defaults to the watchlist", max_length=50
     )
     agents: list[str] | None = Field(default=None, description="Defaults to every agent")
     force: bool = Field(default=False, description="Re-run agents that already ran today")

@@ -882,7 +882,7 @@
                 "type": "null"
               }
             ],
-            "description": "Defaults to the configured watchlist",
+            "description": "Defaults to the watchlist",
             "title": "Symbols"
           }
         },
@@ -1051,6 +1051,64 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WatchlistAdd": {
+        "properties": {
+          "symbol": {
+            "description": "Ticker, e.g. AAPL or BRK.B",
+            "examples": [
+              "AAPL"
+            ],
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "WatchlistAdd",
+        "type": "object"
+      },
+      "WatchlistItemOut": {
+        "properties": {
+          "added_at": {
+            "format": "date-time",
+            "title": "Added At",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "position",
+          "added_at"
+        ],
+        "title": "WatchlistItemOut",
+        "type": "object"
+      },
+      "WatchlistOrder": {
+        "properties": {
+          "symbols": {
+            "description": "Every watchlist symbol, in the new order",
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          }
+        },
+        "required": [
+          "symbols"
+        ],
+        "title": "WatchlistOrder",
         "type": "object"
       }
     },
@@ -1701,6 +1759,178 @@
         "summary": "List Results",
         "tags": [
           "symbols"
+        ]
+      }
+    },
+    "/api/v1/watchlist": {
+      "get": {
+        "operationId": "list_watchlist_api_v1_watchlist_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WatchlistItemOut"
+                  },
+                  "title": "Response List Watchlist Api V1 Watchlist Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List Watchlist",
+        "tags": [
+          "watchlist"
+        ]
+      },
+      "post": {
+        "operationId": "add_to_watchlist_api_v1_watchlist_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchlistAdd"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchlistItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Already on the watchlist"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Add To Watchlist",
+        "tags": [
+          "watchlist"
+        ]
+      }
+    },
+    "/api/v1/watchlist/order": {
+      "put": {
+        "operationId": "reorder_watchlist_api_v1_watchlist_order_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchlistOrder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WatchlistItemOut"
+                  },
+                  "title": "Response Reorder Watchlist Api V1 Watchlist Order Put",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Reorder Watchlist",
+        "tags": [
+          "watchlist"
+        ]
+      }
+    },
+    "/api/v1/watchlist/{symbol}": {
+      "delete": {
+        "operationId": "remove_from_watchlist_api_v1_watchlist__symbol__delete",
+        "parameters": [
+          {
+            "description": "Ticker, e.g. AAPL or BRK.B",
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "description": "Ticker, e.g. AAPL or BRK.B",
+              "title": "Symbol",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Not on the watchlist"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Remove From Watchlist",
+        "tags": [
+          "watchlist"
         ]
       }
     },

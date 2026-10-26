@@ -3,17 +3,23 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.agents.runner import RunOutcome
-from app.agents.scheduler import DAILY_JOB_ID, create_scheduler, run_daily_pipeline
+from app.agents.scheduler import (
+    DAILY_JOB_ID,
+    create_scheduler,
+    load_watchlist,
+    run_daily_pipeline,
+)
 from app.pipeline.orchestrator import PipelineReport
 
 
 @pytest.mark.unit
 def test_daily_job_runs_weekdays_after_close() -> None:
     orchestrator = AsyncMock()
-    scheduler = create_scheduler(orchestrator, ["AAPL"])
+    provider = AsyncMock(return_value=["AAPL"])
+    scheduler = create_scheduler(orchestrator, provider)
     job = scheduler.get_job(DAILY_JOB_ID)
     assert str(job.trigger) == "cron[day_of_week='mon-fri', hour='18', minute='30']"
-    assert job.args == (orchestrator, ["AAPL"])
+    assert job.args == (orchestrator, provider)
     assert str(scheduler.timezone) == "America/New_York"
 
 
@@ -23,19 +29,42 @@ async def test_run_daily_pipeline_runs_watchlist(caplog) -> None:
     orchestrator = AsyncMock()
     orchestrator.run.return_value = PipelineReport("p1", run_date=None, outcomes=(failed,))
 
-    await run_daily_pipeline(orchestrator, ["AAPL"])
+    await run_daily_pipeline(orchestrator, AsyncMock(return_value=["AAPL"]))
 
     orchestrator.run.assert_awaited_once_with(["AAPL"])
     assert "finished with failures" in caplog.text
 
 
 @pytest.mark.unit
+async def test_run_daily_pipeline_skips_an_empty_watchlist(caplog) -> None:
+    orchestrator = AsyncMock()
+
+    await run_daily_pipeline(orchestrator, AsyncMock(return_value=[]))
+
+    orchestrator.run.assert_not_awaited()
+    assert "watchlist is empty" in caplog.text
+
+
+@pytest.mark.unit
+async def test_load_watchlist_reads_the_current_list(session_factory) -> None:
+    from app.repositories.watchlist import WatchlistRepository
+
+    assert await load_watchlist(session_factory) == []
+    async with session_factory() as session:
+        await WatchlistRepository(session).add("MSFT")
+        await WatchlistRepository(session).add("AAPL")
+        await session.commit()
+    # Read when the job fires, so a symbol added after startup is picked up
+    assert await load_watchlist(session_factory) == ["MSFT", "AAPL"]
+
+
+@pytest.mark.unit
 def test_maintenance_job_is_registered_when_given() -> None:
     from app.agents.scheduler import MAINTENANCE_JOB_ID
 
-    assert create_scheduler(AsyncMock(), ["AAPL"]).get_job(MAINTENANCE_JOB_ID) is None
+    assert create_scheduler(AsyncMock(), AsyncMock()).get_job(MAINTENANCE_JOB_ID) is None
     maintenance = AsyncMock()
-    job = create_scheduler(AsyncMock(), ["AAPL"], maintenance=maintenance).get_job(
+    job = create_scheduler(AsyncMock(), AsyncMock(), maintenance=maintenance).get_job(
         MAINTENANCE_JOB_ID
     )
     assert str(job.trigger) == "cron[hour='3', minute='15']"

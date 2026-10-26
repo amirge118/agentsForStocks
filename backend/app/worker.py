@@ -13,7 +13,7 @@ from functools import partial
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.agents.scheduler import create_scheduler, prune_llm_calls
+from app.agents.scheduler import create_scheduler, load_watchlist, prune_llm_calls
 from app.container import build_container
 from app.core.config import Settings
 
@@ -29,11 +29,11 @@ async def run_worker(
     container = build_container(settings, session_factory)
     scheduler = create_scheduler(
         container.orchestrator,
-        settings.watchlist_symbols,
+        partial(load_watchlist, session_factory),
         maintenance=partial(prune_llm_calls, session_factory, settings.llm_call_retention_days),
     )
     scheduler.start()
-    logger.info("Scheduler worker started", extra={"symbols": settings.watchlist_symbols})
+    logger.info("Scheduler worker started")
     try:
         await stop.wait()
     finally:

@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_container, get_session, symbol_param
 from app.container import Container
 from app.repositories.agent_results import AgentResultRepository
+from app.repositories.watchlist import WatchlistRepository
 from app.schemas.api import AgentResultOut, Recommendation, SymbolOverview
 
 router = APIRouter(prefix="/symbols", tags=["symbols"])
@@ -21,11 +22,8 @@ _RECOMMENDATION = "recommendation"
 
 
 @router.get("", response_model=list[SymbolOverview])
-async def list_symbols(
-    container: Container = Depends(get_container),
-    session: AsyncSession = Depends(get_session),
-) -> list[SymbolOverview]:
-    symbols = container.settings.watchlist_symbols
+async def list_symbols(session: AsyncSession = Depends(get_session)) -> list[SymbolOverview]:
+    symbols = await WatchlistRepository(session).symbols()
     latest = await AgentResultRepository(session).latest_per_symbol(_RECOMMENDATION, symbols)
     return [
         SymbolOverview(

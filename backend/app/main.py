@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from app.agents.scheduler import create_scheduler, prune_llm_calls
+from app.agents.scheduler import create_scheduler, load_watchlist, prune_llm_calls
 from app.api.v1.router import api_router
 from app.container import build_container
 from app.core.config import settings
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if settings.run_scheduler:
         app.state.scheduler = create_scheduler(
             container.orchestrator,
-            settings.watchlist_symbols,
+            partial(load_watchlist, container.session_factory),
             maintenance=partial(
                 prune_llm_calls, container.session_factory, settings.llm_call_retention_days
             ),
