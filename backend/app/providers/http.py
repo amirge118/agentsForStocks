@@ -117,7 +117,8 @@ class HttpClient:
                 where = resp.headers.get("location", "")
                 detail = f" → {where}" if 300 <= resp.status_code < 400 and where else ""
                 raise ProviderError(
-                    f"HTTP {resp.status_code} from {domain}{urlsplit(url).path}{detail}"
+                    f"HTTP {resp.status_code} from {domain}{urlsplit(url).path}{detail}",
+                    status=resp.status_code,
                 )
             return resp.text
 

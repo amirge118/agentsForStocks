@@ -95,6 +95,10 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [x] First live eval on Gemini free tier (gemini-3.5-flash-lite, scenario suite): 100% label accuracy on 22 labelled cases, 0 fallbacks, $0 — it surfaced the fundamentals missing-data bug (fixed)
 - [ ] Audit the other domain scorers (valuation DCF / owner earnings / EV-EBITDA, financials) for "missing field = 0" defaults, like the fundamentals vote had [PRIORITY: MED]
 - [ ] Run the free_gemini preset against a Claude baseline with --repeats 3 --judge once ANTHROPIC_API_KEY is available, then decide the default provider [PRIORITY: HIGH]
+- [x] First full live pipeline run (AAPL, MSFT): all 13 agents complete on the free LLM chain at $0, after moving FMP to /stable/, fixing EDGAR's archive URL and adding the Yahoo chart fallback; the valuation no longer divides by a price x 1-share market cap
+- [ ] Fill yfinance `info` fundamentals from FMP (profile, ratios, key-metrics, statements) when Yahoo returns only a quote — today fundamentals, and the valuation's EV/EBITDA and owner-earnings methods, have no data on cloud hosts [PRIORITY: HIGH]
+- [ ] Earnings-call transcripts and institutional ownership need a paid FMP plan, or another source (SEC 13F filings for ownership) [PRIORITY: MED]
+- [ ] FMP marks ETFs with isEtf=true and still gives them a sector — skip company-only agents (moat, fundamentals, valuation) for ETFs such as SPY / QQQ [PRIORITY: MED]
 - [ ] Alert when a free tier passes 90% of its daily limit (Grafana alert on the "use today" query) [PRIORITY: LOW]
 - [ ] Run the free_chain / free_gemini presets against the baseline in a live eval before making the chain the default [PRIORITY: HIGH]
 - [ ] More chain steps: OpenRouter `:free` models (50 req/day, 1,000 after a one-time $10 top-up), Mistral's free tier (trains on inputs), a local Ollama [PRIORITY: LOW]

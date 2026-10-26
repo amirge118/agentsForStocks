@@ -112,7 +112,8 @@ def distressed() -> Scenario:
         row["netIncome"] = -5e8
     for row in fmp.data["cash_flow"]:
         row["freeCashFlow"] = -1e9
-    fmp.data["key_metrics"] = [{"debtToEquity": 4.5, "currentRatio": 0.6}]
+    for row in fmp.data["ratios"]:
+        row.update(debtToEquityRatio=4.5, currentRatio=0.6)
     edgar = FakeEdgar(risk="We face going concern doubt, covenant breaches and litigation.")
     return Scenario("distressed", FakeYFinance(info=info, history=_trend(250, -0.003)), fmp, edgar)
 
