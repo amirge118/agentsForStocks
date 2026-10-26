@@ -17,6 +17,7 @@ from app.agents.contracts import apply_contract, missing_inputs
 from app.agents.market_scanner import ScanJudgement
 from app.agents.sentiment import NewsSentiment
 from app.core.context import bind_run
+from app.domain.outcomes import captured_alpha, is_hit
 from app.llm.errors import LLMError
 from app.llm.pricing import Price
 from app.llm.profiles import AgentProfile, ProfileBook
@@ -315,10 +316,25 @@ def grade(case: EvalCase, runs: list[Run]) -> dict[str, Any]:
         "fallback_rate": _share(runs, lambda r: r.fallback),
         "violation_rate": _share(ok, lambda r: bool(r.violations)),
         "faithfulness": _share(judged, lambda r: bool(r.faithful)) if judged else None,
+        **_outcome_grades(case, ok),
         "avg_input_tokens": round(statistics.fmean([r.input_tokens for r in ok]), 0) if ok else 0,
         "avg_output_tokens": round(statistics.fmean([r.output_tokens for r in ok]), 0) if ok else 0,
         "cost_usd": round(sum(priced), 6) if len(priced) == len(ok) else None,
         "samples": [_sample(r) for r in runs[:3]],
+    }
+
+
+def _outcome_grades(case: EvalCase, ok: list[Run]) -> dict[str, Any]:
+    """Against what followed: was the call right, and what would following it have earned?"""
+    alpha, horizon = case.outcome_alpha, case.outcome_horizon
+    if alpha is None or horizon is None:
+        return {"outcome_alpha": None, "outcome_hit_rate": None, "alpha_captured": None}
+    return {
+        "outcome_alpha": alpha,
+        "outcome_hit_rate": _share(ok, lambda r: is_hit(r.signal, alpha, horizon)),
+        "alpha_captured": (
+            round(statistics.fmean(captured_alpha(r.signal, alpha) for r in ok), 5) if ok else None
+        ),
     }
 
 

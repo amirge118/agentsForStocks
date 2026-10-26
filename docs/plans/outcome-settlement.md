@@ -1,6 +1,6 @@
 # Plan: Outcome settlement and lessons (closing the loop)
 
-Status: phase 1 (settlement) implemented; phases 2–4 open. Idea source: TradingAgents (`tradingagents/memory/settlement.py`,
+Status: phases 1, 3 and 4 implemented; phase 2 (read side) deferred to FUTURE_IMPROVEMENTS.md. Idea source: TradingAgents (`tradingagents/memory/settlement.py`,
 `reflection.py`, `backtest.py`, Apache-2.0); adapted to our runner, ledger and DB.
 
 ## Problem
@@ -135,6 +135,15 @@ This is a prompt change → `recommendation` prompt snapshot update + an eval re
    recommendation, snapshots, eval report.
 4. **Follow-ups**: outcome eval suite in `evals/` (score a configuration's labels against
    realised alpha), then the backtest plan (weights/thresholds).
+
+As built (phases 1, 3, 4):
+- Lessons: `app/agents/outcome_review.py` (`OutcomeReviewAgent`, `SessionOutcomesReader`),
+  read by agents through `AgentContext.outcomes`; the recommendation depends on it so today's
+  lessons are in today's prompt.
+- Outcome evals: `evals.capture --outcomes` joins `llm_calls` → `agent_runs` →
+  `decision_outcomes`, so a case is the exact prompt of that day plus the alpha that followed;
+  `evals.run --suite outcomes` grades `outcome_hit_rate` and `alpha_captured`.
+- Backtest: `docs/plans/backtest.md`.
 
 ## Tests
 

@@ -17,10 +17,14 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Decide recommendation weights for fundamentals / technicals / sentiment / market_scanner (currently weight 0 = informational only; set via @register_agent) [PRIORITY: MED]
 - [ ] Backtest the recommendation weights and BUY/SELL thresholds against historical prices [PRIORITY: HIGH]
 - [x] Outcome settlement, phase 1: `decision_outcomes` table, nightly settlement before the daily pipeline (backfills history), `scripts.settle_outcomes`
-- [ ] Outcome settlement, phases 2–4 (track record API + page, lessons agent, outcome evals): score every stored decision against realised returns (alpha vs benchmark, 5/20/60 trading days, entry at the next close, only complete windows), turn settled recommendations into short lessons fed back point-in-time — plan in `docs/plans/outcome-settlement.md` (idea from TradingAgents `memory/settlement.py`) [PRIORITY: HIGH]
-- [ ] Grid backtest over (ticker × date) scoring decision quality only, no portfolio simulator — builds on outcome settlement (TradingAgents `backtest.py`) [PRIORITY: HIGH]
+- [x] Outcome settlement, phase 3: `outcome_review` agent writes a lesson per settled recommendation; the recommendation prompt gets a point-in-time track record (hit rate, alpha captured, lessons)
+- [x] Outcome settlement, phase 4: `evals.capture --outcomes` + `evals.run --suite outcomes` — replays captured prompts and grades a configuration by hit rate and alpha captured against what really followed
+- [ ] Outcome settlement, phase 2 (deferred): track-record read side — `OutcomeRepository.track_record(agent, horizon, since)` (hit rate, mean alpha, confidence buckets per agent and signal), `GET /api/v1/outcomes/track-record` and `/symbols/{symbol}/outcomes`, `scripts.track_report`, a "Track record" card on the symbol page and a `/track-record` page — see `docs/plans/outcome-settlement.md` [PRIORITY: MED]
+- [ ] Run the outcome eval suite live once a few weeks of recommendations have settled (current prompt as the baseline for every later prompt/model change) [PRIORITY: HIGH]
+- [ ] Hit rate per analyst agent in its own prompt ("your bullish calls on this symbol were right 3/7 times") — easy with phase 2's query; measure with the outcome suite first [PRIORITY: LOW]
+- [ ] Backtest: plan in `docs/plans/backtest.md` — (A) re-weight stored analyst results against settled alpha (no LLM, date-split to avoid overfitting), then (B) re-run the pipeline on past dates once the point-in-time guard exists (TradingAgents `backtest.py`) [PRIORITY: HIGH]
 - [ ] Point-in-time guard for historical runs: clamp every provider call to `run_date`, drop items dated after it, report "feed can't reach that window" as unavailable rather than empty, withhold live snapshots (`info`) from past dates — required before any backtest (TradingAgents `dataflows/date_window.py`) [PRIORITY: HIGH]
-- [ ] Bull/bear debate as a `recommendation` prompt variant (one bull and one bear pass, then the decision; "conflict alone is not a reason to HOLD") — ship only if an eval beats the current prompt, it multiplies calls per symbol (TradingAgents `agents/researchers/`) [PRIORITY: LOW]
+- [ ] Bull/bear debate as a `recommendation` prompt variant (one bull and one bear pass, then the decision; "conflict alone is not a reason to HOLD") — plan in `docs/plans/bull-bear-debate.md`; ship only if the scenario and outcome evals beat the current prompt, it triples the recommendation's calls (TradingAgents `agents/researchers/`) [PRIORITY: MED]
 - [ ] Check that no parse/LLM failure is silently stored as a neutral HOLD; mark it as needing review instead (TradingAgents `rating.py` `REVIEW`) [PRIORITY: MED]
 - [ ] Macro regime input for risk / recommendation from FRED (fed funds, 2y/10y, curve, CPI, unemployment, VIX; free key) [PRIORITY: MED]
 
@@ -95,7 +99,7 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [x] Eval harness (evals/): scenario + ledger-replay suites; label accuracy, confidence limits, stability across repeats, LLM-as-judge faithfulness, contract violations, tokens and cost; cost estimate before every run; reports + compare
 - [ ] Run the first live eval baseline (needs ANTHROPIC_API_KEY): current models vs claude-haiku-5-5 / claude-sonnet-5-5, with and without skills [PRIORITY: HIGH]
 - [ ] Optional weekly eval in GitHub Actions with a key secret, posting the report as an artifact [PRIORITY: LOW]
-- [ ] Outcome evals: did the signals predict 1 / 4 / 12-week returns vs SPY (needs stored recommendations + price history) [PRIORITY: HIGH]
+- [x] Outcome evals: did the signals predict 1 / 4 / 12-week returns vs SPY — `decision_outcomes` + `evals.run --suite outcomes`
 - [x] Agent profiles (provider, model, skills, max_tokens, use_llm, prompt variant) with AGENT_PROFILES overrides; skills in app/llm/skills; OpenAI-compatible second provider; every call through Agent.ask()
 - [ ] Decide which skills become defaults per agent — from eval results, not intuition [PRIORITY: MED]
 - [ ] Skills with data hooks (e.g. comparable_companies fetching peers) instead of text-only guidance [PRIORITY: LOW]

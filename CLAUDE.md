@@ -47,6 +47,7 @@ cd backend && python -m scripts.token_report [--days 30] [--by model]
 cd backend && python -m evals.run --suite scenarios --repeats 3 [--judge] [--profiles '{"*": {...}}'] --label x --yes
 cd backend && python -m evals.compare evals/reports/<a>.json evals/reports/<b>.json
 cd backend && python -m evals.capture --days 7     # real prompts from the ledger → evals/datasets/ledger.jsonl
+cd backend && python -m evals.capture --outcomes && python -m evals.run --suite outcomes --label x --yes  # vs realised alpha
 
 # Production scheduler: API processes with RUN_SCHEDULER=false + exactly one worker
 cd backend && python -m app.worker
@@ -142,6 +143,8 @@ Model training data lags the registries, so a version "remembered" is usually a 
 | Agent contract / run lifecycle | `backend/app/agents/base.py` / `backend/app/agents/runner.py` |
 | Agent registry (deps, weights, order) | `backend/app/agents/registry.py` |
 | Decision outcomes (forward returns vs benchmark, 5/20/60 sessions) | `backend/app/domain/outcomes.py`, `backend/app/pipeline/settlement.py`, table `decision_outcomes` |
+| Lessons from settled calls + track record (point-in-time) | `backend/app/agents/outcome_review.py` → `AgentContext.outcomes` → recommendation prompt |
+| Plans for larger features | `docs/plans/` |
 | Pipeline orchestration + scheduler | `backend/app/pipeline/orchestrator.py`, `backend/app/agents/scheduler.py`, `backend/app/worker.py` |
 | Preflight / manual runs | `backend/app/ops/`, `backend/scripts/preflight.py`, `backend/scripts/run_pipeline.py` |
 | Pure financial logic | `backend/app/domain/` |
