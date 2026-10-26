@@ -124,6 +124,13 @@ Ready-made experiments live in `evals/presets/` (`--profiles @evals/presets/haik
 ### 17. Free Tiers First, Through the Chain
 `LLM_PROVIDER=chain` sends each call along `LLM_CHAIN` (`app/llm/chain.py`): Gemini → Groq → Cerebras (`app/llm/providers_catalog.py`, on when their `*_API_KEY` is set) → Claude Haiku 5.5. Each free provider has a `ProviderQuota` (`app/llm/quota.py`): a call that won't fit its RPM/TPM within `LLM_QUOTA_MAX_WAIT_SECONDS`, or its daily limit, is skipped without being sent, and a 429 cools the provider down instead of retrying. Daily counts are seeded from `llm_calls.provider`, so record the provider on every call. Model ids and quotas change often: override them in `LLM_PROVIDERS` and confirm with `python -m scripts.preflight`, which checks each model id against the provider's `/models`. Groq and Cerebras use `json_object` mode (schema in the system prompt), so every reply is still validated by Pydantic. Where it shows: `GET /api/v1/llm/providers` (chain order, limits, use today from the ledger) and the Tokens & cost page, `/llm/usage?group_by=provider` and `token_report --by provider`, and the Grafana "Model providers" row (calls per provider, use today, chain fall-throughs).
 
+### 18. Dependency Versions Come From the Registry, Never From Memory
+Model training data lags the registries, so a version "remembered" is usually a release or a major behind.
+- Before adding or bumping a dependency, look up the current release: `npm view <pkg> version peerDependencies` / `pip index versions <pkg>` — and check it fits its peers (`npm ls`, `pip check`).
+- Pin exactly (`==` / no `^`) and commit the lockfile; let Dependabot propose later bumps.
+- Holding a dependency back is a decision, not a default: write the reason in `FUTURE_IMPROVEMENTS.md` (Dependencies) and add an `ignore` for it in `.github/dependabot.yml` (see aiosqlite, TypeScript 7).
+- A major upgrade ships with evidence: the CI commands below green, the official codemod/upgrade tool where one exists (reviewed, not trusted blindly — `@tailwindcss/upgrade` renamed cva variant keys), and a before/after screenshot comparison when it touches the UI.
+
 ## Key File Map
 
 | What you need | Where |
