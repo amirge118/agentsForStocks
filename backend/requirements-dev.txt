@@ -2,7 +2,7 @@
 
 # Testing
 pytest==9.1.1
-pytest-asyncio==1.4.0
+pytest-asyncio==1.4.1
 pytest-cov==7.1.0
 # Held at 0.20.0: with SQLAlchemy 2.1.6, aiosqlite 0.22.1's new stop() is used to
 # force-close a connection cancelled mid-query, and SQLAlchemy's shielded graceful
