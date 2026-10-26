@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agents.base import Agent, AgentContext
 from app.agents.catalog import load_agents
+from app.agents.outcome_review import SessionOutcomesReader
 from app.agents.registry import AgentRegistry
 from app.agents.runner import AgentRunner, SessionResultsReader
 from app.core.config import Settings
@@ -174,6 +175,7 @@ def build_container(
         results=SessionResultsReader(session_factory),
         reasoning_model=settings.llm_reasoning_model,
         profiles=ProfileBook.from_config(settings.agent_profiles, settings.agent_profiles_file),
+        outcomes=SessionOutcomesReader(session_factory),
     )
     registry = load_agents()
     runner = AgentRunner(session_factory, knowledge)

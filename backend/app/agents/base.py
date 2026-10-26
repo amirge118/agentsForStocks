@@ -20,6 +20,7 @@ from typing import Any, ClassVar, Generic, Literal, Protocol, Self, TypeVar
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.context import note_fallback
+from app.domain.outcomes import Lesson, SettledCall
 from app.domain.signals import SignalLabel
 from app.knowledge.store import Learning
 from app.llm.errors import LLMError
@@ -101,6 +102,45 @@ class ResultsReader(Protocol):
     ) -> dict[str, dict[str, Any]]: ...
 
 
+class OutcomesReader(Protocol):
+    """
+    What happened after past calls (app/pipeline/settlement.py), point-in-time: only
+    outcomes whose window had closed before the date asked for.
+    """
+
+    async def settled_calls(
+        self, symbol: str, *, agent: str, horizon: int, before: date, limit: int
+    ) -> list[SettledCall]: ...
+
+    async def lessons(
+        self,
+        *,
+        until: date,
+        symbol: str | None = None,
+        exclude_symbol: str | None = None,
+        limit: int = 5,
+    ) -> list[Lesson]: ...
+
+
+class NoOutcomes:
+    """No settled history (evals, tests, a fresh database)."""
+
+    async def settled_calls(
+        self, symbol: str, *, agent: str, horizon: int, before: date, limit: int
+    ) -> list[SettledCall]:
+        return []
+
+    async def lessons(
+        self,
+        *,
+        until: date,
+        symbol: str | None = None,
+        exclude_symbol: str | None = None,
+        limit: int = 5,
+    ) -> list[Lesson]:
+        return []
+
+
 @dataclass(frozen=True)
 class AgentContext:
     """Everything an agent may depend on. Built once in app.container."""
@@ -113,6 +153,8 @@ class AgentContext:
     reasoning_model: str
     # Per-prompt model/provider/skill configuration (app/llm/profiles.py)
     profiles: ProfileBook = field(default_factory=ProfileBook)
+    # Settled outcomes of past calls and the lessons drawn from them
+    outcomes: OutcomesReader = field(default_factory=NoOutcomes)
 
 
 DataT = TypeVar("DataT")

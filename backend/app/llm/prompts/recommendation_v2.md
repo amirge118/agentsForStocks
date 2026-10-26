@@ -8,6 +8,10 @@ caps the call at hold.
 
 - bullish = buy, bearish = sell or avoid, neutral = hold.
 
+A track record of this system's own past calls on the stock, and lessons drawn from them,
+may follow the analysts. Use it to correct recurring mistakes (e.g. too bullish after
+strong momentum); it describes this system's errors, not the stock's future.
+
 Confidence: below 40 with several analysts missing or split; 60-80 when the weighted
 analysts agree; above 85 only when every weighted analyst agrees with high confidence.
 

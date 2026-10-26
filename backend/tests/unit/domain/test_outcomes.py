@@ -3,7 +3,16 @@ from datetime import date, timedelta
 import pandas as pd
 import pytest
 
-from app.domain.outcomes import daily_closes, score, window_end
+from app.domain.outcomes import (
+    SettledCall,
+    TrackRecord,
+    captured_alpha,
+    daily_closes,
+    hold_band,
+    is_hit,
+    score,
+    window_end,
+)
 
 
 def closes(start: str, values: list[float], tz: str | None = "America/New_York") -> pd.Series:
@@ -91,3 +100,44 @@ def test_window_end_leaves_room_for_weekends_and_holidays() -> None:
 def test_horizon_must_be_positive() -> None:
     with pytest.raises(ValueError):
         score(STOCK, BENCH, date(2026, 10, 5), horizon=0)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("signal", "alpha", "horizon", "hit"),
+    [
+        ("bullish", 0.01, 20, True),
+        ("bullish", -0.01, 20, False),
+        ("bearish", -0.01, 20, True),
+        ("bearish", 0.0, 20, False),
+        ("neutral", 0.019, 20, True),
+        ("neutral", -0.021, 20, False),
+        ("neutral", 0.03, 60, True),  # the band widens with the horizon (±3.5% at 60)
+        ("neutral", 0.015, 5, False),  # and narrows below it (±1% at 5)
+    ],
+)
+def test_hit_rules(signal: str, alpha: float, horizon: int, hit: bool) -> None:
+    assert is_hit(signal, alpha, horizon) is hit
+
+
+@pytest.mark.unit
+def test_hold_band_scales_with_the_square_root_of_time() -> None:
+    assert hold_band(20) == pytest.approx(0.02)
+    assert hold_band(80) == pytest.approx(0.04)
+
+
+@pytest.mark.unit
+def test_track_record_counts_hits_and_captured_alpha() -> None:
+    def call(signal: str, alpha: float) -> SettledCall:
+        return SettledCall(
+            "AAPL", date(2026, 9, 1), date(2026, 9, 30), 20, "SPY", signal, 60.0, "", 0.0, alpha
+        )
+
+    track = TrackRecord(
+        20, "SPY", (call("bullish", 0.04), call("bearish", 0.02), call("neutral", 0.01)), ()
+    )
+    assert track.hits == 2
+    # long +4%, short against +2% = -2%, out = 0  → mean +0.67%
+    assert track.mean_captured_alpha == pytest.approx(0.02 / 3)
+    assert TrackRecord(20, "SPY", (), ()).mean_captured_alpha is None
+    assert captured_alpha("bearish", -0.03) == pytest.approx(0.03)

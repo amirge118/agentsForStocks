@@ -1,12 +1,15 @@
-"""DecisionOutcomeRepository — pending rows for every judged day, and the rows still to settle."""
+"""DecisionOutcomeRepository — pending rows for every judged day, the rows still to settle,
+and settled outcomes joined to the calls they score."""
 
 from collections.abc import Iterable, Sequence
+from datetime import date
 from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.outcomes import SettledCall
 from app.models.agent_result import AgentResult
 from app.models.decision_outcome import DecisionOutcome
 
@@ -70,3 +73,43 @@ class DecisionOutcomeRepository:
             DecisionOutcome.symbol, DecisionOutcome.decision_date, DecisionOutcome.horizon_days
         )
         return list((await self._session.execute(stmt)).scalars().all())
+
+    async def settled_calls(
+        self, symbol: str, *, agent: str, horizon: int, before: date, limit: int
+    ) -> list[SettledCall]:
+        """
+        `agent`'s calls on `symbol` whose `horizon` outcome was known before `before`
+        (exit session earlier than it), newest first — point-in-time for a run on `before`.
+        """
+        stmt = (
+            select(DecisionOutcome, AgentResult.result_json)
+            .join(
+                AgentResult,
+                (AgentResult.symbol == DecisionOutcome.symbol)
+                & (AgentResult.run_date == DecisionOutcome.decision_date),
+            )
+            .where(
+                AgentResult.agent_type == agent,
+                DecisionOutcome.symbol == symbol,
+                DecisionOutcome.horizon_days == horizon,
+                DecisionOutcome.status == "settled",
+                DecisionOutcome.exit_date < before,
+            )
+            .order_by(DecisionOutcome.decision_date.desc())
+            .limit(limit)
+        )
+        return [
+            SettledCall(
+                symbol=o.symbol,
+                decision_date=o.decision_date,
+                exit_date=o.exit_date,
+                horizon=o.horizon_days,
+                benchmark=o.benchmark,
+                signal=str(result.get("signal", "neutral")),
+                confidence=float(result.get("confidence", 0.0)),
+                reasoning=str(result.get("reasoning", "")),
+                raw_return=o.raw_return,
+                alpha=o.alpha,
+            )
+            for o, result in (await self._session.execute(stmt)).all()
+        ]

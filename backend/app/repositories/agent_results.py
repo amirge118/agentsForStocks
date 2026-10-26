@@ -105,3 +105,23 @@ class AgentResultRepository:
             stmt = stmt.where(AgentResult.run_date == run_date)
         stmt = stmt.order_by(AgentResult.run_date.desc(), AgentResult.agent_type).limit(limit)
         return list((await self._session.execute(stmt)).scalars().all())
+
+    async def recent(
+        self,
+        agent_type: str,
+        *,
+        until: date,
+        symbol: str | None = None,
+        exclude_symbol: str | None = None,
+        limit: int = 20,
+    ) -> list[AgentResult]:
+        """Rows of one agent dated on or before `until`, newest first."""
+        stmt = select(AgentResult).where(
+            AgentResult.agent_type == agent_type, AgentResult.run_date <= until
+        )
+        if symbol is not None:
+            stmt = stmt.where(AgentResult.symbol == symbol)
+        if exclude_symbol is not None:
+            stmt = stmt.where(AgentResult.symbol != exclude_symbol)
+        stmt = stmt.order_by(AgentResult.run_date.desc(), AgentResult.symbol).limit(limit)
+        return list((await self._session.execute(stmt)).scalars().all())
