@@ -72,7 +72,8 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Watchlist groups / tags (e.g. "core", "ideas") and per-group runs [PRIORITY: LOW]
 - [x] Next.js frontend: watchlist, symbol detail, run history; types generated from OpenAPI + Zod validated and checked against them
 - [ ] Symbol detail: per-agent result panels (valuation DCF scenarios, technical strategies, moat keywords) from /symbols/{symbol}/results [PRIORITY: MED]
-- [ ] Charts: recommendation score history and price history per symbol [PRIORITY: MED]
+- [ ] Charts: recommendation score history and price history per symbol — backend done (`GET /symbols/{symbol}/prices`: OHLCV + SMA20/50 + RSI14; score history from `/results?agent=recommendation`), frontend in progress [PRIORITY: MED]
+- [ ] Price chart: weekly bars for ranges over 1Y, and intraday for 1D/5D [PRIORITY: LOW]
 - [ ] Agents page from GET /api/v1/agents (dependency graph + weights) [PRIORITY: LOW]
 - [ ] shadcn CLI was unreachable from the build environment — primitives in src/components/ui were written from the shadcn source; re-sync with `npx shadcn add` when online [PRIORITY: LOW]
 - [ ] Move to Next.js 16 when CLAUDE.md allows — Next 15 bundles a vulnerable postcss, currently forced to 8.5.31 via npm overrides [PRIORITY: MED]

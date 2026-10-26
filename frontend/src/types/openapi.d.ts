@@ -143,6 +143,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/symbols/{symbol}/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Prices */
+        get: operations["get_prices_api_v1_symbols__symbol__prices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/symbols/{symbol}/recommendation": {
         parameters: {
             query?: never;
@@ -580,6 +597,42 @@ export interface components {
              */
             symbols?: string[] | null;
         };
+        /** PriceBarOut */
+        PriceBarOut: {
+            /** Close */
+            close: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** High */
+            high: number | null;
+            /** Low */
+            low: number | null;
+            /** Open */
+            open: number | null;
+            /** Rsi14 */
+            rsi14: number | null;
+            /** Sma20 */
+            sma20: number | null;
+            /** Sma50 */
+            sma50: number | null;
+            /** Volume */
+            volume: number | null;
+        };
+        /** PriceHistory */
+        PriceHistory: {
+            /** Bars */
+            bars: components["schemas"]["PriceBarOut"][];
+            /**
+             * Range
+             * @enum {string}
+             */
+            range: "1M" | "3M" | "6M" | "1Y";
+            /** Symbol */
+            symbol: string;
+        };
         /** Recommendation */
         Recommendation: {
             /**
@@ -910,6 +963,47 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SymbolOverview"][];
                 };
+            };
+        };
+    };
+    get_prices_api_v1_symbols__symbol__prices_get: {
+        parameters: {
+            query?: {
+                range?: "1M" | "3M" | "6M" | "1Y";
+            };
+            header?: never;
+            path: {
+                /** @description Ticker, e.g. AAPL or BRK.B */
+                symbol: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceHistory"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description The price provider is unavailable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

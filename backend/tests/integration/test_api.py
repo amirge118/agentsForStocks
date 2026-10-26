@@ -59,6 +59,8 @@ async def api(concurrent_session_factory) -> AsyncIterator[httpx.AsyncClient]:
         build_agent=lambda name: container.registry.get(name).agent_cls(ctx),
     )
     container.launcher = PipelineLauncher(orchestrator, container.registry)
+    # Fake providers for the endpoints that fetch data directly (price chart)
+    container.agent_context = ctx
     app.state.container = container
 
     async with concurrent_session_factory() as session:
@@ -229,6 +231,48 @@ async def test_trigger_with_an_empty_watchlist_is_rejected(api: httpx.AsyncClien
     assert resp.status_code == 422
     assert "Watchlist is empty" in resp.json()["detail"]
     assert app.state.container.launcher.active == 0
+
+
+@pytest.mark.integration
+async def test_prices_endpoint_returns_bars_with_indicators(api: httpx.AsyncClient) -> None:
+    resp = await api.get("/api/v1/symbols/aapl/prices", params={"range": "3M"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["symbol"] == "AAPL" and body["range"] == "3M"
+    bars = body["bars"]
+    assert 55 <= len(bars) <= 70
+    assert set(bars[-1]) == {
+        "date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "sma20",
+        "sma50",
+        "rsi14",
+    }
+    assert bars[-1]["sma50"] is not None
+    assert (await api.get("/api/v1/symbols/AAPL/prices")).json()["range"] == "6M"
+    assert (await api.get("/api/v1/symbols/AAPL/prices?range=5Y")).status_code == 422
+    assert (await api.get("/api/v1/symbols/BAD$/prices")).status_code == 422
+
+
+@pytest.mark.integration
+async def test_prices_endpoint_reports_a_provider_outage(api: httpx.AsyncClient) -> None:
+    from dataclasses import replace
+
+    from app.providers.errors import ProviderError
+
+    class DownYFinance:
+        async def get_history(self, symbol: str, period: str, interval: str) -> None:
+            raise ProviderError("yfinance.history(AAPL) failed after 3 attempts")
+
+    container = app.state.container
+    container.agent_context = replace(container.agent_context, yfinance=DownYFinance())
+    resp = await api.get("/api/v1/symbols/AAPL/prices")
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "Price data for AAPL is unavailable"
 
 
 @pytest.mark.integration
