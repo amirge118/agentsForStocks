@@ -10,13 +10,15 @@ sends one tiny structured-output request (~100 tokens) to the configured model.
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.container import Container
 from app.core.config import Settings
+from app.llm.chain import CHAIN
+from app.llm.router import ANTHROPIC
 from app.schemas.signals import LLMSignal
 
 CheckStatus = Literal["ok", "missing", "failed"]
@@ -113,18 +115,75 @@ async def _probe_llm(container: Container, provider: str) -> str:
 
 
 async def check_llm(container: Container, settings: Settings) -> CheckResult:
-    required = settings.llm_provider == "anthropic"
+    required = settings.llm_provider == ANTHROPIC
     if not settings.anthropic_api_key:
         return CheckResult("claude", "missing", "ANTHROPIC_API_KEY is not set", required=required)
     return await _guard("claude", lambda: _probe_llm(container, "anthropic"), required=required)
 
 
-async def check_alt_llm(container: Container, settings: Settings) -> CheckResult:
-    required = settings.llm_provider == "alt"
-    if not settings.alt_llm_configured:
-        detail = "not configured (LLM_ALT_BASE_URL / LLM_ALT_MODEL)"
-        return CheckResult("alt-llm", "missing" if required else "ok", detail, required=required)
-    return await _guard("alt-llm", lambda: _probe_llm(container, "alt"), required=required)
+async def _probe_compat(client: Any) -> str:
+    """An OpenAI-compatible provider: the model exists, and a structured reply parses."""
+    model = client.default_model
+    offered = await client.list_models()
+    if offered and model not in offered:
+        raise RuntimeError(f"model {model!r} is not offered; available: {', '.join(offered[:12])}")
+    reply = await client.generate(
+        system="You are a health check. Answer with a neutral signal.",
+        prompt="Reply with signal=neutral, confidence=0 and reasoning='ok'.",
+        schema=LLMSignal,
+        max_tokens=100,
+        prompt_name="preflight",
+    )
+    detail = f"{model} {client.structured_mode} output ok (signal={reply.signal})"
+    quota = getattr(client, "quota", None)
+    if quota is not None:
+        lim = quota.limits
+        parts = [f"{v} {k}" for k, v in (("rpm", lim.rpm), ("rpd", lim.rpd), ("tpd", lim.tpd)) if v]
+        detail += f"; free tier {', '.join(parts)}"
+    return detail
+
+
+async def check_llm_providers(container: Container, settings: Settings) -> list[CheckResult]:
+    """Every configured non-Claude provider, plus the chain when it is the default."""
+    llm = container.llm
+    names = [n for n in getattr(llm, "names", []) if n not in (ANTHROPIC, CHAIN)]
+    results = list(
+        await asyncio.gather(
+            *(
+                _guard(
+                    f"llm:{name}",
+                    lambda c=llm.provider(name): _probe_compat(c),
+                    required=settings.llm_provider == name,
+                )
+                for name in names
+            )
+        )
+    )
+    default = settings.llm_provider
+    if default not in (ANTHROPIC, CHAIN) and default not in names:
+        hint = "LLM_ALT_BASE_URL / LLM_ALT_MODEL" if default == "alt" else "its API key"
+        results.append(CheckResult(f"llm:{default}", "missing", f"not configured ({hint})"))
+    return results
+
+
+def check_chain(
+    container: Container, settings: Settings, results: list[CheckResult]
+) -> CheckResult | None:
+    """Ready when at least one step of the chain passed its own check."""
+    if settings.llm_provider != CHAIN:
+        return None
+    chain = getattr(container.llm, "provider", lambda _: None)(CHAIN)
+    steps = list(getattr(chain, "steps", []))
+    if not steps:
+        return CheckResult("llm:chain", "missing", "no step of LLM_CHAIN has a configured provider")
+    healthy = {r.name for r in results if r.status == "ok"}
+    alive = [
+        s.label
+        for s in steps
+        if ("claude" if s.provider == ANTHROPIC else f"llm:{s.provider}") in healthy
+    ]
+    detail = f"{' → '.join(s.label for s in steps)} ({len(alive)} of {len(steps)} healthy)"
+    return CheckResult("llm:chain", "ok" if alive else "failed", detail)
 
 
 async def check_knowledge(container: Container, settings: Settings) -> CheckResult:
@@ -145,17 +204,20 @@ async def run_preflight(
     container: Container,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> list[CheckResult]:
-    return list(
-        await asyncio.gather(
+    core, providers = await asyncio.gather(
+        asyncio.gather(
             check_database(session_factory),
             check_llm(container, settings),
-            check_alt_llm(container, settings),
             check_fmp(container, settings),
             check_yahoo(container),
             check_edgar(container),
             check_knowledge(container, settings),
-        )
+        ),
+        check_llm_providers(container, settings),
     )
+    results = [*core, *providers]
+    chain = check_chain(container, settings, results)
+    return results if chain is None else [*results, chain]
 
 
 def ready(results: list[CheckResult]) -> bool:

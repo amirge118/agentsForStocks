@@ -9,7 +9,9 @@ the real model and costs money). From backend/:
     python -m evals.run --suite ledger --dataset evals/datasets/ledger.jsonl --judge --yes
 
 Presets in evals/presets/: prompts_v2, haiku55, sonnet55_recommendation,
-rule_based_quant, skills, cheap_alt_news — e.g. --profiles @evals/presets/haiku55.json
+rule_based_quant, skills, cheap_alt_news, and the free tiers free_gemini,
+free_groq, free_cerebras, free_chain — e.g. --profiles @evals/presets/haiku55.json.
+A free tier costs nothing but has a daily request limit, shown with the estimate.
 """
 
 import argparse
@@ -69,6 +71,28 @@ def render_estimate(e: Estimate, cases: int, repeats: int) -> str:
     )
 
 
+def quota_notes(config: EvalConfig, default_provider: str, calls: int) -> list[str]:
+    """How much of each free tier's daily request limit the run would use."""
+    llm = config.llm
+    wanted = {default_provider} | {
+        o["provider"] for o in config.profiles.overrides.values() if o.get("provider")
+    }
+    notes = []
+    for name in sorted(wanted):
+        client = llm.provider(name) if hasattr(llm, "provider") else None
+        steps = getattr(client, "steps", None)
+        if steps:  # a chain: the first step answers while it has quota
+            name = steps[0].provider
+            client = llm.provider(name)
+        quota = getattr(client, "quota", None)
+        if quota is not None and quota.limits.rpd:
+            share = 100 * calls / quota.limits.rpd
+            notes.append(
+                f"{name} free tier: ~{calls} of {quota.limits.rpd} requests/day ({share:.0f}%)"
+            )
+    return notes
+
+
 async def main(argv: list[str], llm: Any = None, out_dir: Path | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--suite", choices=["scenarios", "ledger"], default="scenarios")
@@ -95,6 +119,8 @@ async def main(argv: list[str], llm: Any = None, out_dir: Path | None = None) ->
         return 2
     est = await estimate(selected, config, judge=args.judge)
     sys.stdout.write(render_estimate(est, len(selected), args.repeats) + "\n")
+    for note in quota_notes(config, settings.llm_provider, est.calls):
+        sys.stdout.write(note + "\n")
     if est.cost_usd is not None and est.cost_usd > args.max_cost:
         sys.stdout.write(f"Estimated cost is above --max-cost {args.max_cost}; not running.\n")
         return 3

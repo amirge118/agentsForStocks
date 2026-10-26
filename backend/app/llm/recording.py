@@ -46,6 +46,7 @@ class LLMCallRecord:
     run_id: str | None = None
     agent: str | None = None
     symbol: str | None = None
+    provider: str | None = None
     # Exact text sent and received; None when content capture is off
     system_prompt: str | None = None
     prompt: str | None = None
@@ -78,6 +79,17 @@ class DbLLMCallRecorder:
             )
 
 
+class LedgerUsage:
+    """Today's usage of a provider, read back from llm_calls (seeds ProviderQuota)."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def __call__(self, provider: str, since: datetime) -> tuple[int, int]:
+        async with self._session_factory() as session:
+            return await LLMCallRepository(session).provider_totals(provider, since)
+
+
 def to_model(call: LLMCallRecord) -> LLMCall:
     return LLMCall(
         call_id=call.call_id,
@@ -86,6 +98,7 @@ def to_model(call: LLMCallRecord) -> LLMCall:
         run_id=call.run_id,
         agent=call.agent,
         symbol=call.symbol,
+        provider=call.provider,
         model=call.model,
         prompt_name=call.prompt_name,
         prompt_version=call.prompt_version,

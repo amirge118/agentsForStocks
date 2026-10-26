@@ -6,8 +6,9 @@ import pytest
 from app.core.context import bind_run
 from app.llm.client import LLMError
 from app.llm.mcp import McpServer
-from app.llm.openai_compat import OpenAICompatibleClient
+from app.llm.openai_compat import OpenAICompatibleClient, QuotaExhaustedError
 from app.llm.pricing import Price
+from app.llm.quota import ProviderQuota, QuotaLimits
 from app.providers.retry import RetryPolicy
 from app.schemas.signals import LLMSignal
 
@@ -144,3 +145,86 @@ async def test_mcp_servers_are_rejected_and_client_closes() -> None:
     with pytest.raises(ValueError, match="Anthropic"):
         await llm.generate(system="s", prompt="p", schema=LLMSignal, mcp_servers=[server])
     await llm.aclose()
+
+
+def _free(handler, *, quota=None, mode="json_schema", **kw) -> OpenAICompatibleClient:
+    return OpenAICompatibleClient(
+        base_url="https://free.example.com/v1",
+        api_key="k",
+        default_model="free-model",
+        name="groq",
+        structured_mode=mode,
+        quota=quota,
+        transport=httpx.MockTransport(handler),
+        retry_policy=FAST,
+        **kw,
+    )
+
+
+@pytest.mark.unit
+async def test_json_object_mode_extra_body_and_reasoning_budget() -> None:
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json=_completion())
+
+    recorder = _Recorder()
+    llm = _free(
+        handler,
+        mode="json_object",
+        extra_body={"reasoning_effort": "low"},
+        reasoning_tokens=1024,
+        recorder=recorder,
+    )
+    await llm.generate(system="sys", prompt="user", schema=LLMSignal, max_tokens=512)
+    body = seen[0]
+    assert body["response_format"] == {"type": "json_object"}
+    assert body["reasoning_effort"] == "low" and body["max_tokens"] == 1536
+    system = body["messages"][0]["content"]
+    assert (
+        system.startswith("sys\n\n") and '"required":["signal","confidence","reasoning"]' in system
+    )
+    (call,) = recorder.calls
+    # The ledger keeps the agent's own system prompt: same prompt version in either mode
+    assert (call.provider, call.system_prompt) == ("groq", "sys")
+
+
+@pytest.mark.unit
+async def test_a_429_on_a_free_tier_cools_down_instead_of_retrying() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(429, headers={"retry-after": "20"})
+
+    quota = ProviderQuota("groq", QuotaLimits(rpm=30))
+    recorder = _Recorder()
+    llm = _free(handler, quota=quota, recorder=recorder)
+    with pytest.raises(QuotaExhaustedError, match="rate limited"):
+        await llm.generate(system="s", prompt="p", schema=LLMSignal)
+    assert attempts == 1 and recorder.calls[0].status == "error"
+    # Cooling down for 20 s: nothing is sent and nothing is recorded
+    with pytest.raises(QuotaExhaustedError, match="no room"):
+        await llm.generate(system="s", prompt="p", schema=LLMSignal)
+    assert attempts == 1 and len(recorder.calls) == 1
+
+
+@pytest.mark.unit
+async def test_quota_is_settled_with_real_usage() -> None:
+    quota = ProviderQuota("groq", QuotaLimits(tpd=100_000))
+    llm = _free(lambda r: httpx.Response(200, json=_completion()), quota=quota)
+    await llm.generate(system="s", prompt="p", schema=LLMSignal, max_tokens=4000)
+    assert (quota.day_requests, quota.day_tokens) == (1, 1250)  # 1200 in + 50 out
+
+
+@pytest.mark.unit
+async def test_list_models_strips_the_gemini_prefix() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/models"
+        return httpx.Response(
+            200, json={"data": [{"id": "models/gemini-3.5-flash-lite"}, {"id": "gpt-oss-120b"}, {}]}
+        )
+
+    assert await _free(handler).list_models() == ["gemini-3.5-flash-lite", "gpt-oss-120b"]

@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.context import note_fallback
 from app.domain.signals import SignalLabel
 from app.knowledge.store import Learning
+from app.llm.chain import CHAIN
 from app.llm.client import LLMError
 from app.llm.mcp import McpServer
 from app.llm.profiles import AgentProfile, ProfileBook
@@ -154,8 +155,8 @@ class Agent(ABC, Generic[DataT, ResultT]):
             return fallback
         provider = profile.provider or self.ctx.llm.default_provider
         # A model hint (e.g. the reasoning model) names a Claude model, so it only
-        # applies when the call goes to Claude
-        chosen = profile.model or (model if provider == ANTHROPIC else None)
+        # applies when the call goes to Claude (in a chain: to its Claude step)
+        chosen = profile.model or (model if provider in (ANTHROPIC, CHAIN) else None)
         try:
             return await self.ctx.llm.generate(
                 system=compose_system(profile.prompt or name, profile.skills),

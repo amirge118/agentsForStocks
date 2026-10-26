@@ -24,6 +24,10 @@ llm_tokens = _meter.create_counter(
 llm_cost = _meter.create_counter(
     "llm.cost", unit="USD", description="Model cost in US dollars, by agent and model"
 )
+llm_chain_fallthrough = _meter.create_counter(
+    "llm.chain.fallthrough",
+    description="LLM chain steps that failed or had no quota, by from/to provider and reason",
+)
 llm_latency = _meter.create_histogram(
     "llm.latency", unit="ms", description="Model request latency, by agent and model"
 )
