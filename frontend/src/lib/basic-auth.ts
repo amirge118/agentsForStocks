@@ -1,5 +1,5 @@
 /**
- * HTTP Basic auth check for the dashboard (used by src/middleware.ts).
+ * HTTP Basic auth check for the dashboard (used by src/proxy.ts).
  * Edge-runtime safe: no Node crypto, constant-time comparison by hand.
  */
 
