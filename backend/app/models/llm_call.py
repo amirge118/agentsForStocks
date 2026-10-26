@@ -25,6 +25,8 @@ class LLMCall(Base):
     run_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     agent: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     symbol: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Which provider answered: "anthropic", "gemini", "groq", "cerebras", "alt", ...
+    provider: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     model: Mapped[str] = mapped_column(String, nullable=False, index=True)
     prompt_name: Mapped[str | None] = mapped_column(String, nullable=True)
     prompt_version: Mapped[str] = mapped_column(String, nullable=False)

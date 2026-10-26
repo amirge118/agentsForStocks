@@ -1,8 +1,10 @@
 """
 LLMRouter — what agents call. Sends each request to the provider its profile
-names: "anthropic" (Claude, LLMClient) or "alt" (an OpenAI-compatible service,
-OpenAICompatibleClient). An unconfigured provider raises LLMError, so the agent
-falls back to its own signal and the miss is counted like any other outage.
+names: "anthropic" (Claude, LLMClient), a free provider such as "gemini", "groq"
+or "cerebras", or "alt" (OpenAI-compatible services, OpenAICompatibleClient),
+or "chain" (FallbackChain: free providers first, Claude last). An unconfigured
+provider raises LLMError, so the agent falls back to its own signal and the miss
+is counted like any other outage.
 """
 
 from collections.abc import Sequence
@@ -46,6 +48,13 @@ class LLMRouter:
 
     def configured(self, provider: str) -> bool:
         return provider in self._providers
+
+    def provider(self, name: str) -> LLMProvider | None:
+        return self._providers.get(name)
+
+    @property
+    def names(self) -> list[str]:
+        return list(self._providers)
 
     def default_model(self, provider: str | None = None) -> str | None:
         client = self._providers.get(provider or self.default_provider)

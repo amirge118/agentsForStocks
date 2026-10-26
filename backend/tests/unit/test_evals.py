@@ -236,3 +236,26 @@ def test_v2_prompts_keep_the_rules_the_contracts_and_compliance_rely_on() -> Non
     for name in ("moat_v2", "risk_v2", "broad_analysis_v2", "growth_v2"):
         text = load_prompt(name)
         assert "max 200 characters" in text and "below 50" in text  # length + missing-data rule
+
+
+@pytest.mark.unit
+async def test_estimate_shows_the_share_of_a_free_tiers_daily_limit() -> None:
+    from app.container import build_llm_router
+    from app.core.config import Settings
+    from app.llm.recording import NullRecorder
+
+    router = build_llm_router(Settings(gemini_api_key="g", groq_api_key="q"), NullRecorder())
+    chain = EvalConfig(
+        llm=router,
+        profiles=ProfileBook(eval_run._load_profiles("@evals/presets/free_chain.json")),
+        reasoning_model="r",
+    )
+    assert eval_run.quota_notes(chain, "anthropic", 250) == [
+        "gemini free tier: ~250 of 1000 requests/day (25%)"
+    ]
+    groq = EvalConfig(llm=router, profiles=ProfileBook(), reasoning_model="r")
+    assert eval_run.quota_notes(groq, "groq", 100) == [
+        "groq free tier: ~100 of 1000 requests/day (10%)"
+    ]
+    assert eval_run.quota_notes(groq, "anthropic", 100) == []
+    await router.aclose()

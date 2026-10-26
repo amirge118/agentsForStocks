@@ -75,6 +75,20 @@ class LLMCallRepository:
             for r in rows
         ]
 
+    async def provider_totals(self, provider: str, since: datetime) -> tuple[int, int]:
+        """Requests and tokens (input + output, cache included) sent to a provider since `since`."""
+        tokens = (
+            LLMCall.input_tokens
+            + LLMCall.output_tokens
+            + LLMCall.cache_read_tokens
+            + LLMCall.cache_write_tokens
+        )
+        stmt = select(func.count(), func.coalesce(func.sum(tokens), 0)).where(
+            LLMCall.provider == provider, LLMCall.created_at >= since
+        )
+        requests, used = (await self._session.execute(stmt)).one()
+        return int(requests), int(used)
+
     async def delete_older_than(self, cutoff: datetime) -> int:
         result = await self._session.execute(delete(LLMCall).where(LLMCall.created_at < cutoff))
         return int(getattr(result, "rowcount", 0) or 0)

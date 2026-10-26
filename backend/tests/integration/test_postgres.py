@@ -59,7 +59,9 @@ async def test_migrations_create_the_expected_schema(pg_session_factory) -> None
         tables = await conn.run_sync(lambda c: inspect(c).get_table_names())
         assert {"agent_results", "agent_runs", "llm_calls", "alembic_version"} <= set(tables)
         version = (await session.execute(text("select version_num from alembic_version"))).scalar()
-        assert version == "0003"
+        assert version == "0004"
+        columns = await conn.run_sync(lambda c: inspect(c).get_columns("llm_calls"))
+        assert "provider" in {col["name"] for col in columns}
 
 
 async def test_upsert_on_postgres_is_idempotent(pg_session_factory) -> None:

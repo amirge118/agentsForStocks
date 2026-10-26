@@ -31,8 +31,10 @@ class CallTracker:
         prompt_name: str | None,
         capture_content: bool,
         prices: dict[str, Price] | None = None,
+        provider: str | None = None,
     ) -> None:
         self._recorder = recorder
+        self._provider = provider
         self._model = model
         self._system = system
         self._prompt = prompt
@@ -79,6 +81,7 @@ class CallTracker:
             run_id=fields.get("run_id"),
             agent=fields.get("agent"),
             symbol=fields.get("symbol"),
+            provider=self._provider,
             system_prompt=self._system if self._capture else None,
             prompt=self._prompt if self._capture else None,
             response=self.response if self._capture else None,
@@ -93,6 +96,7 @@ class CallTracker:
 def _log(record: LLMCallRecord) -> None:
     extra = {
         "call_id": record.call_id,
+        "provider": record.provider,
         "model": record.model,
         "prompt_name": record.prompt_name,
         "prompt_version": record.prompt_version,

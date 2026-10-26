@@ -83,6 +83,7 @@ class LLMClient:
             prompt_name=prompt_name,
             capture_content=self._capture_content,
             prices=self._prices,
+            provider="anthropic",
         )
         request: dict[str, Any] = {
             "model": chosen,
