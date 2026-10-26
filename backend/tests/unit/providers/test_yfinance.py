@@ -147,3 +147,65 @@ async def test_the_chart_is_not_asked_when_yfinance_works() -> None:
 async def test_without_a_fallback_failures_still_raise() -> None:
     with pytest.raises(ProviderError):
         await _client(_CrumbBlocked).get_insider_transactions("AAPL")
+
+
+@pytest.mark.unit
+async def test_fundamentals_fill_a_quote_only_info_and_yfinance_wins() -> None:
+    asked: list[str] = []
+
+    async def fundamentals(symbol: str) -> dict:
+        asked.append(symbol)
+        return {"marketCap": 5.0e12, "trailingPE": 34.0, "sector": "Tech (FMP)"}
+
+    yf = YFinanceClient(
+        rate_limiter=RateLimiter({}, default_rps=1000),
+        cache=TTLCache(60),
+        retry_policy=RetryPolicy(max_attempts=2, timeout_seconds=1.0, base_backoff_seconds=0.0),
+        ticker_factory=_CrumbBlocked,
+        fallback=_Chart(),
+        fundamentals=fundamentals,
+    )
+    info = await yf.get_info("AAPL")
+    assert (info["marketCap"], info["trailingPE"], info["regularMarketPrice"]) == (
+        5.0e12,
+        34.0,
+        345.0,
+    )
+    assert info["sector"] == "Technology"  # yfinance's own value wins over FMP's
+    assert asked == ["AAPL"]
+
+
+@pytest.mark.unit
+async def test_fundamentals_are_not_fetched_when_yfinance_has_a_market_cap() -> None:
+    class _Full(_FakeTicker):
+        @property
+        def info(self) -> dict:
+            return {"symbol": self.symbol, "regularMarketPrice": 10.0, "marketCap": 1.0e9}
+
+    async def fundamentals(symbol: str) -> dict:
+        raise AssertionError("FMP should not be called")
+
+    yf = YFinanceClient(
+        rate_limiter=RateLimiter({}, default_rps=1000),
+        cache=TTLCache(60),
+        ticker_factory=_Full,
+        fundamentals=fundamentals,
+    )
+    assert (await yf.get_info("AAPL"))["marketCap"] == 1.0e9
+
+
+@pytest.mark.unit
+async def test_a_failing_fundamentals_source_leaves_the_quote() -> None:
+    async def fundamentals(symbol: str) -> dict:
+        raise ProviderError("FMP daily budget of 250 calls exhausted")
+
+    yf = YFinanceClient(
+        rate_limiter=RateLimiter({}, default_rps=1000),
+        cache=TTLCache(60),
+        retry_policy=RetryPolicy(max_attempts=2, timeout_seconds=1.0, base_backoff_seconds=0.0),
+        ticker_factory=_CrumbBlocked,
+        fallback=_Chart(),
+        fundamentals=fundamentals,
+    )
+    info = await yf.get_info("AAPL")
+    assert info["regularMarketPrice"] == 345.0 and "marketCap" not in info

@@ -115,3 +115,51 @@ async def test_budget_counts_only_uncached_calls_and_stops_at_limit(make_http) -
     await client.get_company_profile("MSFT")
     with pytest.raises(QuotaExceededError):
         await client.get_company_profile("NVDA")
+
+
+@pytest.mark.unit
+def test_fmp_fields_take_yfinance_names_and_units() -> None:
+    from app.providers.fmp import to_info_fields
+
+    info = to_info_fields(
+        profile={"companyName": "Apple Inc.", "sector": "Technology", "marketCap": 5.0e12},
+        ratios=[{"debtToEquityRatio": 1.5241, "priceToEarningsRatio": 34.1, "currentRatio": 0.89}],
+        metrics=[{"returnOnEquity": 1.52}],
+        income=[
+            {"revenue": 4.16e11, "netIncome": 1.12e11},
+            {"revenue": 3.91e11, "netIncome": None},
+        ],
+        balance=[{"totalDebt": 1.12e11, "cashAndShortTermInvestments": 5.5e10}],
+        cash_flow=[{"freeCashFlow": 9.88e10, "capitalExpenditure": -1.2e10}],
+    )
+    assert info["longName"] == "Apple Inc." and info["marketCap"] == 5.0e12
+    assert info["debtToEquity"] == pytest.approx(152.41)  # yfinance reports percent
+    assert info["trailingPE"] == 34.1 and info["returnOnEquity"] == 1.52
+    assert info["revenueGrowth"] == pytest.approx(4.16 / 3.91 - 1)
+    assert "earningsGrowth" not in info  # no previous year → missing, never 0
+    assert info["totalCash"] == 5.5e10 and info["freeCashflow"] == 9.88e10
+    assert to_info_fields({}, [], [], [], [], []) == {}
+
+
+@pytest.mark.unit
+async def test_info_fields_fetch_the_six_endpoints_once(make_http) -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.path.removeprefix("/stable/"))
+        if request.url.path.endswith("/profile"):
+            return httpx.Response(200, json=[{"marketCap": 1.0e9}])
+        return httpx.Response(200, json=[])
+
+    client = FmpClient(make_http(handler), api_key="k", budget=DailyCallBudget(limit=100))
+    assert await client.get_info_fields("AAPL") == {"marketCap": 1.0e9}
+    assert sorted(seen) == sorted(
+        [
+            "profile",
+            "ratios",
+            "key-metrics",
+            "income-statement",
+            "balance-sheet-statement",
+            "cash-flow-statement",
+        ]
+    )
