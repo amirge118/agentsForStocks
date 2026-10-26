@@ -32,8 +32,11 @@ def _edgar_handler(request: httpx.Request) -> httpx.Response:
                 }
             },
         )
-    if url.endswith("/000032019325000106/aapl-10k.htm"):
+    if url.endswith("/data/320193/000032019325000106/aapl-10k.htm"):
         return httpx.Response(200, text=_DOC)
+    if url.endswith("/data/0000320193/000032019325000106/aapl-10k.htm"):
+        # What SEC really does with a zero-padded CIK in an archive URL: an empty redirect
+        return httpx.Response(301, headers={"Location": url.replace("/0000320193/", "/320193/")})
     return httpx.Response(404)
 
 

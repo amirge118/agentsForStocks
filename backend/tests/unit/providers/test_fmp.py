@@ -1,15 +1,17 @@
 import httpx
 import pytest
 
-from app.providers.errors import QuotaExceededError
+from app.providers.errors import ProviderError, QuotaExceededError
 from app.providers.fmp import DailyCallBudget, FmpClient
 
 
 def _routes(table: dict[str, object]):
+    """Answers /stable/<endpoint>?symbol=X from table["<endpoint> X"]."""
+
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.params["apikey"] == "k"
-        path = request.url.path.removeprefix("/api/v3/")
-        return httpx.Response(200, json=table.get(path, []))
+        path = request.url.path.removeprefix("/stable/")
+        return httpx.Response(200, json=table.get(f"{path} {request.url.params['symbol']}", []))
 
     return handler
 
@@ -17,14 +19,14 @@ def _routes(table: dict[str, object]):
 @pytest.fixture
 def fmp(make_http):
     table = {
-        "profile/AAPL": [{"companyName": "Apple"}],
-        "income-statement/AAPL": [{"revenue": 2}, {"revenue": 1}],
-        "institutional-holder/AAPL": [
+        "profile AAPL": [{"companyName": "Apple"}],
+        "income-statement AAPL": [{"revenue": 2}, {"revenue": 1}],
+        "institutional-ownership/extract-analytics/holder AAPL": [
             {"holder": "small", "shares": 1},
             {"holder": "big", "shares": 9},
         ],
-        "earning_call_transcript/AAPL": [{"quarter": 1, "content": "x" * 20_000}],
-        "ratios/AAPL": {"unexpected": "shape"},
+        "earning-call-transcript AAPL": [{"quarter": 1, "content": "x" * 20_000}],
+        "ratios AAPL": {"unexpected": "shape"},
     }
     return FmpClient(make_http(_routes(table)), api_key="k", budget=DailyCallBudget(limit=100))
 
@@ -55,28 +57,51 @@ async def test_transcript_truncated_and_missing_is_empty(fmp: FmpClient) -> None
 
 
 @pytest.mark.unit
-async def test_other_endpoints_hit_expected_paths(make_http) -> None:
-    seen: list[str] = []
+async def test_other_endpoints_hit_expected_stable_paths(make_http) -> None:
+    seen: list[tuple[str, dict]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        seen.append(request.url.path.removeprefix("/api/v3/"))
+        params = {k: v for k, v in request.url.params.items() if k != "apikey"}
+        seen.append((request.url.path.removeprefix("/stable/"), params))
         return httpx.Response(200, json=[])
 
     client = FmpClient(make_http(handler), api_key="k", budget=DailyCallBudget(limit=100))
-    await client.get_balance_sheets("AAPL")
+    await client.get_balance_sheets("aapl")
     await client.get_cash_flow_statements("AAPL")
     await client.get_key_metrics("AAPL")
     await client.get_earnings_surprises("AAPL")
     await client.get_analyst_estimates("AAPL")
     await client.get_13f_institutional_ownership("AAPL")
-    assert seen == [
-        "balance-sheet-statement/AAPL",
-        "cash-flow-statement/AAPL",
-        "key-metrics/AAPL",
-        "earnings-surprises/AAPL",
-        "analyst-estimates/AAPL",
-        "institutional-ownership/symbol-ownership",
+    assert [path for path, _ in seen] == [
+        "balance-sheet-statement",
+        "cash-flow-statement",
+        "key-metrics",
+        "earnings",
+        "analyst-estimates",
+        "institutional-ownership/symbol-positions-summary",
     ]
+    assert seen[0][1] == {"symbol": "AAPL", "limit": "5", "period": "annual"}
+    assert seen[3][1] == {"symbol": "AAPL", "limit": "5"}  # the free plan's maximum
+
+
+@pytest.mark.unit
+async def test_an_endpoint_outside_the_plan_is_no_data_not_a_failure(make_http, caplog) -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if "earning-call-transcript" in request.url.path:
+            return httpx.Response(402, text="Restricted Endpoint: not available under your plan")
+        return httpx.Response(403, text="Legacy Endpoint")
+
+    client = FmpClient(make_http(handler), api_key="k", budget=DailyCallBudget(limit=100))
+    with caplog.at_level("WARNING"):
+        assert await client.get_earnings_call_transcript("AAPL", 2026, 1) == {}
+        assert await client.get_earnings_call_transcript("AAPL", 2025, 4) == {}
+    assert caplog.text.count("not in your plan") == 1  # one warning per endpoint
+    with pytest.raises(ProviderError, match="403"):  # anything else still fails the call
+        await client.get_company_profile("AAPL")
 
 
 @pytest.mark.unit

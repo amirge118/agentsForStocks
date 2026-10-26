@@ -110,9 +110,16 @@ class HttpClient:
             )
             if resp.status_code in RETRYABLE_STATUS:
                 raise RetryableError(f"HTTP {resp.status_code} from {domain}")
-            if resp.status_code >= 400:
-                # Client errors (bad key, unknown symbol) never succeed on retry
-                raise ProviderError(f"HTTP {resp.status_code} from {domain}{urlsplit(url).path}")
+            if resp.status_code >= 300:
+                # Client errors (bad key, unknown symbol) never succeed on retry. Redirects
+                # aren't followed — they would bypass the per-domain rate limit — and their
+                # empty body must not be mistaken for content (it was, for SEC archive URLs)
+                where = resp.headers.get("location", "")
+                detail = f" → {where}" if 300 <= resp.status_code < 400 and where else ""
+                raise ProviderError(
+                    f"HTTP {resp.status_code} from {domain}{urlsplit(url).path}{detail}",
+                    status=resp.status_code,
+                )
             return resp.text
 
         return await with_retry(_attempt, self._retry, label=f"GET {domain}")

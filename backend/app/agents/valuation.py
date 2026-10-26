@@ -11,7 +11,7 @@ from app.domain.valuation import (
     MARGIN_OF_SAFETY_THRESHOLD,
     ValuationSummary,
     summarize,
-    with_fcf_fallback,
+    with_fmp_fallbacks,
 )
 
 
@@ -28,6 +28,7 @@ class ValuationResult(AnalysisResult):
 class ValuationData:
     info: dict
     fmp_cash_flow: list[dict]
+    fmp_profile: dict
 
 
 def _signal_matches_margin_of_safety(data: object, result: "ValuationResult") -> str | None:
@@ -52,14 +53,15 @@ class ValuationAgent(Agent[ValuationData, ValuationResult]):
     result_model = ValuationResult
 
     async def fetch(self, symbol: str, run_date: date) -> ValuationData:
-        info, cash_flow = await asyncio.gather(
+        info, cash_flow, profile = await asyncio.gather(
             self.ctx.yfinance.get_info(symbol),
             self.ctx.fmp.get_cash_flow_statements(symbol, limit=3),
+            self.ctx.fmp.get_company_profile(symbol),  # cached: broad_analysis asks too
         )
-        return ValuationData(info=info, fmp_cash_flow=cash_flow)
+        return ValuationData(info=info, fmp_cash_flow=cash_flow, fmp_profile=profile)
 
     async def analyze(self, symbol: str, data: ValuationData, memory: list[str]) -> ValuationResult:
-        v = summarize(with_fcf_fallback(data.info, data.fmp_cash_flow))
+        v = summarize(with_fmp_fallbacks(data.info, data.fmp_cash_flow, data.fmp_profile))
         judgement = await self.judge(
             _prompt(symbol, v, memory),
             fallback=quant_fallback(v.signal, v.confidence, "margin-of-safety rule"),
@@ -79,7 +81,7 @@ class ValuationAgent(Agent[ValuationData, ValuationResult]):
 
 def _prompt(symbol: str, v: ValuationSummary, memory: list[str]) -> str:
     return f"""Symbol: {symbol}
-Current market cap: {billions(v.market_cap)}
+Current market cap: {billions(v.market_cap or None)}
 
 Intrinsic value estimates:
   DCF bear: {billions(v.dcf['bear'])}  (low growth, high WACC)

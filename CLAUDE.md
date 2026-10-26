@@ -81,7 +81,7 @@ All calls to `yfinance`, financial APIs, or any external service MUST go through
 - Exponential backoff + retry on transient errors only (3 attempts, 1s/2s/4s)
 - Per-domain rate limiting (`RateLimiter`, limits in `app/container.py`)
 - Timeout of 10s max per request, plus a TTL cache shared by all agents
-FMP calls also count against `DailyCallBudget` (free tier = 250/day). Claude is called only through `app/llm/client.py` (structured outputs).
+FMP calls also count against `DailyCallBudget` (free tier = 250/day). FMP is called on `/stable/<endpoint>?symbol=` (the old `/api/v3/` is closed to new accounts); an endpoint outside the plan (HTTP 402 — on the free plan: transcripts, institutional ownership) returns no data instead of failing the agent. When yfinance can't get prices (Yahoo refuses its crumb on cloud hosts), `YahooChartClient` (`providers/yahoo_chart.py`) fills in history and the quote; data with no chart equivalent (earnings dates, insider trades, news) comes back empty, so the agent runs on with a data gap. A missing field is no evidence: never default it to 0 in a calculation (see the fundamentals vote and `valuation.summarize`). Claude is called only through `app/llm/client.py` (structured outputs).
 
 ### 6. TanStack Query v5 Patterns
 Use `isPending` for loading skeletons (NOT `isLoading` — that's v4). Get query client via `useQueryClient()` hook. On mutation success: `invalidateQueries`. On mutation error: `toast({ variant: "destructive" })`.

@@ -3,6 +3,10 @@ yfinance client. yfinance is synchronous, so each call runs in a worker thread,
 under the shared retry policy, rate limit ("yahoo" domain) and TTL cache.
 
 Fields in Ticker.info can be None for valid tickers — always read them with .get().
+
+When yfinance can't get prices (Yahoo refuses its session "crumb", common on
+cloud hosts), the optional YahooChartClient fallback fills in the price history
+and the quote fields of `info` from Yahoo's public chart endpoint.
 """
 
 import asyncio
@@ -18,9 +22,10 @@ from opentelemetry import trace
 from app.core.symbols import validate_symbol
 from app.observability import metrics
 from app.providers.cache import TTLCache
-from app.providers.errors import RetryableError
+from app.providers.errors import ProviderError, RetryableError
 from app.providers.rate_limit import RateLimiter
 from app.providers.retry import RetryPolicy, with_retry
+from app.providers.yahoo_chart import YahooChartClient
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -37,7 +42,9 @@ class YFinanceClient:
         cache: TTLCache,
         retry_policy: RetryPolicy | None = None,
         ticker_factory: Callable[[str], Any] = yf.Ticker,
+        fallback: YahooChartClient | None = None,
     ) -> None:
+        self._fallback = fallback
         self._rate_limiter = rate_limiter
         self._cache = cache
         self._retry = retry_policy or RetryPolicy()
@@ -77,9 +84,39 @@ class YFinanceClient:
             logger.debug("Provider cache hit", extra=log_ctx)
         return value
 
+    async def _optional(self, key: tuple[Any, ...], fn: Callable[[], T], empty: T) -> T:
+        """
+        Data with no chart fallback (earnings dates, insider trades, news): when yfinance
+        can't get it, return `empty` so the agent runs on with a data gap
+        instead of failing outright.
+        """
+        try:
+            return await self._call(key, fn)
+        except ProviderError as exc:
+            if self._fallback is None:
+                raise
+            logger.warning(
+                "yfinance data unavailable",
+                extra={"call": key[0], "symbol": key[1], "error": str(exc)},
+            )
+            return empty
+
     async def get_info(self, symbol: str) -> dict:
+        """Ticker.info; with no price in it, the chart fallback adds the quote fields."""
         ticker = validate_symbol(symbol)
-        return await self._call(("info", ticker), lambda: self._ticker(ticker).info or {})
+        try:
+            info = await self._call(("info", ticker), lambda: self._ticker(ticker).info or {})
+        except ProviderError:
+            if self._fallback is None:
+                raise
+            info = {}
+        if self._fallback is None or _has_price(info):
+            return info
+        quote = await self._fallback.get_quote(ticker)
+        if quote:
+            _note_fallback("info", ticker)
+        # yfinance's own values win; the chart only fills what is missing
+        return {**quote, **{k: v for k, v in info.items() if v is not None}}
 
     async def get_history(
         self, symbol: str, period: str = "1mo", interval: str = "1d"
@@ -91,7 +128,18 @@ class YFinanceClient:
             df = self._ticker(ticker).history(period=period, interval=interval)
             return df if df is not None else pd.DataFrame()
 
-        return await self._call(("history", ticker, period, interval), _fetch)
+        try:
+            df = await self._call(("history", ticker, period, interval), _fetch)
+        except ProviderError:
+            if self._fallback is None:
+                raise
+            df = pd.DataFrame()
+        if not df.empty or self._fallback is None:
+            return df
+        fallback = await self._fallback.get_history(ticker, period=period, interval=interval)
+        if not fallback.empty:
+            _note_fallback("history", ticker)
+        return fallback
 
     async def get_earnings_dates(self, symbol: str) -> pd.DataFrame:
         ticker = validate_symbol(symbol)
@@ -100,7 +148,7 @@ class YFinanceClient:
             df = self._ticker(ticker).earnings_dates
             return df if df is not None else pd.DataFrame()
 
-        return await self._call(("earnings_dates", ticker), _fetch)
+        return await self._optional(("earnings_dates", ticker), _fetch, pd.DataFrame())
 
     async def get_insider_transactions(self, symbol: str) -> list[dict]:
         ticker = validate_symbol(symbol)
@@ -109,12 +157,24 @@ class YFinanceClient:
             df = self._ticker(ticker).get_insider_transactions()
             return df.to_dict("records") if df is not None and not df.empty else []
 
-        return await self._call(("insider", ticker), _fetch)
+        return await self._optional(("insider", ticker), _fetch, [])
 
     async def get_news(self, symbol: str, count: int = 20) -> list[dict]:
         ticker = validate_symbol(symbol)
         # yfinance 1.x asks Yahoo for `count` articles (default 10); slice in case it sends more
-        return await self._call(
+        return await self._optional(
             ("news", ticker, count),
             lambda: (self._ticker(ticker).get_news(count=count) or [])[:count],
+            [],
         )
+
+
+def _has_price(info: dict) -> bool:
+    return any(info.get(k) is not None for k in ("regularMarketPrice", "currentPrice"))
+
+
+def _note_fallback(call: str, ticker: str) -> None:
+    logger.info(
+        "yfinance had no data, used the Yahoo chart", extra={"call": call, "symbol": ticker}
+    )
+    metrics.provider_requests.add(1, {"domain": _DOMAIN, "outcome": "fallback"})
