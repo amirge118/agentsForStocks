@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from "@playwright/test"
 
-import { llmCalls, llmUsage, overview, recommendation, runs } from "../src/test/fixtures"
+import { llmCalls, llmProviders, llmUsage, overview, recommendation, runs } from "../src/test/fixtures"
 
 const API = "**/api/backend"
 
@@ -23,6 +23,7 @@ async function mockApi(page: Page): Promise<string[]> {
   // Registered after /runs** so it takes precedence for a run's LLM calls
   await page.route(`${API}/runs/*/llm-calls`, (route) => json(route, llmCalls))
   await page.route(`${API}/llm/usage**`, (route) => json(route, llmUsage))
+  await page.route(`${API}/llm/providers`, (route) => json(route, llmProviders))
   await page.route(`${API}/pipeline/runs`, async (route) => {
     posted.push(route.request().postData() ?? "")
     return json(
@@ -90,4 +91,6 @@ test("token usage page and a run's prompts", async ({ page }) => {
   await page.getByRole("link", { name: "Tokens & cost" }).click()
   await expect(page.getByRole("table", { name: "LLM usage" })).toContainText("19,800")
   await expect(page.getByLabel("Totals")).toContainText("$0.0288")
+  const providers = page.getByRole("list", { name: "Model providers" })
+  await expect(providers.getByRole("listitem", { name: "gemini" })).toContainText("chain #1")
 })

@@ -1,20 +1,23 @@
 """
 LLM ledger endpoints:
-  GET /llm/usage                 — tokens and cost per agent / model / day / prompt version
+  GET /llm/usage                 — tokens and cost per agent / model / provider / day / prompt
+  GET /llm/providers             — configured providers: chain order, free-tier limits, use today
   GET /llm/calls                 — individual calls, newest first (filter by run or agent)
   GET /runs/{run_id}/llm-calls   — every call one agent run made, with the exact prompts
 """
 
 from datetime import timedelta
-from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session
+from app.api.deps import get_container, get_session
+from app.container import Container
 from app.core.clock import utcnow
-from app.repositories.llm_calls import LLMCallRepository
-from app.schemas.api import LLMCallOut, LLMUsageReport, LLMUsageRow
+from app.llm.chain import CHAIN
+from app.llm.quota import QuotaLimits, day_start
+from app.repositories.llm_calls import GroupBy, LLMCallRepository
+from app.schemas.api import LLMCallOut, LLMProviderOut, LLMUsageReport, LLMUsageRow
 
 router = APIRouter(tags=["llm"])
 
@@ -22,7 +25,7 @@ router = APIRouter(tags=["llm"])
 @router.get("/llm/usage", response_model=LLMUsageReport)
 async def llm_usage(
     days: int = Query(default=7, ge=1, le=365),
-    group_by: Literal["agent", "model", "day", "prompt_version"] = Query(default="agent"),
+    group_by: GroupBy = Query(default="agent"),
     session: AsyncSession = Depends(get_session),
 ) -> LLMUsageReport:
     since = utcnow() - timedelta(days=days)
@@ -60,3 +63,41 @@ async def run_llm_calls(
 ) -> list[LLMCallOut]:
     calls = await LLMCallRepository(session).list(run_id=run_id, limit=500)
     return [LLMCallOut.model_validate(c) for c in reversed(calls)]  # in call order
+
+
+@router.get("/llm/providers", response_model=list[LLMProviderOut])
+async def llm_providers(
+    container: Container = Depends(get_container),
+    session: AsyncSession = Depends(get_session),
+) -> list[LLMProviderOut]:
+    """Usage today comes from the ledger, so it includes the worker's scheduled run."""
+    llm = container.llm
+    chain = llm.provider(CHAIN)
+    order = [s.provider for s in getattr(chain, "steps", [])]
+    repo = LLMCallRepository(session)
+    now = utcnow()
+    out = []
+    for name in llm.names:
+        if name == CHAIN:
+            continue
+        client = llm.provider(name)
+        quota = getattr(client, "quota", None)
+        limits = quota.limits if quota is not None else QuotaLimits()
+        start = day_start(limits.reset_tz, now)
+        requests, tokens = await repo.provider_totals(name, start)
+        out.append(
+            LLMProviderOut(
+                name=name,
+                model=client.default_model,
+                structured_mode=getattr(client, "structured_mode", None),
+                chain_position=order.index(name) + 1 if name in order else None,
+                rpm=limits.rpm,
+                tpm=limits.tpm,
+                rpd=limits.rpd,
+                tpd=limits.tpd,
+                day_start=start,
+                day_requests=requests,
+                day_tokens=tokens,
+            )
+        )
+    return out

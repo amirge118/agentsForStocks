@@ -2,14 +2,15 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from typing import Literal, get_args
 
 from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.llm_call import LLMCall
 
-GroupBy = Literal["agent", "model", "day", "prompt_version"]
+GroupBy = Literal["agent", "model", "provider", "day", "prompt_version"]
+GROUP_BY: tuple[str, ...] = get_args(GroupBy)
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,8 @@ class LLMCallRepository:
         key = {
             "agent": func.coalesce(LLMCall.agent, "(none)"),
             "model": LLMCall.model,
+            # Calls recorded before migration 0004 have no provider
+            "provider": func.coalesce(LLMCall.provider, "(unknown)"),
             "day": func.date(LLMCall.created_at),
             "prompt_version": func.coalesce(LLMCall.prompt_name, "(none)")
             + "@"

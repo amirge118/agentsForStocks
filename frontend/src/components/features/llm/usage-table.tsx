@@ -19,12 +19,13 @@ import type { UsageGroup } from "@/types/api"
 const GROUPS: { value: UsageGroup; label: string }[] = [
   { value: "agent", label: "Agent" },
   { value: "model", label: "Model" },
+  { value: "provider", label: "Provider" },
   { value: "day", label: "Day" },
   { value: "prompt_version", label: "Prompt version" },
 ]
 const PERIODS = [1, 7, 30] as const
 
-/** Token and cost totals from the LLM ledger, grouped by agent / model / day / prompt. */
+/** Token and cost totals from the LLM ledger, grouped by agent / model / provider / day / prompt. */
 export function UsageTable() {
   const [groupBy, setGroupBy] = useState<UsageGroup>("agent")
   const [days, setDays] = useState<number>(7)

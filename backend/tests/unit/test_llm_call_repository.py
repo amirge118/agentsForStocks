@@ -135,3 +135,17 @@ async def test_provider_totals_seed_the_free_tier_quotas(session_factory) -> Non
     # 1000 input + 200 output + 50 cache read per call
     assert await LedgerUsage(session_factory)("gemini", since) == (2, 2500)
     assert await LedgerUsage(session_factory)("cerebras", since) == (0, 0)
+
+
+@pytest.mark.unit
+async def test_usage_by_provider_labels_calls_from_before_the_column(
+    session_factory, db_session
+) -> None:
+    recorder = DbLLMCallRecorder(session_factory)
+    await recorder.record(_record("a", provider="gemini", cost=0.0))
+    await recorder.record(_record("b", provider="gemini", cost=0.0))
+    await recorder.record(_record("c", provider=None))
+    rows = await LLMCallRepository(db_session).usage(
+        since=utcnow() - timedelta(days=1), group_by="provider"
+    )
+    assert sorted((r.key, r.calls) for r in rows) == [("(unknown)", 1), ("gemini", 2)]
