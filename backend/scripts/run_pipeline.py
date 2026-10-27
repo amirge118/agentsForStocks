@@ -4,6 +4,11 @@ Run the pipeline once, now, and print a report. From backend/:
     python -m scripts.run_pipeline AAPL MSFT            # every agent
     python -m scripts.run_pipeline AAPL --agents technicals valuation
     python -m scripts.run_pipeline AAPL --force         # re-run even if done today
+    python -m scripts.run_pipeline AAPL --date 2026-06-15   # as of a past day
+
+A past --date is a historical run: every agent sees only what was known that day
+(app/providers/point_in_time.py). Its results are stored under that date, so point
+DATABASE_URL at a separate database for backtests rather than the live one.
 
 Run `python -m scripts.preflight` first.
 """
@@ -11,6 +16,7 @@ Run `python -m scripts.preflight` first.
 import argparse
 import asyncio
 import sys
+from datetime import date
 
 from app.container import build_container
 from app.core.config import settings
@@ -25,12 +31,13 @@ async def main(argv: list[str]) -> int:
     parser.add_argument("symbols", nargs="+")
     parser.add_argument("--agents", nargs="+", default=None)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--date", type=date.fromisoformat, help="run as of this past day")
     args = parser.parse_args(argv)
 
     container = build_container(settings, AsyncSessionLocal)
     try:
         report = await container.orchestrator.run(
-            args.symbols, agents=args.agents, force=args.force
+            args.symbols, agents=args.agents, force=args.force, run_date=args.date
         )
     finally:
         await container.aclose()

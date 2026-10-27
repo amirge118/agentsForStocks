@@ -250,3 +250,32 @@ async def test_run_logs_carry_the_run_context(session_factory, caplog) -> None:
         assert (record.run_id, record.pipeline_run_id) == (outcome.run_id, "p1")
         assert (record.agent, record.symbol) == ("stub", "AAPL")
     assert records[-1].duration_ms >= 0
+
+
+@pytest.mark.unit
+async def test_a_historical_run_sees_point_in_time_data_and_no_knowledge(session_factory) -> None:
+    from app.providers.point_in_time import PointInTimeYFinance
+
+    class _Counting(_RecordingKnowledge):
+        def __init__(self) -> None:
+            super().__init__()
+            self.recalled: list[str] = []
+
+        async def recall(self, symbol: str, agent_type: str) -> list[str]:
+            self.recalled.append(symbol)
+            return await super().recall(symbol, agent_type)
+
+    knowledge = _Counting()
+    agent = _StubAgent(make_context())
+    outcome = await AgentRunner(session_factory, knowledge).run(
+        agent, "AAPL", RUN_DATE, as_of=RUN_DATE
+    )
+    assert outcome.status == "completed"
+    assert isinstance(agent.ctx.yfinance, PointInTimeYFinance)
+    assert agent.ctx.yfinance.as_of == RUN_DATE
+    assert knowledge.recalled == []  # the knowledge base is not dated: not consulted
+
+    live = _StubAgent(make_context())
+    await AgentRunner(session_factory, knowledge).run(live, "MSFT", RUN_DATE)
+    assert not isinstance(live.ctx.yfinance, PointInTimeYFinance)
+    assert knowledge.recalled == ["MSFT"]

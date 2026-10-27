@@ -1,6 +1,6 @@
 # Plan: Backtest of the recommendation over a ticker × date grid
 
-Status: part A implemented (`app/domain/backtest.py`, `scripts/backtest_weights.py`); B waits for the point-in-time guard. Builds on outcome settlement (`docs/plans/outcome-settlement.md`).
+Status: part A implemented (`app/domain/backtest.py`, `scripts/backtest_weights.py`); the point-in-time guard is in (`app/providers/point_in_time.py`, `run_pipeline --date`), so B can be built. Builds on outcome settlement (`docs/plans/outcome-settlement.md`).
 Idea source: TradingAgents `tradingagents/backtest.py` (Apache-2.0).
 
 ## Goal

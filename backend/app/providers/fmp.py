@@ -28,8 +28,8 @@ logger = logging.getLogger(__name__)
 _BASE_URL = "https://financialmodelingprep.com/stable"
 _TRANSCRIPT_MAX_CHARS = 15_000
 _NOT_IN_PLAN = 402
-# The free plan caps `limit` at 5 on some endpoints (earnings)
-_FREE_PLAN_MAX_LIMIT = 5
+# The free plan rejects `limit` above 5 (HTTP 402) on the statement and earnings endpoints
+FREE_PLAN_MAX_LIMIT = 5
 
 
 class DailyCallBudget:
@@ -111,7 +111,7 @@ class FmpClient:
     async def get_earnings_surprises(self, symbol: str) -> list[dict]:
         """date, epsActual, epsEstimated, revenueActual, revenueEstimated — most recent first.
         The next (upcoming) report comes first, with epsActual = None."""
-        return await self._get_list("earnings", symbol, limit=_FREE_PLAN_MAX_LIMIT)
+        return await self._get_list("earnings", symbol, limit=FREE_PLAN_MAX_LIMIT)
 
     async def get_earnings_call_transcript(self, symbol: str, year: int, quarter: int) -> dict:
         """quarter, year, date, content (truncated). {} when unavailable or not in the plan."""

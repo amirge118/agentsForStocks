@@ -25,6 +25,7 @@ async def test_full_pipeline_produces_a_recommendation(concurrent_session_factor
         AgentRunner(concurrent_session_factory, NullKnowledgeStore()),
         registry,
         build_agent=lambda name: registry.get(name).agent_cls(ctx),
+        today=lambda: RUN_DATE,  # a live run on RUN_DATE, not a historical one
     )
 
     report = await orchestrator.run(["AAPL"], run_date=RUN_DATE)

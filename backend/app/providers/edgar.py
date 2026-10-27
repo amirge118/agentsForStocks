@@ -10,6 +10,7 @@ for ETFs and foreign filers, and agents treat it as "no text available".
 import html
 import logging
 import re
+from datetime import date
 from typing import Literal
 
 from app.core.symbols import validate_symbol
@@ -64,14 +65,17 @@ class EdgarClient:
     async def get_risk_factors(self, symbol: str) -> str:
         return await self.get_10k_section(symbol, "risk_factors")
 
-    async def get_10k_section(self, symbol: str, section: SectionName) -> str:
+    async def get_10k_section(
+        self, symbol: str, section: SectionName, filed_by: date | None = None
+    ) -> str:
+        """The section of the latest 10-K — filed on or before `filed_by` when given."""
         ticker = validate_symbol(symbol)
         try:
             cik = await self._get_cik(ticker)
             if cik is None:
                 logger.warning("edgar: CIK not found for %s", ticker)
                 return ""
-            filing = await self._latest_10k(cik)
+            filing = await self._latest_10k(cik, filed_by)
             if filing is None:
                 logger.warning("edgar: no 10-K filing for %s", ticker)
                 return ""
@@ -99,16 +103,25 @@ class EdgarClient:
                 return str(entry["cik_str"]).zfill(10)
         return None
 
-    async def _latest_10k(self, cik: str) -> tuple[str, str] | None:
-        """(accession number, primary document) of the most recent 10-K."""
+    async def _latest_10k(self, cik: str, filed_by: date | None = None) -> tuple[str, str] | None:
+        """(accession number, primary document) of the most recent 10-K, newest first."""
         data = await self._http.get_json(_SUBMISSIONS_URL.format(cik=cik), headers=self._headers)
         recent = data.get("filings", {}).get("recent", {})
-        for form, accession, document in zip(
-            recent.get("form", []),
+        forms = recent.get("form", [])
+        # Older payloads may lack filingDate: then no filing can be shown to be early enough
+        filed = recent.get("filingDate", [None] * len(forms))
+        for form, accession, document, filing_date in zip(
+            forms,
             recent.get("accessionNumber", []),
             recent.get("primaryDocument", []),
+            filed,
             strict=False,
         ):
-            if form == "10-K":
-                return accession, document
+            if form != "10-K":
+                continue
+            if filed_by is not None and (
+                filing_date is None or date.fromisoformat(filing_date) > filed_by
+            ):
+                continue
+            return accession, document
         return None
