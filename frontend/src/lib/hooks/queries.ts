@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRepositories } from "@/lib/api/repository-context"
 import type { RunFilters } from "@/lib/api/repositories"
 import { toast } from "@/lib/hooks/use-toast"
-import type { AgentResult, Horizon, PipelineRunRequest, PriceRange, UsageGroup } from "@/types/api"
+import type { AgentResult, Horizon, PipelineRunRequest, PriceRange, SymbolOverview, UsageGroup } from "@/types/api"
 
 export const queryKeys = {
   symbols: ["symbols"] as const,
@@ -130,10 +130,24 @@ export function useWatchlistMutations() {
       onSuccess: refresh,
       onError: fail("Could not remove the symbol"),
     }),
+    // Optimistic: the rows move at once (a drop or an arrow), and snap back if the API refuses
     reorder: useMutation({
       mutationFn: (symbols: string[]) => watchlist.reorder(symbols),
-      onSuccess: refresh,
-      onError: fail("Could not reorder the watchlist"),
+      onMutate: async (symbols: string[]) => {
+        await queryClient.cancelQueries({ queryKey: queryKeys.symbols, exact: true })
+        const previous = queryClient.getQueryData<SymbolOverview[]>(queryKeys.symbols)
+        if (previous) {
+          const bySymbol = new Map(previous.map((row) => [row.symbol, row]))
+          const next = symbols.flatMap((symbol) => bySymbol.get(symbol) ?? [])
+          queryClient.setQueryData(queryKeys.symbols, next)
+        }
+        return { previous }
+      },
+      onError: (error: Error, _symbols, context) => {
+        if (context?.previous) queryClient.setQueryData(queryKeys.symbols, context.previous)
+        fail("Could not reorder the watchlist")(error)
+      },
+      onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.symbols, exact: true }),
     }),
   }
 }

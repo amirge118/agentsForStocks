@@ -42,6 +42,28 @@ export function waterfall(breakdown: Contribution[]): WaterfallStep[] {
   })
 }
 
+export interface RunningStep {
+  agent: string
+  /** null when the analyst is not weighted in the score, or did not report */
+  contribution: number | null
+  /** Score after this analyst */
+  total: number
+}
+
+/**
+ * The score as it builds up, in the order the story tells the analysts. Its last
+ * total is the sum of the contributions, which is the weighted score.
+ */
+export function runningScore(order: string[], breakdown: Contribution[]): RunningStep[] {
+  const counted = new Map(breakdown.filter((c) => c.signal !== "missing").map((c) => [c.agent, c.contribution]))
+  let total = 0
+  return order.map((agent) => {
+    const contribution = counted.get(agent) ?? null
+    total += contribution ?? 0
+    return { agent, contribution, total }
+  })
+}
+
 /** Whole market days between two ISO dates, skipping weekends. */
 export function marketDaysBetween(fromIso: string, toIso: string): number {
   const from = new Date(`${fromIso.slice(0, 10)}T00:00:00Z`)

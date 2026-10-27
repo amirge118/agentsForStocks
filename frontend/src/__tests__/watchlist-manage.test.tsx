@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react"
+import { act, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
 import { AddSymbolForm } from "@/components/features/dashboard/add-symbol-form"
@@ -107,6 +107,44 @@ describe("WatchlistTable controls", () => {
   it("explains an empty watchlist", async () => {
     renderWithProviders(<WatchlistTable />, { symbols: symbols({ getAll: async () => [] }) })
     expect(await screen.findByText(/The watchlist is empty/)).toHaveAttribute("role", "status")
+  })
+})
+
+describe("WatchlistTable on a phone and by drag", () => {
+  it("folds the controls into one menu per row", async () => {
+    const repo = watchlist()
+    renderWithProviders(<WatchlistTable />, { symbols: symbols(), watchlist: repo })
+
+    await userEvent.click(await screen.findByRole("button", { name: "Actions for AAPL" }))
+    expect(screen.getByRole("menuitem", { name: "Move up" })).toHaveAttribute("aria-disabled", "true")
+    await userEvent.click(screen.getByRole("menuitem", { name: "Move down" }))
+    await waitFor(() => expect(repo.reorder).toHaveBeenCalledWith(["MSFT", "AAPL"]))
+
+    await userEvent.click(screen.getByRole("button", { name: "Actions for MSFT" }))
+    await userEvent.click(screen.getByRole("menuitem", { name: "Remove…" }))
+    await userEvent.click(screen.getByRole("button", { name: "Remove MSFT" }))
+    await waitFor(() => expect(repo.remove).toHaveBeenCalledWith("MSFT"))
+  })
+
+  it("gives every row a drag handle that the keyboard can lift", async () => {
+    renderWithProviders(<WatchlistTable />, { symbols: symbols(), watchlist: watchlist() })
+    const handle = await screen.findByRole("button", { name: "Reorder AAPL" })
+    expect(handle).toHaveAttribute("aria-roledescription", "sortable")
+    expect(screen.getByRole("button", { name: "Reorder MSFT" })).toBeInTheDocument()
+  })
+
+  it("moves the rows at once and puts them back when the reorder fails", async () => {
+    let fail!: (error: Error) => void
+    const repo = watchlist({ reorder: () => new Promise((_, reject) => (fail = reject)) })
+    renderWithProviders(<WatchlistTable />, { symbols: symbols(), watchlist: repo })
+
+    await userEvent.click(await screen.findByRole("button", { name: "Move MSFT up" }))
+    const order = () => screen.getAllByRole("link").map((a) => a.textContent)
+    await waitFor(() => expect(order()).toEqual(["MSFT", "AAPL"]))
+
+    await act(async () => fail(new Error("set mismatch")))
+    expect(await screen.findByText("Could not reorder the watchlist")).toBeInTheDocument()
+    await waitFor(() => expect(order()).toEqual(["AAPL", "MSFT"]))
   })
 })
 

@@ -9,14 +9,14 @@ const pct = (score: number) =>
  * The weighted score on its −100…+100 scale, with the HOLD band (between the
  * SELL and BUY thresholds) shaded, so a +16 reads as "only just a BUY".
  */
-export function ScoreScale({ score }: { score: number }) {
+export function ScoreScale({ score, label = "Weighted score" }: { score: number; label?: string }) {
   const sell = pct(SCORE_THRESHOLDS.sell)
   const buy = pct(SCORE_THRESHOLDS.buy)
   return (
     <div className="space-y-1">
       <div
         role="meter"
-        aria-label="Weighted score"
+        aria-label={label}
         aria-valuemin={SCORE_RANGE.min}
         aria-valuemax={SCORE_RANGE.max}
         aria-valuenow={score}
