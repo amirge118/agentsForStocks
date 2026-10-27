@@ -1,6 +1,6 @@
 # Plan: Backtest of the recommendation over a ticker × date grid
 
-Status: plan, not started. Builds on outcome settlement (`docs/plans/outcome-settlement.md`).
+Status: part A implemented (`app/domain/backtest.py`, `scripts/backtest_weights.py`); B waits for the point-in-time guard. Builds on outcome settlement (`docs/plans/outcome-settlement.md`).
 Idea source: TradingAgents `tradingagents/backtest.py` (Apache-2.0).
 
 ## Goal

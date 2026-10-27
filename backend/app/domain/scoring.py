@@ -50,6 +50,9 @@ def weighted_score(
     results: dict[str, dict[str, Any]],
     weights: dict[str, float],
     risk_agent: str = "risk",
+    *,
+    buy_threshold: float = BUY_THRESHOLD,
+    sell_threshold: float = SELL_THRESHOLD,
 ) -> WeightedScore:
     contributions = []
     missing = []
@@ -77,9 +80,9 @@ def weighted_score(
             )
         )
 
-    if total > BUY_THRESHOLD:
+    if total > buy_threshold:
         base: SignalLabel = "bullish"
-    elif total < SELL_THRESHOLD:
+    elif total < sell_threshold:
         base = "bearish"
     else:
         base = "neutral"
