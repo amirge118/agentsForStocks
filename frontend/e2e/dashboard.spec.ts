@@ -133,8 +133,8 @@ test("token usage page and a run's prompts", async ({ page }) => {
   await expect(providers.getByRole("listitem", { name: "gemini" })).toContainText("chain #1")
 })
 
-test("adding, reordering and removing watchlist symbols", async ({ page }) => {
-  await mockApi(page)
+/** A watchlist that remembers adds, moves and removes; returns the calls it saw. */
+async function mockWatchlist(page: Page): Promise<string[]> {
   let list = overview.map((o) => o.symbol)
   const calls: string[] = []
   // Registered after mockApi, so these win for /symbols and /watchlist
@@ -155,6 +155,12 @@ test("adding, reordering and removing watchlist symbols", async ({ page }) => {
     list = list.filter((s) => !request.url().endsWith(`/${s}`))
     return route.fulfill({ status: 204 })
   })
+  return calls
+}
+
+test("adding, reordering and removing watchlist symbols", async ({ page }) => {
+  await mockApi(page)
+  const calls = await mockWatchlist(page)
   await page.goto("/")
 
   await page.getByLabel("Ticker symbol").fill("nvda")
@@ -200,4 +206,47 @@ test("track record page and a symbol's past calls", async ({ page }) => {
   await expect(calls).toContainText("Sep 22, 2026")
   await expect(calls).toContainText("Wrong")
   await expect(page.getByText(/of 2 calls \(50%\)/)).toBeVisible()
+})
+
+test("on a phone, each row's actions are in one menu", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await mockApi(page)
+  const calls = await mockWatchlist(page)
+  await page.goto("/")
+
+  await expect(page.getByRole("button", { name: "Move MSFT up" })).toBeHidden()
+  await page.getByRole("button", { name: "Actions for MSFT" }).click()
+  await page.getByRole("menuitem", { name: "Move up" }).click()
+  await expect(page.locator("tbody tr").first()).toContainText("MSFT")
+  expect(calls).toEqual(["PUT /api/backend/watchlist/order"])
+})
+
+test("a row can be dragged into place with the keyboard", async ({ page }) => {
+  await mockApi(page)
+  const calls = await mockWatchlist(page)
+  await page.goto("/")
+
+  const handle = page.getByRole("button", { name: "Reorder AAPL" })
+  const announced = page.locator('[id^="DndLiveRegion"]')
+  await handle.focus()
+  // Each key waits for the drag to take it (the handle is pressed, then the screen reader hears the move)
+  await page.keyboard.press("Space")
+  await expect(handle).toHaveAttribute("aria-pressed", "true")
+  await page.keyboard.press("ArrowDown")
+  await expect(announced).toContainText("AAPL is over position 2 of 2.")
+  await page.keyboard.press("Space")
+  await expect(page.locator("tbody tr").first()).toContainText("MSFT")
+  expect(calls).toEqual(["PUT /api/backend/watchlist/order"])
+})
+
+test("the story keeps a running score beside the act being read", async ({ page }) => {
+  await mockApi(page)
+  await page.goto("/symbols/AAPL/story")
+  const total = page.getByRole("complementary", { name: "Running score" }).locator("[aria-live]")
+
+  await page.getByRole("region", { name: /^risk,/ }).evaluate((el) => el.scrollIntoView({ block: "center" }))
+  await expect(total).toHaveText("-6.0")
+
+  await page.getByRole("region", { name: "The verdict" }).evaluate((el) => el.scrollIntoView({ block: "center" }))
+  await expect(total).toHaveText("+6.0")
 })

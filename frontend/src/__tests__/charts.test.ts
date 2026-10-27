@@ -5,6 +5,7 @@ import {
   marketDaysBetween,
   priceSeries,
   rangeChange,
+  runningScore,
   scorePoints,
   waterfall,
 } from "@/lib/charts"
@@ -50,5 +51,17 @@ describe("chart data shaping", () => {
     expect(series.volume.map((v) => v.up)).toEqual([true, true, true])
     expect(rangeChange(priceHistory.bars)).toBeCloseTo(2.1739, 3)
     expect(rangeChange(priceHistory.bars.slice(0, 1))).toBeNull()
+  })
+})
+
+describe("runningScore", () => {
+  it("adds each analyst in story order, skipping those not weighted or missing", () => {
+    const steps = runningScore(["technicals", "moat", "institutional", "risk"], recommendation.agent_breakdown)
+    expect(steps).toEqual([
+      { agent: "technicals", contribution: null, total: 0 },
+      { agent: "moat", contribution: 12, total: 12 },
+      { agent: "institutional", contribution: null, total: 12 },
+      { agent: "risk", contribution: -6, total: 6 },
+    ])
   })
 })

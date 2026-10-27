@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react"
+import { screen, within } from "@testing-library/react"
 
 import { AnalysisStory } from "@/components/features/stocks/analysis-story"
 import { ApiError } from "@/lib/api/client"
@@ -69,5 +69,23 @@ describe("AnalysisStory", () => {
     expect(verdict).toHaveTextContent(recommendation.reasoning)
     expect(screen.getByText(recommendation.disclaimer)).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "See every figure for AAPL" })).toHaveAttribute("href", "/symbols/AAPL")
+  })
+
+  it("says what each analyst did to the score, and keeps a running total beside the acts", async () => {
+    renderWithProviders(<AnalysisStory symbol="AAPL" />, { symbols: symbols({}), agents })
+
+    const moat = await screen.findByRole("region", { name: "moat, analyst 3 of 5" })
+    expect(moat).toHaveTextContent("Counts +12.0; the score is now +12.0.")
+    expect(screen.getByRole("region", { name: "risk, analyst 4 of 5" })).toHaveTextContent(
+      "Counts -6.0; the score is now +6.0.",
+    )
+    expect(screen.getByRole("region", { name: "technicals, analyst 1 of 5" })).toHaveTextContent(
+      "Not counted in the score.",
+    )
+
+    // No IntersectionObserver in jsdom: the aside shows the whole tally, as it does without JS
+    const aside = screen.getByRole("complementary", { name: "Running score" })
+    expect(within(aside).getByRole("meter", { name: "Running score" })).toHaveAttribute("aria-valuenow", "6")
+    expect(within(aside).getByText("moat").nextSibling).toHaveTextContent("+12.0")
   })
 })

@@ -102,10 +102,11 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Check that a ticker exists (yfinance quote) when it is added to the watchlist, not only its format [PRIORITY: MED]
 - [ ] Watchlist groups / tags (e.g. "core", "ideas") and per-group runs [PRIORITY: LOW]
 - [x] Watchlist management in the dashboard: add (format checked client-side, duplicate by the API), move up / down, remove with a confirm step, a 30-run score sparkline per row, an empty state that says when the next run is
-- [ ] Drag-to-reorder on the watchlist (today: up / down buttons, which also work by keyboard) [PRIORITY: LOW]
-- [ ] Watchlist on phones: the row controls sit past the right edge and need a sideways scroll; fold them into one row menu below `sm` [PRIORITY: MED]
+- [x] Drag-to-reorder on the watchlist (dnd-kit: grip handle per row, pointer / touch / keyboard, screen-reader announcements; the order moves at once and snaps back if the API refuses)
+- [x] Watchlist on phones: below `sm` the row controls fold into one menu per row (Move up / Move down / Remove…, the remove still confirmed)
 - [x] Analysis story (`/symbols/{symbol}/story`): one screen per analyst in pipeline order, a "they don't all agree" beat when the signals split, the verdict as the peak; CSS scroll-timeline reveal, static under reduced motion or without support
-- [ ] Story: show how each analyst moved the running score (the waterfall, one step per act) as a sticky aside on wide screens [PRIORITY: LOW]
+- [x] Story: each act says what it adds to the score and where it stands; on wide screens a sticky "Running score" aside follows the act being read
+- [ ] Story: name the analysts that are not weighted in the score ("not counted") in the opening, so the reader knows before the acts [PRIORITY: LOW]
 - [x] Next.js frontend: watchlist, symbol detail, run history; types generated from OpenAPI + Zod validated and checked against them
 - [x] Symbol detail: verdict hero with score scale, analyst consensus, contribution waterfall, price chart (SMA20/50, volume, RSI, BUY/SELL markers, range in the URL), per-agent panels (valuation, technicals, fundamentals, earnings, risk, sentiment + generic), score history
 - [ ] Expose the BUY / SELL thresholds through the API instead of mirroring them in `frontend/src/lib/scoring.ts` [PRIORITY: LOW]
