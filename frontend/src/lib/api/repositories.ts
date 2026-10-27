@@ -16,6 +16,8 @@ import {
   RecommendationSchema,
   SymbolOverviewSchema,
   WatchlistItemSchema,
+  SymbolTrackRecordSchema,
+  TrackRecordReportSchema,
   type AgentInfo,
   type AgentResult,
   type AgentRun,
@@ -28,7 +30,10 @@ import {
   type PriceRange,
   type Recommendation,
   type RunStatus,
+  type Horizon,
   type SymbolOverview,
+  type SymbolTrackRecord,
+  type TrackRecordReport,
   type UsageGroup,
   type WatchlistItem,
 } from "@/types/api"
@@ -40,6 +45,11 @@ export interface SymbolRepository {
   getRecommendation(symbol: string): Promise<Recommendation>
   getResults(symbol: string, filters?: { agent?: string; runDate?: string; limit?: number }): Promise<AgentResult[]>
   getPrices(symbol: string, range: PriceRange): Promise<PriceHistory>
+  getOutcomes(symbol: string, horizon: Horizon): Promise<SymbolTrackRecord>
+}
+
+export interface OutcomeRepository {
+  getTrackRecord(horizon: Horizon): Promise<TrackRecordReport>
 }
 
 export interface WatchlistRepository {
@@ -83,6 +93,12 @@ export const symbolRepository: SymbolRepository = {
     }),
   getPrices: (symbol, range) =>
     get(`/symbols/${encodeURIComponent(symbol)}/prices`, PriceHistorySchema, { range }),
+  getOutcomes: (symbol, horizon) =>
+    get(`/symbols/${encodeURIComponent(symbol)}/outcomes`, SymbolTrackRecordSchema, { horizon }),
+}
+
+export const outcomeRepository: OutcomeRepository = {
+  getTrackRecord: (horizon) => get("/outcomes/track-record", TrackRecordReportSchema, { horizon }),
 }
 
 export const watchlistRepository: WatchlistRepository = {

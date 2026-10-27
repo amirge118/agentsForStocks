@@ -37,6 +37,14 @@ function Valuation({ result }: { result: unknown }) {
           tone={v.margin_of_safety >= 0 ? "ok" : "bad"}
         />
         <Metric label="Intrinsic value" hint="The average of the valuation methods that produced a figure." value={billions(v.avg_intrinsic_value)} />
+        {typeof v.implied_growth === "number" && typeof v.growth_rate === "number" && (
+          <Metric
+            label="Growth priced in"
+            hint="The yearly growth (years 1-5) the market value implies, next to the company's own revenue growth. Far above it means the price expects more than the record shows."
+            value={`${formatPercent(v.implied_growth * 100)} vs ${formatPercent(v.growth_rate * 100)}`}
+            tone={v.implied_growth > v.growth_rate ? "bad" : "ok"}
+          />
+        )}
       </dl>
       {scenarios.length > 0 && max > 0 && (
         <div className="space-y-1.5" aria-label="DCF scenarios against the market cap">

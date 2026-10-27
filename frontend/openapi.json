@@ -248,6 +248,39 @@
         "title": "AgentRunOut",
         "type": "object"
       },
+      "AgentTrackRecord": {
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "by_confidence": {
+            "items": {
+              "$ref": "#/components/schemas/TrackGroupOut"
+            },
+            "title": "By Confidence",
+            "type": "array"
+          },
+          "by_signal": {
+            "items": {
+              "$ref": "#/components/schemas/TrackGroupOut"
+            },
+            "title": "By Signal",
+            "type": "array"
+          },
+          "overall": {
+            "$ref": "#/components/schemas/TrackStatsOut"
+          }
+        },
+        "required": [
+          "agent",
+          "overall",
+          "by_signal",
+          "by_confidence"
+        ],
+        "title": "AgentTrackRecord",
+        "type": "object"
+      },
       "ComplianceFindingView": {
         "properties": {
           "phrase": {
@@ -806,6 +839,66 @@
         "title": "LLMUsageRow",
         "type": "object"
       },
+      "OutcomeCallOut": {
+        "properties": {
+          "alpha": {
+            "title": "Alpha",
+            "type": "number"
+          },
+          "benchmark": {
+            "title": "Benchmark",
+            "type": "string"
+          },
+          "benchmark_return": {
+            "title": "Benchmark Return",
+            "type": "number"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "decision_date": {
+            "format": "date",
+            "title": "Decision Date",
+            "type": "string"
+          },
+          "exit_date": {
+            "format": "date",
+            "title": "Exit Date",
+            "type": "string"
+          },
+          "hit": {
+            "title": "Hit",
+            "type": "boolean"
+          },
+          "raw_return": {
+            "title": "Raw Return",
+            "type": "number"
+          },
+          "signal": {
+            "enum": [
+              "bullish",
+              "bearish",
+              "neutral"
+            ],
+            "title": "Signal",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision_date",
+          "exit_date",
+          "signal",
+          "confidence",
+          "raw_return",
+          "benchmark_return",
+          "alpha",
+          "hit",
+          "benchmark"
+        ],
+        "title": "OutcomeCallOut",
+        "type": "object"
+      },
       "PipelineRunAccepted": {
         "properties": {
           "agents": {
@@ -1146,6 +1239,190 @@
           "recommendation"
         ],
         "title": "SymbolOverview",
+        "type": "object"
+      },
+      "SymbolTrackRecord": {
+        "properties": {
+          "calls": {
+            "description": "Settled recommendations, newest first",
+            "items": {
+              "$ref": "#/components/schemas/OutcomeCallOut"
+            },
+            "title": "Calls",
+            "type": "array"
+          },
+          "horizon": {
+            "title": "Horizon",
+            "type": "integer"
+          },
+          "overall": {
+            "$ref": "#/components/schemas/TrackStatsOut"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "horizon",
+          "overall",
+          "pending",
+          "calls"
+        ],
+        "title": "SymbolTrackRecord",
+        "type": "object"
+      },
+      "TrackGroupOut": {
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "hit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "hits / calls (0-1); None without calls",
+            "title": "Hit Rate"
+          },
+          "hits": {
+            "title": "Hits",
+            "type": "integer"
+          },
+          "key": {
+            "description": "The signal (bullish / neutral / bearish) or confidence bucket",
+            "title": "Key",
+            "type": "string"
+          },
+          "mean_alpha_captured": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean alpha earned by following each call (long, short or out), as a fraction",
+            "title": "Mean Alpha Captured"
+          }
+        },
+        "required": [
+          "calls",
+          "hits",
+          "hit_rate",
+          "mean_alpha_captured",
+          "key"
+        ],
+        "title": "TrackGroupOut",
+        "type": "object"
+      },
+      "TrackRecordReport": {
+        "properties": {
+          "agents": {
+            "description": "Recommendation first, then by name",
+            "items": {
+              "$ref": "#/components/schemas/AgentTrackRecord"
+            },
+            "title": "Agents",
+            "type": "array"
+          },
+          "horizon": {
+            "description": "Trading sessions after the decision (5, 20 or 60)",
+            "title": "Horizon",
+            "type": "integer"
+          },
+          "pending": {
+            "description": "Outcomes whose window has not fully traded yet",
+            "title": "Pending",
+            "type": "integer"
+          },
+          "settled": {
+            "title": "Settled",
+            "type": "integer"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "unavailable": {
+            "description": "Windows that never got prices (e.g. delisted)",
+            "title": "Unavailable",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "horizon",
+          "since",
+          "settled",
+          "pending",
+          "unavailable",
+          "agents"
+        ],
+        "title": "TrackRecordReport",
+        "type": "object"
+      },
+      "TrackStatsOut": {
+        "description": "Settled calls, how many were right, and what following them earned vs the benchmark.",
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "hit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "hits / calls (0-1); None without calls",
+            "title": "Hit Rate"
+          },
+          "hits": {
+            "title": "Hits",
+            "type": "integer"
+          },
+          "mean_alpha_captured": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean alpha earned by following each call (long, short or out), as a fraction",
+            "title": "Mean Alpha Captured"
+          }
+        },
+        "required": [
+          "calls",
+          "hits",
+          "hit_rate",
+          "mean_alpha_captured"
+        ],
+        "title": "TrackStatsOut",
         "type": "object"
       },
       "ValidationError": {
@@ -1492,6 +1769,75 @@
         ]
       }
     },
+    "/api/v1/outcomes/track-record": {
+      "get": {
+        "operationId": "track_record_api_v1_outcomes_track_record_get",
+        "parameters": [
+          {
+            "description": "Only decisions on or after this day",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only decisions on or after this day",
+              "title": "Since"
+            }
+          },
+          {
+            "description": "Trading sessions: 5, 20 or 60",
+            "in": "query",
+            "name": "horizon",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Trading sessions: 5, 20 or 60",
+              "title": "Horizon",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackRecordReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Track Record",
+        "tags": [
+          "outcomes"
+        ]
+      }
+    },
     "/api/v1/pipeline/runs": {
       "post": {
         "operationId": "start_pipeline_run_api_v1_pipeline_runs_post",
@@ -1741,6 +2087,81 @@
           }
         ],
         "summary": "List Symbols",
+        "tags": [
+          "symbols"
+        ]
+      }
+    },
+    "/api/v1/symbols/{symbol}/outcomes": {
+      "get": {
+        "operationId": "get_outcomes_api_v1_symbols__symbol__outcomes_get",
+        "parameters": [
+          {
+            "description": "Ticker, e.g. AAPL or BRK.B",
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "description": "Ticker, e.g. AAPL or BRK.B",
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Most recent settled calls",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "Most recent settled calls",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Trading sessions: 5, 20 or 60",
+            "in": "query",
+            "name": "horizon",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Trading sessions: 5, 20 or 60",
+              "title": "Horizon",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SymbolTrackRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Outcomes",
         "tags": [
           "symbols"
         ]

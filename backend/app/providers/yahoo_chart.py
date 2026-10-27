@@ -43,6 +43,7 @@ _QUOTE_FIELDS = {
     "regularMarketVolume": "regularMarketVolume",
     "regularMarketDayHigh": "dayHigh",
     "regularMarketDayLow": "dayLow",
+    "instrumentType": "quoteType",  # EQUITY, ETF, MUTUALFUND, ...
 }
 SOURCE = "yahoo_chart"
 

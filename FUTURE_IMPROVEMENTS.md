@@ -4,6 +4,11 @@ Add ideas and "nice to haves" discovered during implementation here.
 Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 
 ## Agents
+- [x] Valuation from the company's own numbers: revenue-history growth, CAPM discount rate, owner earnings (maintenance capex ≈ D&A), no double haircut, reverse DCF (implied growth)
+- [ ] Valuation: tie growth to reinvestment (g ≈ ROIC × reinvestment rate) so growth capex isn't both excluded from cash flow and credited with the growth [PRIORITY: MED]
+- [ ] Valuation: analyst forward estimates (FMP `analyst-estimates`, if in the plan) next to the revenue history; risk-free rate from the 10-year Treasury instead of a constant [PRIORITY: LOW]
+- [x] Funds (ETFs) run only the market agents; company-only agents are skipped (`company_only=True`)
+- [ ] Fund-specific agents: holdings concentration, expense ratio, tracking error, flows — then a fund recommendation [PRIORITY: LOW]
 - [x] Agent contracts: data gaps, no-data confidence cap, invariants (valuation, fundamentals, technicals), risk cap enforced in code; golden scenarios; prompt snapshots with a size budget
 - [ ] More invariants: risk (bullish with D/E > 3 and current ratio < 1), earnings (beat rate ≥ 75% + positive reaction yet bearish), institutional (distributing yet bullish) — normalise D/E units first (FMP ratio vs Yahoo percent) [PRIORITY: MED]
 - [ ] Show data gaps and contract violations per agent on the symbol page [PRIORITY: MED]
@@ -19,12 +24,17 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [x] Outcome settlement, phase 1: `decision_outcomes` table, nightly settlement before the daily pipeline (backfills history), `scripts.settle_outcomes`
 - [x] Outcome settlement, phase 3: `outcome_review` agent writes a lesson per settled recommendation; the recommendation prompt gets a point-in-time track record (hit rate, alpha captured, lessons)
 - [x] Outcome settlement, phase 4: `evals.capture --outcomes` + `evals.run --suite outcomes` — replays captured prompts and grades a configuration by hit rate and alpha captured against what really followed
-- [ ] Outcome settlement, phase 2 (deferred): track-record read side — `OutcomeRepository.track_record(agent, horizon, since)` (hit rate, mean alpha, confidence buckets per agent and signal), `GET /api/v1/outcomes/track-record` and `/symbols/{symbol}/outcomes`, `scripts.track_report`, a "Track record" card on the symbol page and a `/track-record` page — see `docs/plans/outcome-settlement.md` [PRIORITY: MED]
+- [x] Outcome settlement, phase 2: `GET /api/v1/outcomes/track-record` (per agent: hit rate, alpha captured, per signal and confidence bucket) and `/symbols/{symbol}/outcomes`, `scripts.track_report`, the `/track-record` page and a "Track record" card on the symbol page
+- [ ] Track record over time: hit rate per month per agent (a chart on `/track-record`) to see whether a prompt or model change helped — needs a few months of settled calls [PRIORITY: LOW]
+- [ ] Mobile: the calibration table on `/track-record` scrolls sideways at 390px; consider stacking it per agent [PRIORITY: LOW]
 - [x] Yahoo chart fallback for `YFinanceClient.get_closes` (settlement): `YahooChartClient.get_adjusted_closes` reads the chart's `adjclose` for an exact date range (period1/period2) — never unadjusted closes; verified live equal to yfinance's auto-adjusted closes
 - [ ] Risk override caps the signal at HOLD in code but not the confidence: the `risk_override/recommendation` eval case averages 58–59% against its 55% limit (Gemini, 10 repeats). Cap the confidence too in `risk_capped`, or relabel the case [PRIORITY: MED]
 - [ ] Run the outcome eval suite live once a few weeks of recommendations have settled (current prompt as the baseline for every later prompt/model change) [PRIORITY: HIGH]
 - [ ] Hit rate per analyst agent in its own prompt ("your bullish calls on this symbol were right 3/7 times") — easy with phase 2's query; measure with the outcome suite first [PRIORITY: LOW]
-- [ ] Backtest: plan in `docs/plans/backtest.md` — (A) re-weight stored analyst results against settled alpha (no LLM, date-split to avoid overfitting), then (B) re-run the pipeline on past dates once the point-in-time guard exists (TradingAgents `backtest.py`) [PRIORITY: HIGH]
+- [x] Backtest A: `python -m scripts.backtest_weights` replays the stored analyst calls with 136 weight/threshold configurations (current, equal, each agent dropped / x0.5 / x1.5 / x2, thresholds ±10–25) against the settled outcomes; fit on the first 70% of days, reported on the rest, next to the stored LLM recommendations
+- [ ] Run backtest A once a few weeks have settled, and change weights only on a clear out-of-sample win [PRIORITY: HIGH]
+- [ ] Backtest B: re-run the pipeline on past dates — needs the point-in-time guard first (`docs/plans/backtest.md`) [PRIORITY: MED]
+- [ ] Backtest A on more than one agent at a time (pairs, or a coordinate search) once there are enough cases that it won't just fit noise [PRIORITY: LOW]
 - [ ] Point-in-time guard for historical runs: clamp every provider call to `run_date`, drop items dated after it, report "feed can't reach that window" as unavailable rather than empty, withhold live snapshots (`info`) from past dates — required before any backtest (TradingAgents `dataflows/date_window.py`) [PRIORITY: HIGH]
 - [ ] Bull/bear debate as a `recommendation` prompt variant (one bull and one bear pass, then the decision; "conflict alone is not a reason to HOLD") — plan in `docs/plans/bull-bear-debate.md`; ship only if the scenario and outcome evals beat the current prompt, it triples the recommendation's calls (TradingAgents `agents/researchers/`) [PRIORITY: MED]
 - [ ] Check that no parse/LLM failure is silently stored as a neutral HOLD; mark it as needing review instead (TradingAgents `rating.py` `REVIEW`) [PRIORITY: MED]

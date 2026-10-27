@@ -7,6 +7,8 @@ import type {
   PriceHistory,
   Recommendation,
   SymbolOverview,
+  SymbolTrackRecord,
+  TrackRecordReport,
 } from "@/types/api"
 
 export const recommendation: Recommendation = {
@@ -95,6 +97,44 @@ export const claude: LLMProvider = {
 }
 export const llmProviders: LLMProvider[] = [claude, gemini]
 
+export const trackRecord: TrackRecordReport = {
+  horizon: 20, since: null, settled: 12, pending: 4, unavailable: 1,
+  agents: [
+    {
+      agent: "recommendation",
+      overall: { calls: 3, hits: 2, hit_rate: 2 / 3, mean_alpha_captured: 0.0123 },
+      by_signal: [
+        { key: "bullish", calls: 2, hits: 2, hit_rate: 1, mean_alpha_captured: 0.025 },
+        { key: "bearish", calls: 1, hits: 0, hit_rate: 0, mean_alpha_captured: -0.0131 },
+      ],
+      by_confidence: [
+        { key: "60-80", calls: 2, hits: 1, hit_rate: 0.5, mean_alpha_captured: 0.004 },
+        { key: "80-100", calls: 1, hits: 1, hit_rate: 1, mean_alpha_captured: 0.03 },
+      ],
+    },
+    {
+      agent: "financial_history",
+      overall: { calls: 3, hits: 1, hit_rate: 1 / 3, mean_alpha_captured: -0.004 },
+      by_signal: [{ key: "neutral", calls: 3, hits: 1, hit_rate: 1 / 3, mean_alpha_captured: 0 }],
+      by_confidence: [{ key: "40-60", calls: 3, hits: 1, hit_rate: 1 / 3, mean_alpha_captured: 0 }],
+    },
+  ],
+}
+
+export const symbolTrackRecord: SymbolTrackRecord = {
+  symbol: "AAPL", horizon: 20, pending: 2,
+  overall: { calls: 2, hits: 1, hit_rate: 0.5, mean_alpha_captured: 0.0045 },
+  calls: [
+    {
+      decision_date: "2026-09-22", exit_date: "2026-10-20", signal: "bearish", confidence: 58,
+      raw_return: 0.031, benchmark_return: 0.012, alpha: 0.019, hit: false, benchmark: "SPY",
+    },
+    {
+      decision_date: "2026-09-01", exit_date: "2026-09-29", signal: "bullish", confidence: 72,
+      raw_return: 0.041, benchmark_return: 0.013, alpha: 0.028, hit: true, benchmark: "SPY",
+    },
+  ],
+}
 export const priceHistory: PriceHistory = {
   symbol: "AAPL",
   range: "6M",
@@ -129,11 +169,14 @@ export const agentResults: AgentResult[] = [
   resultRow("valuation", {
     ...base("bullish", 70, "Trades below the DCF base case"),
     dcf: { bear: 2.6e12, base: 3.9e12, bull: 5.1e12 },
-    owner_earnings_value: 3.4e12,
+    earnings_power_value: 1.4e12,
     ev_ebitda_value: null,
     avg_intrinsic_value: 3.65e12,
     margin_of_safety: 0.12,
     market_cap: 3.26e12,
+    growth_rate: 0.158,
+    discount_rate: 0.097,
+    implied_growth: 0.135,
   }),
   resultRow("technicals", {
     ...base("bullish", 64, "Trend and momentum agree"),

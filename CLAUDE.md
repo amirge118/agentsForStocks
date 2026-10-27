@@ -39,6 +39,12 @@ cd backend && python -m scripts.run_pipeline AAPL MSFT [--agents technicals valu
 # Settle past decisions against realised prices (the daily job does it before the agents)
 cd backend && python -m scripts.settle_outcomes [--symbols AAPL] [--as-of 2026-10-01]
 
+# Track record: each agent's hit rate and alpha captured from the settled outcomes
+cd backend && python -m scripts.track_report [--horizon 5|20|60] [--since 2026-09-01]
+
+# Backtest the recommendation weights/thresholds on the settled outcomes (no model calls)
+cd backend && python -m scripts.backtest_weights [--horizon 20] [--since 2026-09-01] [--top 15]
+
 # Token usage and cost per agent / model / day / prompt version (from the llm_calls ledger)
 cd backend && python -m scripts.token_report [--days 30] [--by model]
 
@@ -88,7 +94,7 @@ All calls to `yfinance`, financial APIs, or any external service MUST go through
 - Exponential backoff + retry on transient errors only (3 attempts, 1s/2s/4s)
 - Per-domain rate limiting (`RateLimiter`, limits in `app/container.py`)
 - Timeout of 10s max per request, plus a TTL cache shared by all agents
-FMP calls also count against `DailyCallBudget` (free tier = 250/day). FMP is called on `/stable/<endpoint>?symbol=` (the old `/api/v3/` is closed to new accounts); an endpoint outside the plan (HTTP 402 — on the free plan: transcripts, institutional ownership) returns no data instead of failing the agent. When yfinance can't get prices (Yahoo refuses its crumb on cloud hosts), `YahooChartClient` (`providers/yahoo_chart.py`) fills in history and the quote; data with no chart equivalent (earnings dates, insider trades, news) comes back empty, so the agent runs on with a data gap. When `info` comes back without a market cap (a quote-only answer), `FmpClient.get_info_fields` fills the fundamentals under yfinance's names and units (`providers/fmp.py` `to_info_fields`: D/E in percent, margins and growth as fractions); yfinance's own values always win. That costs about 21 FMP calls per symbol per run — about 105 of the 250 free calls for the 5-symbol watchlist. A missing field is no evidence: never default it to 0 in a calculation (see the fundamentals vote and `valuation.summarize`). Claude is called only through `app/llm/client.py` (structured outputs).
+FMP calls also count against `DailyCallBudget` (free tier = 250/day). FMP is called on `/stable/<endpoint>?symbol=` (the old `/api/v3/` is closed to new accounts); an endpoint outside the plan (HTTP 402 — on the free plan: transcripts, institutional ownership) returns no data instead of failing the agent. When yfinance can't get prices (Yahoo refuses its crumb on cloud hosts), `YahooChartClient` (`providers/yahoo_chart.py`) fills in history and the quote; data with no chart equivalent (earnings dates, insider trades, news) comes back empty, so the agent runs on with a data gap. When `info` comes back without a market cap (a quote-only answer), `FmpClient.get_info_fields` fills the fundamentals under yfinance's names and units (`providers/fmp.py` `to_info_fields`: D/E in percent, margins and growth as fractions); yfinance's own values always win. That costs about 22 FMP calls per symbol per run — about 110 of the 250 free calls for the 5-symbol watchlist. A missing field is no evidence: never default it to 0 in a calculation (see the fundamentals vote and `valuation.summarize`). Claude is called only through `app/llm/client.py` (structured outputs).
 
 ### 6. TanStack Query v5 Patterns
 Use `isPending` for loading skeletons (NOT `isLoading` — that's v4). Get query client via `useQueryClient()` hook. On mutation success: `invalidateQueries`. On mutation error: `toast({ variant: "destructive" })`.
@@ -155,6 +161,12 @@ Nothing runs on its own unless `SCHEDULER_ENABLED=true` (default false: the app 
 
 Where they run: `RUN_SCHEDULER=true` runs them in the API process (development); in production `RUN_SCHEDULER=false` on the API plus one `python -m app.worker` (which idles while the switch is off). `/health` reports the scheduler as `disabled`, `external`, `ok` or `stopped`. Outside the app, only CI (push/PR) and Dependabot (weekly PRs) are scheduled. A new job goes in `jobs()` and `build_scheduler`, with its own `*_SCHEDULE` setting.
 
+### 21. Funds (ETFs) Skip the Company Agents
+A fund has no 10-K, statements, earnings or moat. `@register_agent(company_only=True)` marks the agents that analyse a company (fundamentals, valuation, moat, financial_history, growth, earnings, institutional, risk, broad_analysis, the recommendation and outcome_review); for a symbol whose `quoteType` is ETF or MUTUALFUND (`app/domain/assets.py`, set by yfinance, the Yahoo chart's `instrumentType` or FMP's `isEtf`) the orchestrator runs only the others (market_scanner, technicals, sentiment) and reports the rest as `skipped` — not recorded in `agent_runs`. The FMP fundamentals fill is not fetched for a fund. A new agent that reads company filings must set `company_only=True`.
+
+### 22. Valuation Uses the Company's Own Numbers
+`app/domain/valuation.py`: growth from the FMP revenue history (CAGR + latest year, 0-25%), a CAPM discount rate from beta (7-13%), owner earnings with maintenance capex ≈ D&A as the cash flow, DCF bear/base/bull around them plus sector EV/EBITDA, and a reverse DCF (`implied_growth`). There is no haircut: the 20% margin-of-safety threshold is the only conservatism. The live calibration is pinned in `tests/unit/domain/test_valuation.py` (AAPL vs MSFT, 2026-10-26); a change that moves it ships with an eval report.
+
 ## Key File Map
 
 | What you need | Where |
@@ -164,6 +176,7 @@ Where they run: `RUN_SCHEDULER=true` runs them in the API process (development);
 | Agent registry (deps, weights, order) | `backend/app/agents/registry.py` |
 | Decision outcomes (forward returns vs benchmark, 5/20/60 sessions) | `backend/app/domain/outcomes.py`, `backend/app/pipeline/settlement.py`, table `decision_outcomes` |
 | Lessons from settled calls + track record (point-in-time) | `backend/app/agents/outcome_review.py` → `AgentContext.outcomes` → recommendation prompt |
+| Track record read side (API, page, card) | `backend/app/api/v1/endpoints/outcomes.py`, `GET /symbols/{symbol}/outcomes`, `frontend/src/components/features/outcomes/`, `stocks/track-record-card.tsx` |
 | Plans for larger features | `docs/plans/` |
 | Pipeline orchestration + scheduler | `backend/app/pipeline/orchestrator.py`, `backend/app/agents/scheduler.py`, `backend/app/worker.py` |
 | Preflight / manual runs | `backend/app/ops/`, `backend/scripts/preflight.py`, `backend/scripts/run_pipeline.py` |

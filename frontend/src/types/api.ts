@@ -162,6 +162,49 @@ export const LLMProviderSchema = z.object({
   day_tokens: z.number(),
 })
 
+export const TrackStatsSchema = z.object({
+  calls: z.number(),
+  hits: z.number(),
+  hit_rate: z.number().nullable(),
+  mean_alpha_captured: z.number().nullable(),
+})
+export const TrackGroupSchema = TrackStatsSchema.extend({ key: z.string() })
+export const AgentTrackRecordSchema = z.object({
+  agent: z.string(),
+  overall: TrackStatsSchema,
+  by_signal: z.array(TrackGroupSchema),
+  by_confidence: z.array(TrackGroupSchema),
+})
+export const TrackRecordReportSchema = z.object({
+  horizon: z.number(),
+  since: z.string().nullable(),
+  settled: z.number(),
+  pending: z.number(),
+  unavailable: z.number(),
+  agents: z.array(AgentTrackRecordSchema),
+})
+export const OutcomeCallSchema = z.object({
+  decision_date: z.string(),
+  exit_date: z.string(),
+  signal: SignalSchema,
+  confidence: z.number(),
+  raw_return: z.number(),
+  benchmark_return: z.number(),
+  alpha: z.number(),
+  hit: z.boolean(),
+  benchmark: z.string(),
+})
+export const SymbolTrackRecordSchema = z.object({
+  symbol: z.string(),
+  horizon: z.number(),
+  overall: TrackStatsSchema,
+  pending: z.number(),
+  calls: z.array(OutcomeCallSchema),
+})
+/** Trading sessions after a call that the track record judges it on. */
+export const HORIZONS = [5, 20, 60] as const
+export type Horizon = (typeof HORIZONS)[number]
+
 export const PipelineRunAcceptedSchema = z.object({
   pipeline_run_id: z.string(),
   run_date: z.string(),
@@ -212,11 +255,18 @@ export const BaseAgentResultSchema = z.object({
 
 export const ValuationResultSchema = BaseAgentResultSchema.extend({
   dcf: z.record(z.string(), z.number()),
-  owner_earnings_value: z.number().nullable(),
+  // owner_earnings_value: results stored before the company-specific valuation
+  owner_earnings_value: z.number().nullable().optional(),
+  earnings_power_value: z.number().nullable().optional(),
   ev_ebitda_value: z.number().nullable(),
   avg_intrinsic_value: z.number(),
   margin_of_safety: z.number(),
   market_cap: z.number(),
+  // Fractions: the company's own years 1-5 growth, its discount rate, and the growth
+  // the market cap implies (reverse DCF; null when no growth explains the price)
+  growth_rate: z.number().optional(),
+  discount_rate: z.number().optional(),
+  implied_growth: z.number().nullable().optional(),
 })
 
 export const TechnicalsResultSchema = BaseAgentResultSchema.extend({
@@ -274,6 +324,12 @@ export type LLMCall = z.infer<typeof LLMCallSchema>
 export type LLMUsageRow = z.infer<typeof LLMUsageRowSchema>
 export type LLMUsageReport = z.infer<typeof LLMUsageReportSchema>
 export type LLMProvider = z.infer<typeof LLMProviderSchema>
+export type TrackStats = z.infer<typeof TrackStatsSchema>
+export type TrackGroup = z.infer<typeof TrackGroupSchema>
+export type AgentTrackRecord = z.infer<typeof AgentTrackRecordSchema>
+export type TrackRecordReport = z.infer<typeof TrackRecordReportSchema>
+export type OutcomeCall = z.infer<typeof OutcomeCallSchema>
+export type SymbolTrackRecord = z.infer<typeof SymbolTrackRecordSchema>
 export type PriceRange = z.infer<typeof PriceRangeSchema>
 export type WatchlistItem = z.infer<typeof WatchlistItemSchema>
 export type PriceBar = z.infer<typeof PriceBarSchema>
@@ -306,6 +362,12 @@ export type ContractChecks = [
   Assert<Exact<LLMUsageRow, Schemas["LLMUsageRow"]>>,
   Assert<Exact<LLMUsageReport, Schemas["LLMUsageReport"]>>,
   Assert<Exact<LLMProvider, Schemas["LLMProviderOut"]>>,
+  Assert<Exact<TrackStats, Schemas["TrackStatsOut"]>>,
+  Assert<Exact<TrackGroup, Schemas["TrackGroupOut"]>>,
+  Assert<Exact<AgentTrackRecord, Schemas["AgentTrackRecord"]>>,
+  Assert<Exact<TrackRecordReport, Schemas["TrackRecordReport"]>>,
+  Assert<Exact<OutcomeCall, Schemas["OutcomeCallOut"]>>,
+  Assert<Exact<SymbolTrackRecord, Schemas["SymbolTrackRecord"]>>,
   Assert<Exact<PriceBar, Schemas["PriceBarOut"]>>,
   Assert<Exact<PriceHistory, Schemas["PriceHistory"]>>,
   Assert<Exact<WatchlistItem, Schemas["WatchlistItemOut"]>>,

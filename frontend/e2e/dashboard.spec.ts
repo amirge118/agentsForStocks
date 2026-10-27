@@ -1,6 +1,17 @@
 import { expect, test, type Page, type Route } from "@playwright/test"
 
-import { agentResults, llmCalls, llmProviders, llmUsage, overview, priceHistory, recommendation, runs } from "../src/test/fixtures"
+import {
+  agentResults,
+  llmCalls,
+  llmProviders,
+  llmUsage,
+  overview,
+  priceHistory,
+  recommendation,
+  runs,
+  symbolTrackRecord,
+  trackRecord,
+} from "../src/test/fixtures"
 
 const API = "**/api/backend"
 
@@ -31,6 +42,8 @@ async function mockApi(page: Page): Promise<string[]> {
   await page.route(`${API}/runs/*/llm-calls`, (route) => json(route, llmCalls))
   await page.route(`${API}/llm/usage**`, (route) => json(route, llmUsage))
   await page.route(`${API}/llm/providers`, (route) => json(route, llmProviders))
+  await page.route(`${API}/outcomes/track-record**`, (route) => json(route, trackRecord))
+  await page.route(`${API}/symbols/*/outcomes**`, (route) => json(route, symbolTrackRecord))
   await page.route(`${API}/pipeline/runs`, async (route) => {
     posted.push(route.request().postData() ?? "")
     return json(
@@ -146,7 +159,7 @@ test("adding, reordering and removing watchlist symbols", async ({ page }) => {
 
   await page.getByLabel("Ticker symbol").fill("nvda")
   await page.getByRole("button", { name: "Add", exact: true }).click()
-  await expect(page.getByText("NVDA added")).toBeVisible()
+  await expect(page.getByText("NVDA added", { exact: true })).toBeVisible()
   await expect(page.getByRole("link", { name: "NVDA" })).toBeVisible()
 
   await page.getByRole("button", { name: "Move NVDA up" }).click()
@@ -170,4 +183,21 @@ test("the analysis reads as a story that ends on the verdict", async ({ page }) 
   await verdict.scrollIntoViewIfNeeded()
   await expect(verdict).toContainText("BUY")
   await expect(verdict).toContainText("+42.5")
+})
+
+test("track record page and a symbol's past calls", async ({ page }) => {
+  await mockApi(page)
+  await page.goto("/")
+  await page.getByRole("link", { name: "Track record" }).click()
+  await expect(page).toHaveURL(/\/track-record$/)
+  const table = page.getByRole("table", { name: "Track record" })
+  await expect(table).toContainText("recommendation")
+  await expect(table).toContainText("+1.23%")
+  await expect(page.getByRole("table", { name: "Calibration" })).toBeVisible()
+
+  await page.goto("/symbols/AAPL")
+  const calls = page.getByRole("table", { name: "Past recommendations" })
+  await expect(calls).toContainText("Sep 22, 2026")
+  await expect(calls).toContainText("Wrong")
+  await expect(page.getByText(/of 2 calls \(50%\)/)).toBeVisible()
 })

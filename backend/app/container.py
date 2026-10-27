@@ -29,6 +29,7 @@ from app.llm.providers_catalog import alt_spec, configured, load_specs
 from app.llm.quota import ProviderQuota, UsageLoader
 from app.llm.recording import DbLLMCallRecorder, LedgerUsage, LLMCallRecorder
 from app.llm.router import LLMRouter
+from app.pipeline.assets import FundDetector
 from app.pipeline.launcher import PipelineLauncher
 from app.pipeline.orchestrator import PipelineOrchestrator
 from app.pipeline.settlement import OutcomeSettler
@@ -195,6 +196,7 @@ def build_container(
         build_agent=lambda name: registry.get(name).agent_cls(context),
         max_concurrent_symbols=settings.max_concurrent_symbols,
         max_concurrent_agents=settings.max_concurrent_agents,
+        is_fund=FundDetector(context.yfinance),
     )
     return Container(
         settings=settings,

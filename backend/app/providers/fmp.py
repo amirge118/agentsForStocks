@@ -212,5 +212,15 @@ def to_info_fields(
         "freeCashflow": cf.get("freeCashFlow"),
         "depreciation": cf.get("depreciationAndAmortization"),
         "capitalExpenditures": cf.get("capitalExpenditure"),
+        "quoteType": _quote_type(profile),
     }
     return {k: v for k, v in fields.items() if v is not None}
+
+
+def _quote_type(profile: dict) -> str | None:
+    """yfinance's quoteType from FMP's profile flags (None when the profile is empty)."""
+    if not profile:
+        return None
+    if profile.get("isEtf"):
+        return "ETF"
+    return "MUTUALFUND" if profile.get("isFund") else "EQUITY"

@@ -12,6 +12,7 @@ function symbols(over: Partial<SymbolRepository>): SymbolRepository {
     getRecommendation: async () => recommendation,
     getResults: async () => agentResults,
     getPrices: jest.fn(),
+    getOutcomes: jest.fn(),
     ...over,
   }
 }

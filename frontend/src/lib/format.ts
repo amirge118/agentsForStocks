@@ -60,3 +60,13 @@ export function formatCost(n: number | null): string {
 export function formatTokens(n: number): string {
   return n.toLocaleString("en-US")
 }
+
+/** A return given as a fraction, as a signed percentage: 0.0123 → "+1.23%"; null → "—". */
+export function formatReturn(fraction: number | null): string {
+  return fraction === null ? "—" : formatPercent(fraction * 100)
+}
+
+/** Share of calls that were right: 0.667 → "67%"; null (no calls) → "—". */
+export function formatHitRate(rate: number | null): string {
+  return rate === null ? "—" : `${Math.round(rate * 100)}%`
+}

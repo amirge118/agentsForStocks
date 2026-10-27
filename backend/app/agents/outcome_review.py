@@ -85,6 +85,7 @@ def _lessons_cite_alpha(data: ReviewBacklog, result: OutcomeReviewResult) -> str
     AGENT,
     description="Lessons from settled recommendations (20 trading days vs benchmark)",
     invariants=(_lessons_cite_alpha,),
+    company_only=True,  # reviews recommendations, which a fund doesn't get
 )
 class OutcomeReviewAgent(Agent[ReviewBacklog, OutcomeReviewResult]):
     result_model = OutcomeReviewResult

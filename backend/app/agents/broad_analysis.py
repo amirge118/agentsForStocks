@@ -32,6 +32,7 @@ class BroadAnalysisData:
     "broad_analysis",
     description="Business quality and competitive landscape (FMP + SEC 10-K)",
     recommendation_weight=10,
+    company_only=True,
 )
 class BroadAnalysisAgent(Agent[BroadAnalysisData, BroadAnalysisResult]):
     result_model = BroadAnalysisResult

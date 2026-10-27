@@ -33,6 +33,7 @@ def _signal_follows_the_vote(data: dict, result: "FundamentalsResult") -> str | 
     "fundamentals",
     description="Four-factor fundamental scoring (yfinance)",
     invariants=(_signal_follows_the_vote,),
+    company_only=True,
 )
 class FundamentalsAgent(Agent[dict, FundamentalsResult]):
     result_model = FundamentalsResult

@@ -31,6 +31,7 @@ class FinancialHistoryData:
     "financial_history",
     description="Five-year revenue, profit, cash-flow and balance-sheet trends (FMP)",
     recommendation_weight=20,
+    company_only=True,
 )
 class FinancialHistoryAgent(Agent[FinancialHistoryData, FinancialHistoryResult]):
     result_model = FinancialHistoryResult

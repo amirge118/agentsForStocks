@@ -12,6 +12,7 @@ describe("MainNav", () => {
     ["/runs/p1", "Runs"],
     ["/agents", "Agents"],
     ["/usage", "Tokens & cost"],
+    ["/track-record", "Track record"],
   ])("marks %s as %s", (path, current) => {
     usePathname.mockReturnValue(path)
     render(<MainNav />)

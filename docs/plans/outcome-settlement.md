@@ -1,6 +1,6 @@
 # Plan: Outcome settlement and lessons (closing the loop)
 
-Status: phases 1, 3 and 4 implemented; phase 2 (read side) deferred to FUTURE_IMPROVEMENTS.md. Idea source: TradingAgents (`tradingagents/memory/settlement.py`,
+Status: all four phases implemented (phase 2, the read side, last). Idea source: TradingAgents (`tradingagents/memory/settlement.py`,
 `reflection.py`, `backtest.py`, Apache-2.0); adapted to our runner, ledger and DB.
 
 ## Problem

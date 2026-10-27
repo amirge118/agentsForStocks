@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRepositories } from "@/lib/api/repository-context"
 import type { RunFilters } from "@/lib/api/repositories"
 import { toast } from "@/lib/hooks/use-toast"
-import type { AgentResult, PipelineRunRequest, PriceRange, UsageGroup } from "@/types/api"
+import type { AgentResult, Horizon, PipelineRunRequest, PriceRange, UsageGroup } from "@/types/api"
 
 export const queryKeys = {
   symbols: ["symbols"] as const,
@@ -19,6 +19,9 @@ export const queryKeys = {
   agentResults: (symbol: string) => ["symbols", symbol, "results"] as const,
   scoreHistory: (symbol: string) => ["symbols", symbol, "results", "recommendation"] as const,
   prices: (symbol: string, range: PriceRange) => ["symbols", symbol, "prices", range] as const,
+  symbolOutcomes: (symbol: string, horizon: Horizon) =>
+    ["symbols", symbol, "outcomes", horizon] as const,
+  trackRecord: (horizon: Horizon) => ["outcomes", "track-record", horizon] as const,
 }
 
 /** The newest stored result of each agent (rows arrive newest first). */
@@ -152,5 +155,21 @@ export function useStartPipelineRun() {
     onError: (error) => {
       toast({ variant: "destructive", title: "Could not start pipeline", description: error.message })
     },
+  })
+}
+
+export function useSymbolOutcomes(symbol: string, horizon: Horizon) {
+  const { symbols } = useRepositories()
+  return useQuery({
+    queryKey: queryKeys.symbolOutcomes(symbol, horizon),
+    queryFn: () => symbols.getOutcomes(symbol, horizon),
+  })
+}
+
+export function useTrackRecord(horizon: Horizon) {
+  const { outcomes } = useRepositories()
+  return useQuery({
+    queryKey: queryKeys.trackRecord(horizon),
+    queryFn: () => outcomes.getTrackRecord(horizon),
   })
 }

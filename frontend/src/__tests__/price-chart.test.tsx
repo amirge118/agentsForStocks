@@ -40,6 +40,7 @@ function symbols(getPrices: SymbolRepository["getPrices"]): SymbolRepository {
     getRecommendation: jest.fn(),
     getResults: async () => agentResults.filter((r) => r.agent_type === "recommendation"),
     getPrices,
+    getOutcomes: jest.fn(),
   }
 }
 
