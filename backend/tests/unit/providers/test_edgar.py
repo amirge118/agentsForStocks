@@ -32,8 +32,10 @@ def _edgar_handler(request: httpx.Request) -> httpx.Response:
                 }
             },
         )
-    if url.endswith("/000032019325000106/aapl-10k.htm"):
+    if url == "https://www.sec.gov/Archives/edgar/data/320193/000032019325000106/aapl-10k.htm":
         return httpx.Response(200, text=_DOC)
+    if "/Archives/edgar/data/0000320193/" in url:  # what SEC does with a zero-padded CIK
+        return httpx.Response(301, headers={"Location": url.replace("/0000320193/", "/320193/")})
     return httpx.Response(404)
 
 

@@ -42,7 +42,7 @@ class RiskAgent(Agent[RiskData, RiskResult]):
         risk_text, balance, key_metrics, info = await asyncio.gather(
             self.ctx.edgar.get_risk_factors(symbol),
             self.ctx.fmp.get_balance_sheets(symbol, limit=3),
-            self.ctx.fmp.get_key_metrics(symbol, limit=1),
+            self.ctx.fmp.get_key_metrics(symbol, limit=5),  # same calls as moat's ratios
             self.ctx.yfinance.get_info(symbol),
         )
         return RiskData(risk_text, balance, key_metrics, info)
