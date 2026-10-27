@@ -8,7 +8,7 @@ import { overview, recommendation } from "@/test/fixtures"
 import { pending, renderWithProviders } from "@/test/render"
 
 function symbols(getAll: SymbolRepository["getAll"]): SymbolRepository {
-  return { getAll, getRecommendation: jest.fn(), getResults: jest.fn() }
+  return { getAll, getRecommendation: jest.fn(), getResults: jest.fn(), getPrices: jest.fn() }
 }
 
 describe("WatchlistTable", () => {

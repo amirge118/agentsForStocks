@@ -92,8 +92,11 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Check that a ticker exists (yfinance quote) when it is added to the watchlist, not only its format [PRIORITY: MED]
 - [ ] Watchlist groups / tags (e.g. "core", "ideas") and per-group runs [PRIORITY: LOW]
 - [x] Next.js frontend: watchlist, symbol detail, run history; types generated from OpenAPI + Zod validated and checked against them
-- [ ] Symbol detail: per-agent result panels (valuation DCF scenarios, technical strategies, moat keywords) from /symbols/{symbol}/results [PRIORITY: MED]
-- [ ] Charts: recommendation score history and price history per symbol — backend done (`GET /symbols/{symbol}/prices`: OHLCV + SMA20/50 + RSI14; score history from `/results?agent=recommendation`), frontend in progress [PRIORITY: MED]
+- [x] Symbol detail: verdict hero with score scale, analyst consensus, contribution waterfall, price chart (SMA20/50, volume, RSI, BUY/SELL markers, range in the URL), per-agent panels (valuation, technicals, fundamentals, earnings, risk, sentiment + generic), score history
+- [ ] Expose the BUY / SELL thresholds through the API instead of mirroring them in `frontend/src/lib/scoring.ts` [PRIORITY: LOW]
+- [ ] Panels for the remaining agents' own metrics (moat margins, institutional flows, financial-history CAGRs, market scanner) — they use the generic panel today [PRIORITY: LOW]
+- [ ] CI: `timeout-minutes` on the "Install Playwright browser" step (it hung twice before any test ran) and cache the browser between runs [PRIORITY: MED]
+- [x] Charts: recommendation score history and price history per symbol (`GET /symbols/{symbol}/prices`, `/results?agent=recommendation`)
 - [ ] Price chart: weekly bars for ranges over 1Y, and intraday for 1D/5D [PRIORITY: LOW]
 - [x] Design system: Hallmark "Console" theme (tokens in globals.css, Host Grotesk + Atkinson Hyperlegible Mono, restyled primitives); mobile header no longer widens the page
 - [ ] Light mode: Console's "paper" colourway as a second token set behind `prefers-color-scheme` [PRIORITY: LOW]
