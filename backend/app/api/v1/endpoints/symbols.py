@@ -4,6 +4,7 @@ Symbol endpoints:
   GET /symbols/{symbol}/recommendation  — latest recommendation for one symbol
   GET /symbols/{symbol}/results         — stored agent results (filter by agent / date)
   GET /symbols/{symbol}/prices          — daily OHLCV + SMA20/50 + RSI14 for the price chart
+  GET /symbols/{symbol}/outcomes        — how past recommendations turned out (track record)
 """
 
 from datetime import date
@@ -13,17 +14,23 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_container, get_session, symbol_param
+from app.api.v1.endpoints.outcomes import horizon_param
 from app.container import Container
+from app.domain.outcomes import track_stats
 from app.domain.price_chart import fetch_period, price_bars
 from app.providers.errors import ProviderError
 from app.repositories.agent_results import AgentResultRepository
+from app.repositories.decision_outcomes import DecisionOutcomeRepository
 from app.repositories.watchlist import WatchlistRepository
 from app.schemas.api import (
     AgentResultOut,
+    OutcomeCallOut,
     PriceBarOut,
     PriceHistory,
     Recommendation,
     SymbolOverview,
+    SymbolTrackRecord,
+    TrackStatsOut,
 )
 
 router = APIRouter(prefix="/symbols", tags=["symbols"])
@@ -98,3 +105,23 @@ async def get_prices(
         ) from exc
     bars = [PriceBarOut.model_validate(bar) for bar in price_bars(history, price_range)]
     return PriceHistory(symbol=symbol, range=price_range, bars=bars)
+
+
+@router.get("/{symbol}/outcomes", response_model=SymbolTrackRecord)
+async def get_outcomes(
+    symbol: str = Depends(symbol_param),
+    horizon: int = Depends(horizon_param),
+    limit: int = Query(default=30, ge=1, le=200, description="Most recent settled calls"),
+    session: AsyncSession = Depends(get_session),
+) -> SymbolTrackRecord:
+    repo = DecisionOutcomeRepository(session)
+    rows = await repo.scored_calls(horizon, agent=_RECOMMENDATION, symbol=symbol)
+    calls = [call for _, call in rows]
+    counts = await repo.status_counts(horizon, symbol=symbol)
+    return SymbolTrackRecord(
+        symbol=symbol,
+        horizon=horizon,
+        overall=TrackStatsOut.from_stats(track_stats(calls)),
+        pending=counts.get("pending", 0),
+        calls=[OutcomeCallOut.from_call(c) for c in calls[:limit]],
+    )

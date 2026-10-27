@@ -7,7 +7,13 @@ import { agentResults } from "@/test/fixtures"
 import { pending, renderWithProviders } from "@/test/render"
 
 function symbols(getResults: SymbolRepository["getResults"]): SymbolRepository {
-  return { getAll: jest.fn(), getRecommendation: jest.fn(), getResults, getPrices: jest.fn() }
+  return {
+    getAll: jest.fn(),
+    getRecommendation: jest.fn(),
+    getResults,
+    getPrices: jest.fn(),
+    getOutcomes: jest.fn(),
+  }
 }
 
 const agents: AgentRepository = {

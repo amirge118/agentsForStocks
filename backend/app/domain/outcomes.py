@@ -181,3 +181,71 @@ class TrackRecord:
         if not self.calls:
             return None
         return sum(captured_alpha(c.signal, c.alpha) for c in self.calls) / len(self.calls)
+
+
+# ------------------------------------------------------------------ track records
+# Confidence buckets for calibration: a well-calibrated agent is right more often
+# in its higher buckets
+CONFIDENCE_BUCKETS: tuple[tuple[str, float, float], ...] = (
+    ("0-40", 0.0, 40.0),
+    ("40-60", 40.0, 60.0),
+    ("60-80", 60.0, 80.0),
+    ("80-100", 80.0, 100.01),
+)
+_SIGNAL_ORDER = ("bullish", "neutral", "bearish")
+
+
+@dataclass(frozen=True)
+class TrackStats:
+    """Hits and alpha captured over a set of settled calls."""
+
+    calls: int
+    hits: int
+    mean_alpha_captured: float | None
+
+    @property
+    def hit_rate(self) -> float | None:
+        return self.hits / self.calls if self.calls else None
+
+
+@dataclass(frozen=True)
+class AgentTrack:
+    agent: str
+    overall: TrackStats
+    by_signal: dict[str, TrackStats]
+    by_confidence: dict[str, TrackStats]
+
+
+def track_stats(calls: Sequence[SettledCall]) -> TrackStats:
+    record = TrackRecord(calls[0].horizon if calls else REVIEW_HORIZON, "", calls, ())
+    return TrackStats(len(calls), record.hits, record.mean_captured_alpha)
+
+
+def confidence_bucket(confidence: float) -> str:
+    for label, low, high in CONFIDENCE_BUCKETS:
+        if low <= confidence < high:
+            return label
+    return CONFIDENCE_BUCKETS[-1][0]
+
+
+def agent_tracks(calls: Sequence[tuple[str, SettledCall]]) -> list[AgentTrack]:
+    """Per agent: overall, per signal and per confidence bucket. Recommendation first."""
+    by_agent: dict[str, list[SettledCall]] = {}
+    for agent, call in calls:
+        by_agent.setdefault(agent, []).append(call)
+    tracks = []
+    for agent, own in by_agent.items():
+        signals = {s: [c for c in own if c.signal == s] for s in _SIGNAL_ORDER}
+        buckets = {
+            label: [c for c in own if confidence_bucket(c.confidence) == label]
+            for label, _, _ in CONFIDENCE_BUCKETS
+        }
+        tracks.append(
+            AgentTrack(
+                agent=agent,
+                overall=track_stats(own),
+                by_signal={s: track_stats(c) for s, c in signals.items() if c},
+                by_confidence={b: track_stats(c) for b, c in buckets.items() if c},
+            )
+        )
+    return sorted(tracks, key=lambda t: (t.agent != "recommendation", t.agent))
