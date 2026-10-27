@@ -213,6 +213,85 @@ export const PipelineRunAcceptedSchema = z.object({
   force: z.boolean(),
 })
 
+export const PriceRangeSchema = z.enum(["1M", "3M", "6M", "1Y"])
+
+export const PriceBarSchema = z.object({
+  date: z.string(),
+  open: z.number().nullable(),
+  high: z.number().nullable(),
+  low: z.number().nullable(),
+  close: z.number(),
+  volume: z.number().nullable(),
+  sma20: z.number().nullable(),
+  sma50: z.number().nullable(),
+  rsi14: z.number().nullable(),
+})
+
+export const PriceHistorySchema = z.object({
+  symbol: z.string(),
+  range: PriceRangeSchema,
+  bars: z.array(PriceBarSchema),
+})
+
+// ---------------------------------------------------------------------------
+// Agent result payloads. /results returns each agent's stored result as a loose
+// record; panels parse it with these (safeParse) and fall back to the generic
+// panel when a payload does not match, so a changed agent never breaks the page.
+// ---------------------------------------------------------------------------
+export const BaseAgentResultSchema = z.object({
+  signal: z.string(),
+  confidence: z.number(),
+  reasoning: z.string(),
+  summary: z.string().optional(),
+  data_gaps: z.array(z.string()).optional(),
+  contract_violations: z.array(z.string()).optional(),
+})
+
+export const ValuationResultSchema = BaseAgentResultSchema.extend({
+  dcf: z.record(z.string(), z.number()),
+  owner_earnings_value: z.number().nullable(),
+  ev_ebitda_value: z.number().nullable(),
+  avg_intrinsic_value: z.number(),
+  margin_of_safety: z.number(),
+  market_cap: z.number(),
+})
+
+export const TechnicalsResultSchema = BaseAgentResultSchema.extend({
+  strategies: z.record(z.string(), z.number()),
+  composite: z.number(),
+})
+
+export const FundamentalsResultSchema = BaseAgentResultSchema.extend({
+  factors: z.array(
+    z.object({ name: z.string(), signal: z.string(), score: z.number(), detail: z.string() }),
+  ),
+})
+
+export const EarningsResultSchema = BaseAgentResultSchema.extend({
+  quarters_analyzed: z.number(),
+  beat_rate: z.number(),
+  avg_surprise_pct: z.number(),
+  next_earnings: z.string(),
+})
+
+export const RiskResultSchema = BaseAgentResultSchema.extend({
+  debt_to_equity: z.number(),
+  current_ratio: z.number(),
+  beta: z.number(),
+  risk_keywords: z.array(z.string()).optional(),
+})
+
+const SentimentComponentSchema = z.object({
+  signal: z.string(),
+  confidence: z.number(),
+  detail: z.string(),
+})
+
+export const SentimentResultSchema = BaseAgentResultSchema.extend({
+  insider: SentimentComponentSchema,
+  news: SentimentComponentSchema,
+})
+
 export type Signal = z.infer<typeof SignalSchema>
 export type Action = z.infer<typeof ActionSchema>
 export type RunStatus = z.infer<typeof RunStatusSchema>
@@ -238,6 +317,16 @@ export type AgentTrackRecord = z.infer<typeof AgentTrackRecordSchema>
 export type TrackRecordReport = z.infer<typeof TrackRecordReportSchema>
 export type OutcomeCall = z.infer<typeof OutcomeCallSchema>
 export type SymbolTrackRecord = z.infer<typeof SymbolTrackRecordSchema>
+export type PriceRange = z.infer<typeof PriceRangeSchema>
+export type PriceBar = z.infer<typeof PriceBarSchema>
+export type PriceHistory = z.infer<typeof PriceHistorySchema>
+export type BaseAgentResult = z.infer<typeof BaseAgentResultSchema>
+export type ValuationResult = z.infer<typeof ValuationResultSchema>
+export type TechnicalsResult = z.infer<typeof TechnicalsResultSchema>
+export type FundamentalsResult = z.infer<typeof FundamentalsResultSchema>
+export type EarningsResult = z.infer<typeof EarningsResultSchema>
+export type RiskResult = z.infer<typeof RiskResultSchema>
+export type SentimentResult = z.infer<typeof SentimentResultSchema>
 
 // ---------------------------------------------------------------------------
 // Compile-time contract checks: Zod schema type === generated OpenAPI type
@@ -265,4 +354,6 @@ export type ContractChecks = [
   Assert<Exact<TrackRecordReport, Schemas["TrackRecordReport"]>>,
   Assert<Exact<OutcomeCall, Schemas["OutcomeCallOut"]>>,
   Assert<Exact<SymbolTrackRecord, Schemas["SymbolTrackRecord"]>>,
+  Assert<Exact<PriceBar, Schemas["PriceBarOut"]>>,
+  Assert<Exact<PriceHistory, Schemas["PriceHistory"]>>,
 ]

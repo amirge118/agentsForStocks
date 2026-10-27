@@ -12,6 +12,7 @@ import {
   LLMProviderSchema,
   LLMUsageReportSchema,
   PipelineRunAcceptedSchema,
+  PriceHistorySchema,
   RecommendationSchema,
   SymbolOverviewSchema,
   SymbolTrackRecordSchema,
@@ -24,6 +25,8 @@ import {
   type LLMUsageReport,
   type PipelineRunAccepted,
   type PipelineRunRequest,
+  type PriceHistory,
+  type PriceRange,
   type Recommendation,
   type RunStatus,
   type Horizon,
@@ -38,7 +41,8 @@ import { get, post } from "./client"
 export interface SymbolRepository {
   getAll(): Promise<SymbolOverview[]>
   getRecommendation(symbol: string): Promise<Recommendation>
-  getResults(symbol: string, filters?: { agent?: string; runDate?: string }): Promise<AgentResult[]>
+  getResults(symbol: string, filters?: { agent?: string; runDate?: string; limit?: number }): Promise<AgentResult[]>
+  getPrices(symbol: string, range: PriceRange): Promise<PriceHistory>
   getOutcomes(symbol: string, horizon: Horizon): Promise<SymbolTrackRecord>
 }
 
@@ -76,7 +80,10 @@ export const symbolRepository: SymbolRepository = {
     get(`/symbols/${encodeURIComponent(symbol)}/results`, z.array(AgentResultSchema), {
       agent: filters.agent,
       run_date: filters.runDate,
+      limit: filters.limit,
     }),
+  getPrices: (symbol, range) =>
+    get(`/symbols/${encodeURIComponent(symbol)}/prices`, PriceHistorySchema, { range }),
   getOutcomes: (symbol, horizon) =>
     get(`/symbols/${encodeURIComponent(symbol)}/outcomes`, SymbolTrackRecordSchema, { horizon }),
 }

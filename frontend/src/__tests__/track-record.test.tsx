@@ -12,7 +12,13 @@ function outcomes(overrides: Partial<OutcomeRepository> = {}): OutcomeRepository
 }
 
 function symbols(getOutcomes: SymbolRepository["getOutcomes"]): SymbolRepository {
-  return { getAll: jest.fn(), getRecommendation: jest.fn(), getResults: jest.fn(), getOutcomes }
+  return {
+    getAll: jest.fn(),
+    getRecommendation: jest.fn(),
+    getResults: jest.fn(),
+    getPrices: jest.fn(),
+    getOutcomes,
+  }
 }
 
 describe("TrackRecordTable", () => {
