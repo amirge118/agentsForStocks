@@ -270,3 +270,133 @@ def test_capture_writes_one_json_object_per_line(tmp_path) -> None:
         {"call_id": "c1"},
         {"call_id": "c2", "expected": None},
     ]
+
+
+async def _ledger_with_outcomes(session_factory) -> None:
+    """Two recommendation calls (AAPL settled at +3% alpha, MSFT still pending) and a moat call."""
+    from datetime import date
+
+    from app.models.agent_run import AgentRun
+    from app.models.decision_outcome import DecisionOutcome
+
+    recorder = DbLLMCallRecorder(session_factory)
+    calls = (("c1", "r1", "recommendation"), ("c2", "r2", "recommendation"), ("c3", "r3", "moat"))
+    for call_id, run_id, agent in calls:
+        await recorder.record(
+            LLMCallRecord(
+                call_id=call_id,
+                created_at=utcnow(),
+                model="claude-haiku-4-5",
+                prompt_name=agent,
+                prompt_version="v",
+                status="ok",
+                latency_ms=1,
+                usage=TokenUsage(),
+                cost_usd=0.0,
+                agent=agent,
+                run_id=run_id,
+                system_prompt="sys",
+                prompt=f"prompt {call_id}",
+                response='{"signal":"bullish"}',
+            )
+        )
+    day = date(2026, 9, 1)
+    async with session_factory() as session:
+        for run_id, symbol in (("r1", "AAPL"), ("r2", "MSFT"), ("r3", "AAPL")):
+            session.add(
+                AgentRun(
+                    run_id=run_id,
+                    agent_type="x",
+                    symbol=symbol,
+                    run_date=day,
+                    status="completed",
+                    started_at=utcnow(),
+                    finished_at=utcnow(),
+                )
+            )
+        for symbol, status, horizon in (
+            ("AAPL", "settled", 20),
+            ("AAPL", "settled", 5),
+            ("MSFT", "pending", 20),
+        ):
+            session.add(
+                DecisionOutcome(
+                    symbol=symbol,
+                    decision_date=day,
+                    horizon_days=horizon,
+                    benchmark="SPY",
+                    status=status,
+                    raw_return=0.04 if status == "settled" else None,
+                    alpha=0.03 if status == "settled" else None,
+                )
+            )
+        await session.commit()
+
+
+@pytest.mark.unit
+async def test_capture_outcomes_keeps_calls_with_a_settled_outcome(session_factory) -> None:
+    await _ledger_with_outcomes(session_factory)
+
+    rows = await capture.capture_outcomes(session_factory, days=1, agents=None)
+
+    assert [r["call_id"] for r in rows] == ["c1"]  # recommendation only; MSFT still pending
+    assert rows[0]["outcome"] == {
+        "symbol": "AAPL",
+        "decision_date": "2026-09-01",
+        "horizon": 20,
+        "benchmark": "SPY",
+        "raw_return": 0.04,
+        "alpha": 0.03,
+    }
+    moat = await capture.capture_outcomes(session_factory, days=1, agents=["moat"], horizon=5)
+    assert [r["call_id"] for r in moat] == ["c3"]
+
+
+@pytest.mark.unit
+async def test_outcome_suite_grades_against_realised_alpha(session_factory, tmp_path) -> None:
+    await _ledger_with_outcomes(session_factory)
+    path = tmp_path / "outcomes.jsonl"
+    rows = await capture.capture_outcomes(session_factory, days=1, agents=None)
+    plain = {**rows[0], "call_id": "plain"}
+    plain.pop("outcome")
+    capture.write_jsonl(path, [*rows, plain])
+
+    assert [c.case_id for c in cases.ledger_suite(path)] == ["ledger/c1", "ledger/plain"]
+    (case,) = cases.outcome_suite(path)  # only cases that carry an outcome
+    assert (case.outcome_alpha, case.outcome_horizon) == (0.03, 20)
+
+    graded = grade(case, await run_case(case, _config(repeats=2)))  # scripted: bullish
+    assert (graded["outcome_hit_rate"], graded["alpha_captured"]) == (1.0, 0.03)
+    bearish = grade(case, [Run("bearish", 70, "r", [], [], False, 1, 0, 0, None)])
+    assert (bearish["outcome_hit_rate"], bearish["alpha_captured"]) == (0.0, -0.03)
+    assert grade(cases.scenario_suite()[0], [])["outcome_hit_rate"] is None
+
+    summary = report.summarize([graded, bearish])
+    assert summary["outcome_cases"] == 2
+    assert summary["outcome_hit_rate"] == 0.5 and summary["alpha_captured"] == 0.0
+    assert summary["per_agent"]["recommendation"]["outcome_hit_rate"] == 0.5
+
+
+@pytest.mark.unit
+async def test_cli_runs_the_outcome_suite(tmp_path, session_factory) -> None:
+    await _ledger_with_outcomes(session_factory)
+    dataset = tmp_path / "outcomes.jsonl"
+    capture.write_jsonl(
+        dataset, await capture.capture_outcomes(session_factory, days=1, agents=None)
+    )
+
+    code = await eval_run.main(
+        ["--suite", "outcomes", "--dataset", str(dataset), "--yes", "--label", "o"],
+        llm=ScriptedLLM(),
+        out_dir=tmp_path,
+    )
+    assert code == 0
+    md = next(tmp_path.glob("*-o.md")).read_text()
+    assert "| Outcome hit rate (vs realised alpha) | 100% |" in md
+    assert "| Mean alpha captured per call | +3.00% |" in md
+
+    data = json.loads(next(tmp_path.glob("*-o.json")).read_text())
+    worse = {**data, "label": "w", "summary": {**data["summary"], "outcome_hit_rate": 0.5}}
+    text = report.compare(data, worse)
+    assert "| Outcome hit rate | 100% → 50% (-50.0 pp) |" in text
+    assert "| Alpha captured per call | +3.00% → +3.00% |" in text

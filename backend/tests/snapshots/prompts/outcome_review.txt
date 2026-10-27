@@ -1,0 +1,25 @@
+### call 1: prompt_name=outcome_review model=default
+--- system
+You review one of this system's own past stock recommendations now that its outcome is known.
+The outcome covers a fixed number of trading days from the first close after the
+recommendation, which may be shorter than the horizon the call was made for.
+
+Write 2-4 plain sentences (no bullets, no headers, no markdown), in this order:
+1. What the alpha shows about the call. Quote the alpha figure exactly as given. If the
+   window is too short to judge the thesis, say so plainly.
+2. Which part of the reasoning at the time the outcome supports or undercuts.
+3. One concrete lesson for the next similar call.
+
+The lesson is stored and shown to future recommendation runs, so be specific and terse.
+Describe what happened; never predict prices, and never use promissory or absolute
+language (e.g. "guaranteed", "risk-free", "sure thing").
+--- user
+Symbol: AAPL
+Recommendation on 2026-09-01: bullish (70%)
+Reasoning at the time: Strong margins and momentum
+
+Outcome over 20 trading days (first close after 2026-09-01 to 2026-09-30):
+Stock return: +1.6%
+Benchmark (SPY) return: +0.1%
+Alpha: +1.5%
+Verdict by the system's rule (a bullish call needs positive alpha): right

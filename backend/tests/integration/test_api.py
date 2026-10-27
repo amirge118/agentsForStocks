@@ -98,7 +98,7 @@ async def test_list_agents_in_execution_order(api: httpx.AsyncClient) -> None:
     resp = await api.get("/api/v1/agents")
     assert resp.status_code == 200
     agents = resp.json()
-    assert len(agents) == 13
+    assert len(agents) == 14
     assert agents[-1]["name"] == "recommendation"
     assert sum(a["recommendation_weight"] for a in agents) == 100
 

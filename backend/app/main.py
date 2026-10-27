@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.scheduler = None
     if settings.run_scheduler:
         app.state.scheduler = build_scheduler(
-            settings, container.orchestrator, container.session_factory
+            settings, container.orchestrator, container.session_factory, settler=container.settler
         )
     if app.state.scheduler is not None:
         app.state.scheduler.start()

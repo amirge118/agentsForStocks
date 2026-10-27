@@ -61,3 +61,8 @@ provider_duration = _meter.create_histogram(
 fmp_calls = _meter.create_counter(
     "fmp.calls", unit="{call}", description="Calls counted against the FMP daily budget"
 )
+outcomes_settled = _meter.create_counter(
+    "outcomes.settled",
+    unit="{outcome}",
+    description="Decision outcomes that reached a final status (settled, unavailable), by horizon",
+)

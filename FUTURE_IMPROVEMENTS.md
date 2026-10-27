@@ -16,6 +16,19 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Agent retry queue — if yfinance or FMP is down, queue the run for 30min later [PRIORITY: MED]
 - [ ] Decide recommendation weights for fundamentals / technicals / sentiment / market_scanner (currently weight 0 = informational only; set via @register_agent) [PRIORITY: MED]
 - [ ] Backtest the recommendation weights and BUY/SELL thresholds against historical prices [PRIORITY: HIGH]
+- [x] Outcome settlement, phase 1: `decision_outcomes` table, nightly settlement before the daily pipeline (backfills history), `scripts.settle_outcomes`
+- [x] Outcome settlement, phase 3: `outcome_review` agent writes a lesson per settled recommendation; the recommendation prompt gets a point-in-time track record (hit rate, alpha captured, lessons)
+- [x] Outcome settlement, phase 4: `evals.capture --outcomes` + `evals.run --suite outcomes` — replays captured prompts and grades a configuration by hit rate and alpha captured against what really followed
+- [ ] Outcome settlement, phase 2 (deferred): track-record read side — `OutcomeRepository.track_record(agent, horizon, since)` (hit rate, mean alpha, confidence buckets per agent and signal), `GET /api/v1/outcomes/track-record` and `/symbols/{symbol}/outcomes`, `scripts.track_report`, a "Track record" card on the symbol page and a `/track-record` page — see `docs/plans/outcome-settlement.md` [PRIORITY: MED]
+- [x] Yahoo chart fallback for `YFinanceClient.get_closes` (settlement): `YahooChartClient.get_adjusted_closes` reads the chart's `adjclose` for an exact date range (period1/period2) — never unadjusted closes; verified live equal to yfinance's auto-adjusted closes
+- [ ] Risk override caps the signal at HOLD in code but not the confidence: the `risk_override/recommendation` eval case averages 58–59% against its 55% limit (Gemini, 10 repeats). Cap the confidence too in `risk_capped`, or relabel the case [PRIORITY: MED]
+- [ ] Run the outcome eval suite live once a few weeks of recommendations have settled (current prompt as the baseline for every later prompt/model change) [PRIORITY: HIGH]
+- [ ] Hit rate per analyst agent in its own prompt ("your bullish calls on this symbol were right 3/7 times") — easy with phase 2's query; measure with the outcome suite first [PRIORITY: LOW]
+- [ ] Backtest: plan in `docs/plans/backtest.md` — (A) re-weight stored analyst results against settled alpha (no LLM, date-split to avoid overfitting), then (B) re-run the pipeline on past dates once the point-in-time guard exists (TradingAgents `backtest.py`) [PRIORITY: HIGH]
+- [ ] Point-in-time guard for historical runs: clamp every provider call to `run_date`, drop items dated after it, report "feed can't reach that window" as unavailable rather than empty, withhold live snapshots (`info`) from past dates — required before any backtest (TradingAgents `dataflows/date_window.py`) [PRIORITY: HIGH]
+- [ ] Bull/bear debate as a `recommendation` prompt variant (one bull and one bear pass, then the decision; "conflict alone is not a reason to HOLD") — plan in `docs/plans/bull-bear-debate.md`; ship only if the scenario and outcome evals beat the current prompt, it triples the recommendation's calls (TradingAgents `agents/researchers/`) [PRIORITY: MED]
+- [ ] Check that no parse/LLM failure is silently stored as a neutral HOLD; mark it as needing review instead (TradingAgents `rating.py` `REVIEW`) [PRIORITY: MED]
+- [ ] Macro regime input for risk / recommendation from FRED (fed funds, 2y/10y, curve, CPI, unemployment, VIX; free key) [PRIORITY: MED]
 
 ## Knowledge Layer (OpenViking)
 - [ ] Enable OpenViking: copy ov.conf.example → ov.conf, add ANTHROPIC_API_KEY, run `docker compose up openviking openviking-mcp`, then `python infra/openviking/seed.py`. Set OPENVIKING_ENABLED=true in .env [PRIORITY: LOW]
@@ -35,6 +48,11 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [x] EDGAR extraction: HTML entity decoding + skip table-of-contents matches
 - [ ] EDGAR: parse iXBRL/HTML structure instead of regex for unusual 10-K layouts [PRIORITY: LOW]
 - [ ] Ingest analyst estimate revisions as a scheduled data feed [PRIORITY: LOW]
+- [ ] FRED provider (`app/providers/fred.py`, free key, curated alias → series map, vintage-aware) — feeds the macro regime item under Agents [PRIORITY: MED]
+- [ ] StockTwits / Reddit posts for the sentiment agent, screened by a cheap model (drop off-topic posts, count bullish / bearish) before they reach the prompt [PRIORITY: LOW]
+- [ ] Polymarket implied probabilities (Fed decision, recession) as macro context; public API, no key [PRIORITY: LOW]
+- [ ] Sector-ETF benchmark (XLK, XLV, ...) as a second alpha in `decision_outcomes`, to separate stock picking from sector beta [PRIORITY: LOW]
+- [ ] Per-market benchmark for alpha by ticker suffix (SPY, `.TA` → TA-35, `.L` → FTSE, ...) [PRIORITY: LOW]
 
 ## Infrastructure
 - [x] Alembic migrations setup with auto-generate (backend/alembic, `alembic upgrade head`)
@@ -89,7 +107,7 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [x] Eval harness (evals/): scenario + ledger-replay suites; label accuracy, confidence limits, stability across repeats, LLM-as-judge faithfulness, contract violations, tokens and cost; cost estimate before every run; reports + compare
 - [ ] Run the first live eval baseline (needs ANTHROPIC_API_KEY): current models vs claude-haiku-5-5 / claude-sonnet-5-5, with and without skills [PRIORITY: HIGH]
 - [ ] Optional weekly eval in GitHub Actions with a key secret, posting the report as an artifact [PRIORITY: LOW]
-- [ ] Outcome evals: did the signals predict 1 / 4 / 12-week returns vs SPY (needs stored recommendations + price history) [PRIORITY: HIGH]
+- [x] Outcome evals: did the signals predict 1 / 4 / 12-week returns vs SPY — `decision_outcomes` + `evals.run --suite outcomes`
 - [x] Agent profiles (provider, model, skills, max_tokens, use_llm, prompt variant) with AGENT_PROFILES overrides; skills in app/llm/skills; OpenAI-compatible second provider; every call through Agent.ask()
 - [ ] Decide which skills become defaults per agent — from eval results, not intuition [PRIORITY: MED]
 - [ ] Skills with data hooks (e.g. comparable_companies fetching peers) instead of text-only guidance [PRIORITY: LOW]

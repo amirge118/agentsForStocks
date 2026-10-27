@@ -36,6 +36,9 @@ cd backend && python -m scripts.preflight
 # Run the pipeline once, now (all agents, or a subset)
 cd backend && python -m scripts.run_pipeline AAPL MSFT [--agents technicals valuation] [--force]
 
+# Settle past decisions against realised prices (the daily job does it before the agents)
+cd backend && python -m scripts.settle_outcomes [--symbols AAPL] [--as-of 2026-10-01]
+
 # Token usage and cost per agent / model / day / prompt version (from the llm_calls ledger)
 cd backend && python -m scripts.token_report [--days 30] [--by model]
 
@@ -44,6 +47,7 @@ cd backend && python -m scripts.token_report [--days 30] [--by model]
 cd backend && python -m evals.run --suite scenarios --repeats 3 [--judge] [--profiles '{"*": {...}}'] --label x --yes
 cd backend && python -m evals.compare evals/reports/<a>.json evals/reports/<b>.json
 cd backend && python -m evals.capture --days 7     # real prompts from the ledger → evals/datasets/ledger.jsonl
+cd backend && python -m evals.capture --outcomes && python -m evals.run --suite outcomes --label x --yes  # vs realised alpha
 
 # What runs on its own, and when (everything is OFF until SCHEDULER_ENABLED=true)
 cd backend && python -m scripts.schedules
@@ -157,6 +161,9 @@ Where they run: `RUN_SCHEDULER=true` runs them in the API process (development);
 | Agent classes (one file per agent) | `backend/app/agents/` — register in `agents/catalog.py` |
 | Agent contract / run lifecycle | `backend/app/agents/base.py` / `backend/app/agents/runner.py` |
 | Agent registry (deps, weights, order) | `backend/app/agents/registry.py` |
+| Decision outcomes (forward returns vs benchmark, 5/20/60 sessions) | `backend/app/domain/outcomes.py`, `backend/app/pipeline/settlement.py`, table `decision_outcomes` |
+| Lessons from settled calls + track record (point-in-time) | `backend/app/agents/outcome_review.py` → `AgentContext.outcomes` → recommendation prompt |
+| Plans for larger features | `docs/plans/` |
 | Pipeline orchestration + scheduler | `backend/app/pipeline/orchestrator.py`, `backend/app/agents/scheduler.py`, `backend/app/worker.py` |
 | Preflight / manual runs | `backend/app/ops/`, `backend/scripts/preflight.py`, `backend/scripts/run_pipeline.py` |
 | Pure financial logic | `backend/app/domain/` |
