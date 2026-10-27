@@ -213,3 +213,24 @@ async def test_risk_override_caps_a_bullish_recommendation_whatever_the_model_sa
     assert result.confidence <= 55
     assert result.risk_override_applied is True
     assert "Capped at HOLD" in result.reasoning
+
+
+@pytest.mark.unit
+async def test_risk_cap_holds_when_the_model_answers_hold_too_sure(session_factory) -> None:
+    # Found by the eval: the model said HOLD itself, at 60%, above the 55% cap
+    analysts = {
+        name: {"signal": "bullish", "confidence": 75.0, "reasoning": "fine"}
+        for name in registry.weights()
+    }
+    analysts["risk"] = {"signal": "bearish", "confidence": 85.0, "reasoning": "covenant breach"}
+    llm = FakeLLM(reply={"signal": "neutral", "confidence": 62.0, "reasoning": "Risk dominates."})
+    agent = registry.get("recommendation").agent_cls(
+        make_context(llm=llm, results=FakeResults(analysts))
+    )
+    outcome = await AgentRunner(session_factory, NullKnowledgeStore()).run(agent, "AAPL", RUN_DATE)
+
+    result = outcome.result
+    assert result is not None
+    assert (result.signal, result.confidence) == ("neutral", 55.0)
+    assert result.risk_override_applied is True
+    assert "Confidence capped" in result.reasoning

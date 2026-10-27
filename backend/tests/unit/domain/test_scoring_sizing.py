@@ -36,6 +36,30 @@ def test_risk_override_caps_bullish_at_neutral() -> None:
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    ("signal", "confidence", "expected"),
+    [
+        ("bullish", 80.0, ("neutral", 55.0, True)),
+        ("bullish", 40.0, ("neutral", 40.0, True)),
+        # The model answered HOLD itself but too sure: the cap still holds
+        ("neutral", 62.0, ("neutral", 55.0, True)),
+        ("neutral", 50.0, ("neutral", 50.0, False)),
+        # Agrees with the risk analyst: untouched
+        ("bearish", 85.0, ("bearish", 85.0, False)),
+    ],
+)
+def test_risk_override_caps_every_non_bearish_call(
+    signal: str, confidence: float, expected: tuple
+) -> None:
+    from app.domain.scoring import risk_capped
+
+    risky = {"risk": {"signal": "bearish", "confidence": 85}}
+    assert risk_capped(signal, confidence, risky) == expected
+    calm = {"risk": {"signal": "bearish", "confidence": 60}}
+    assert risk_capped(signal, confidence, calm) == (signal, confidence, False)
+
+
+@pytest.mark.unit
 def test_bearish_and_hold_paths() -> None:
     bearish = {name: {"signal": "bearish", "confidence": 100} for name in WEIGHTS}
     assert weighted_score(bearish, WEIGHTS).base_signal == "bearish"

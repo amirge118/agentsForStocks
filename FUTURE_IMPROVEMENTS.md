@@ -20,7 +20,7 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Add CompsAgent — comparable company analysis (see skills/comparable_companies.md) [PRIORITY: MED]
 - [ ] Agent retry queue — if yfinance or FMP is down, queue the run for 30min later [PRIORITY: MED]
 - [ ] Decide recommendation weights for fundamentals / technicals / sentiment / market_scanner (currently weight 0 = informational only; set via @register_agent) [PRIORITY: MED]
-- [ ] Backtest the recommendation weights and BUY/SELL thresholds against historical prices [PRIORITY: HIGH]
+- [x] Backtest the recommendation weights and BUY/SELL thresholds against historical prices — backtest A (`scripts.backtest_weights`); running it waits for settled data (see below)
 - [x] Outcome settlement, phase 1: `decision_outcomes` table, nightly settlement before the daily pipeline (backfills history), `scripts.settle_outcomes`
 - [x] Outcome settlement, phase 3: `outcome_review` agent writes a lesson per settled recommendation; the recommendation prompt gets a point-in-time track record (hit rate, alpha captured, lessons)
 - [x] Outcome settlement, phase 4: `evals.capture --outcomes` + `evals.run --suite outcomes` — replays captured prompts and grades a configuration by hit rate and alpha captured against what really followed
@@ -28,7 +28,7 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Track record over time: hit rate per month per agent (a chart on `/track-record`) to see whether a prompt or model change helped — needs a few months of settled calls [PRIORITY: LOW]
 - [ ] Mobile: the calibration table on `/track-record` scrolls sideways at 390px; consider stacking it per agent [PRIORITY: LOW]
 - [x] Yahoo chart fallback for `YFinanceClient.get_closes` (settlement): `YahooChartClient.get_adjusted_closes` reads the chart's `adjclose` for an exact date range (period1/period2) — never unadjusted closes; verified live equal to yfinance's auto-adjusted closes
-- [ ] Risk override caps the signal at HOLD in code but not the confidence: the `risk_override/recommendation` eval case averages 58–59% against its 55% limit (Gemini, 10 repeats). Cap the confidence too in `risk_capped`, or relabel the case [PRIORITY: MED]
+- [x] Risk override caps the confidence too: any non-bearish call under the override is HOLD at ≤55% (`scoring.risk_capped`), also when the model answers HOLD itself; the `risk_override/recommendation` eval case went from 20% to 100% within its limit (Gemini, 10 repeats)
 - [ ] Run the outcome eval suite live once a few weeks of recommendations have settled (current prompt as the baseline for every later prompt/model change) [PRIORITY: HIGH]
 - [ ] Hit rate per analyst agent in its own prompt ("your bullish calls on this symbol were right 3/7 times") — easy with phase 2's query; measure with the outcome suite first [PRIORITY: LOW]
 - [x] Backtest A: `python -m scripts.backtest_weights` replays the stored analyst calls with 136 weight/threshold configurations (current, equal, each agent dropped / x0.5 / x1.5 / x2, thresholds ±10–25) against the settled outcomes; fit on the first 70% of days, reported on the rest, next to the stored LLM recommendations
@@ -79,7 +79,10 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [ ] Alert when a scheduled run is missed or fails (the worker is up but the job never finished) [PRIORITY: MEDIUM]
 - [ ] Postgres advisory lock around the daily job so even two workers can never both run it [PRIORITY: LOW]
 - [x] Preflight (`python -m scripts.preflight`) and manual run CLI (`python -m scripts.run_pipeline`)
-- [ ] First real pipeline run against live Claude / FMP / Yahoo / SEC — blocked in the cloud environment until its network policy allows those hosts and the API keys are configured [PRIORITY: HIGH]
+- [x] First real pipeline run (2026-10-27, cloud environment, local Postgres, free chain Gemini → Groq, no Claude key): AAPL, 14/14 agents completed, 13 LLM calls, 0 fallbacks, $0 — BUY 70%
+- [ ] Run once with `ANTHROPIC_API_KEY` set, so the chain's last step (Claude Haiku 5.5) and the reasoning model are exercised live too [PRIORITY: MED]
+- [ ] The cloud environment's proxy refuses yfinance's news, insider-trade and earnings-date calls (HTTP 403 on the CONNECT): sentiment ran with no headlines and earnings without dates. Check whether production reaches them; if not, take news and insider trades from FMP (`/stable/news/stock`, `/stable/insider-trading`) [PRIORITY: MED]
+- [ ] On the FMP free plan, institutional ownership and earnings-call transcripts return 402, so `institutional` and `growth` always answer neutral 0% (weights 5 and 10 contribute nothing): find another source (SEC 13F for holders), or lower their weights until one exists — confirm with backtest A [PRIORITY: MED]
 - [x] CI (GitHub Actions): lint, format, bandit, pip-audit / npm audit, pytest on SQLite + PostgreSQL, migration check, Jest, Playwright
 - [ ] Protect `main` in GitHub settings: require the CI checks to pass before merging, no direct pushes [PRIORITY: HIGH]
 - [x] Dependabot (pip, npm, docker, github-actions), weekly, minor/patch grouped
