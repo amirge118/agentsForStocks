@@ -235,6 +235,26 @@ async def test_fundamentals_fill_a_quote_only_info_and_yfinance_wins() -> None:
 
 
 @pytest.mark.unit
+async def test_fundamentals_are_not_fetched_for_a_fund() -> None:
+    class _FundChart(_Chart):
+        async def get_quote(self, symbol: str) -> dict:
+            return {**await super().get_quote(symbol), "quoteType": "ETF"}
+
+    async def fundamentals(symbol: str) -> dict:
+        raise AssertionError("FMP should not be called for an ETF")
+
+    yf = YFinanceClient(
+        rate_limiter=RateLimiter({}, default_rps=1000),
+        cache=TTLCache(60),
+        retry_policy=RetryPolicy(max_attempts=2, timeout_seconds=1.0, base_backoff_seconds=0.0),
+        ticker_factory=_CrumbBlocked,
+        fallback=_FundChart(),
+        fundamentals=fundamentals,
+    )
+    assert (await yf.get_info("SPY"))["quoteType"] == "ETF"
+
+
+@pytest.mark.unit
 async def test_fundamentals_are_not_fetched_when_yfinance_has_a_market_cap() -> None:
     class _Full(_FakeTicker):
         @property

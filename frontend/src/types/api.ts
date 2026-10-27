@@ -249,11 +249,18 @@ export const BaseAgentResultSchema = z.object({
 
 export const ValuationResultSchema = BaseAgentResultSchema.extend({
   dcf: z.record(z.string(), z.number()),
-  owner_earnings_value: z.number().nullable(),
+  // owner_earnings_value: results stored before the company-specific valuation
+  owner_earnings_value: z.number().nullable().optional(),
+  earnings_power_value: z.number().nullable().optional(),
   ev_ebitda_value: z.number().nullable(),
   avg_intrinsic_value: z.number(),
   margin_of_safety: z.number(),
   market_cap: z.number(),
+  // Fractions: the company's own years 1-5 growth, its discount rate, and the growth
+  // the market cap implies (reverse DCF; null when no growth explains the price)
+  growth_rate: z.number().optional(),
+  discount_rate: z.number().optional(),
+  implied_growth: z.number().nullable().optional(),
 })
 
 export const TechnicalsResultSchema = BaseAgentResultSchema.extend({

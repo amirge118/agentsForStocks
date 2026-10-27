@@ -138,7 +138,10 @@ def test_fmp_fields_take_yfinance_names_and_units() -> None:
     assert info["revenueGrowth"] == pytest.approx(4.16 / 3.91 - 1)
     assert "earningsGrowth" not in info  # no previous year → missing, never 0
     assert info["totalCash"] == 5.5e10 and info["freeCashflow"] == 9.88e10
+    assert info["quoteType"] == "EQUITY"
     assert to_info_fields({}, [], [], [], [], []) == {}
+    assert to_info_fields({"isEtf": True}, [], [], [], [], [])["quoteType"] == "ETF"
+    assert to_info_fields({"isFund": True}, [], [], [], [], [])["quoteType"] == "MUTUALFUND"
 
 
 @pytest.mark.unit
@@ -152,7 +155,7 @@ async def test_info_fields_fetch_the_six_endpoints_once(make_http) -> None:
         return httpx.Response(200, json=[])
 
     client = FmpClient(make_http(handler), api_key="k", budget=DailyCallBudget(limit=100))
-    assert await client.get_info_fields("AAPL") == {"marketCap": 1.0e9}
+    assert await client.get_info_fields("AAPL") == {"marketCap": 1.0e9, "quoteType": "EQUITY"}
     assert sorted(seen) == sorted(
         [
             "profile",

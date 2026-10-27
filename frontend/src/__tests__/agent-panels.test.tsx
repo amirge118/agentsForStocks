@@ -62,6 +62,7 @@ describe("AgentPanels", () => {
     const valuation = screen.getByRole("article", { name: "valuation analysis" })
     expect(within(valuation).getByText("+12.00%")).toHaveClass("text-ok")
     expect(within(valuation).getByText("$3,260B")).toBeInTheDocument()
+    expect(within(valuation).getByText("+13.50% vs +15.80%")).toHaveClass("text-ok") // priced below its own growth
 
     const technicals = screen.getByRole("article", { name: "technicals analysis" })
     expect(within(technicals).getByText("mean rev")).toBeInTheDocument()
@@ -113,6 +114,29 @@ describe("AgentPanels variants", () => {
     expect(within(earnings).getByText("75%")).toHaveClass("text-ok")
     expect(within(earnings).getByText("+4.20%")).toBeInTheDocument()
     expect(within(earnings).getByText("2026-10-29")).toBeInTheDocument()
+  })
+
+  it("still draws a valuation stored before the company-specific fields", async () => {
+    const older = {
+      ...agentResults[1]!,
+      agent_type: "valuation",
+      result: {
+        signal: "bearish",
+        confidence: 90,
+        reasoning: "r",
+        dcf: { bear: 0.9e12, base: 1.45e12, bull: 2.33e12 },
+        owner_earnings_value: 1.36e12,
+        ev_ebitda_value: 2.83e12,
+        avg_intrinsic_value: 1.88e12,
+        margin_of_safety: -0.63,
+        market_cap: 5.02e12,
+      },
+    }
+    renderWithProviders(<AgentPanels symbol="AAPL" />, { symbols: symbols(async () => [older]), agents })
+    const valuation = await screen.findByRole("article", { name: "valuation analysis" })
+    expect(within(valuation).getByText("-63.00%")).toHaveClass("text-bad")
+    expect(within(valuation).getByLabelText("DCF scenarios against the market cap")).toBeInTheDocument()
+    expect(within(valuation).queryByText("Growth priced in")).not.toBeInTheDocument()
   })
 })
 

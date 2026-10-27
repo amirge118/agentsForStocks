@@ -21,6 +21,7 @@ import yfinance as yf
 from opentelemetry import trace
 
 from app.core.symbols import validate_symbol
+from app.domain.assets import is_fund
 from app.observability import metrics
 from app.providers.cache import TTLCache
 from app.providers.errors import ProviderError, RetryableError
@@ -125,7 +126,9 @@ class YFinanceClient:
             if quote:
                 _note_fallback("info", ticker)
         extra: dict = {}
-        if self._fundamentals is not None and own.get("marketCap") is None:
+        # A fund has no company statements: don't spend FMP calls on them
+        needs_fundamentals = own.get("marketCap") is None and not is_fund({**quote, **own})
+        if self._fundamentals is not None and needs_fundamentals:
             try:
                 extra = await self._fundamentals(ticker)
             except ProviderError as exc:  # incl. the FMP daily budget

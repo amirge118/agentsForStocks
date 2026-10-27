@@ -29,6 +29,7 @@ class GrowthData:
     "growth",
     description="Growth outlook from earnings calls and forward estimates (FMP)",
     recommendation_weight=10,
+    company_only=True,
 )
 class GrowthAgent(Agent[GrowthData, GrowthResult]):
     result_model = GrowthResult

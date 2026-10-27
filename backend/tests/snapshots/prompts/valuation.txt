@@ -1,22 +1,30 @@
 ### call 1: prompt_name=valuation model=default
 --- system
-You are a quantitative valuation analyst. You receive intrinsic value estimates from several
-methods and the current market capitalisation. Be conservative: only signal bullish when there
-is a clear margin of safety (> 20%), bearish when the market value clearly exceeds intrinsic value.
+You are a quantitative valuation analyst. You receive intrinsic value estimates built from the
+company's own growth, cash flow and risk, the current market capitalisation, and the growth that
+price implies (reverse DCF). Be conservative: only signal bullish when there is a clear margin of
+safety (> 20%), bearish when the market value clearly exceeds intrinsic value. Judge whether the
+implied growth is plausible next to the company's own record, and say so.
 Confidence is 0-100; keep the reasoning under 200 characters.
 --- user
 Symbol: AAPL
 Current market cap: $2000.00B
 
-Intrinsic value estimates:
-  DCF bear: $903.20B  (low growth, high WACC)
-  DCF base: $1469.51B  (consensus assumptions)
-  DCF bull: $2363.10B  (high growth, expanding margins)
-  Owner earnings: $1080.00B
-  EV/EBITDA method: $2560.00B
+Inputs (the company's own):
+  Yearly cash flow: $90.00B (owner earnings)
+  Growth, years 1-5: 8.0% (revenue, 4-year history); fades to 2.5% by year 10
+  Discount rate: 10.2% (CAPM from beta)
 
-Average intrinsic value: $1703.17B
-Margin of safety: -14.8% (positive = undervalued)
+Intrinsic value estimates:
+  DCF bear: $1103.74B  (half the growth, +1pt discount rate)
+  DCF base: $1608.14B
+  DCF bull: $2166.00B  (1.4x the growth)
+  EV/EBITDA (sector multiple): $2560.00B
+  Average of DCF base and EV/EBITDA: $2084.07B
+  No-growth value (earnings power): $878.05B
+
+Margin of safety: +4.2% (positive = undervalued)
+Growth the market cap implies (reverse DCF, years 1-5): 12.0% vs the company's own 8.0%
 Rule-based signal: neutral (50%)
 
 Knowledge base context:

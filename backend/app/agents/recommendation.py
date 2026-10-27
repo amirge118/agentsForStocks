@@ -101,6 +101,7 @@ class RecommendationData:
     description="Weighted BUY/HOLD/SELL across all analyst agents",
     # outcome_review first, so today's lessons are in the track record
     depends_on=(*INPUT_AGENTS, "outcome_review"),
+    company_only=True,
 )
 class RecommendationAgent(Agent[RecommendationData, RecommendationResult]):
     result_model = RecommendationResult

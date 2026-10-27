@@ -22,7 +22,9 @@ class _Tracker:
         self.peak = 0
 
 
-def _registry(tracker: _Tracker, failing: set[str] = frozenset()) -> AgentRegistry:
+def _registry(
+    tracker: _Tracker, failing: set[str] = frozenset(), company_only: set[str] = frozenset()
+) -> AgentRegistry:
     reg = AgentRegistry()
 
     def make(name: str, deps: tuple[str, ...] = ()) -> None:
@@ -42,7 +44,9 @@ def _registry(tracker: _Tracker, failing: set[str] = frozenset()) -> AgentRegist
                 tracker.events.append(("end", self.name, symbol))
                 return AnalysisResult(signal="neutral", confidence=0, reasoning="", summary="")
 
-        reg.register(name, description=name, depends_on=deps)(_Agent)
+        reg.register(name, description=name, depends_on=deps, company_only=name in company_only)(
+            _Agent
+        )
 
     for name in ("a", "b", "c"):
         make(name)
@@ -148,3 +152,29 @@ async def test_pipeline_logs_carry_its_id_and_report_llm_totals(
         "cost_usd": 0,
         "llm_fallbacks": 0,
     }
+
+
+@pytest.mark.unit
+async def test_a_fund_skips_the_company_only_agents(concurrent_session_factory) -> None:
+    tracker = _Tracker()
+    reg = _registry(tracker, company_only={"b", "final"})
+
+    async def is_fund(symbol: str) -> bool:
+        return symbol == "SPY"
+
+    orchestrator = _orchestrator(concurrent_session_factory, reg, is_fund=is_fund)
+    report = await orchestrator.run(["SPY", "AAPL"], run_date=RUN_DATE)
+
+    spy = {o.agent: o for o in report.outcomes if o.symbol == "SPY"}
+    assert {n: o.status for n, o in spy.items()} == {
+        "a": "completed",
+        "c": "completed",
+        "b": "skipped",
+        "final": "skipped",
+    }
+    assert spy["b"].error == "not applicable to a fund (company-only agent)"
+    assert {("start", n, "SPY") for n in ("b", "final")}.isdisjoint(tracker.events)
+    assert all(o.status == "completed" for o in report.outcomes if o.symbol == "AAPL")
+    async with concurrent_session_factory() as session:
+        runs = (await session.execute(select(AgentRun))).scalars().all()
+    assert len(runs) == 6  # a skipped fund agent is not an execution

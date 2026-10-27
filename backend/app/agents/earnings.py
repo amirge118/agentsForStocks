@@ -42,6 +42,7 @@ class EarningsData:
     "earnings",
     description="Earnings surprise history and market reaction",
     recommendation_weight=5,
+    company_only=True,
 )
 class EarningsAgent(Agent[EarningsData, EarningsResult]):
     result_model = EarningsResult

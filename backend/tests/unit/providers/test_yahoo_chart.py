@@ -13,6 +13,7 @@ CHART = {
                 "meta": {
                     "currency": "USD",
                     "symbol": "AAPL",
+                    "instrumentType": "EQUITY",
                     "exchangeTimezoneName": "America/New_York",
                     "regularMarketPrice": 345.57,
                     "chartPreviousClose": 342.94,
@@ -71,7 +72,7 @@ async def test_quote_uses_yfinance_info_names(make_http) -> None:
     quote = await _client(make_http).get_quote("AAPL")
     assert quote["regularMarketPrice"] == quote["currentPrice"] == 345.57
     assert quote["previousClose"] == 342.94 and quote["longName"] == "Apple Inc."
-    assert quote["_source"] == "yahoo_chart"
+    assert quote["_source"] == "yahoo_chart" and quote["quoteType"] == "EQUITY"
 
 
 @pytest.mark.unit
