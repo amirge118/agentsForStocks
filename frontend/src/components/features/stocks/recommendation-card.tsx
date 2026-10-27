@@ -16,7 +16,7 @@ export function RecommendationCard({ symbol }: { symbol: string }) {
   const { data: rec, isPending, isError, error } = useRecommendation(symbol)
 
   if (isPending) {
-    return <Skeleton className="h-64 w-full rounded-xl" aria-label="Loading recommendation" />
+    return <Skeleton className="h-64 w-full rounded-card" aria-label="Loading recommendation" />
   }
 
   if (isError) {
@@ -25,9 +25,9 @@ export function RecommendationCard({ symbol }: { symbol: string }) {
       <Card role={notYet ? "status" : "alert"}>
         <CardContent className="p-6 text-sm">
           {notYet ? (
-            <span className="text-zinc-400">No recommendation for {symbol} yet — run the analysis.</span>
+            <span className="text-muted">No recommendation for {symbol} yet. Run the analysis to get one.</span>
           ) : (
-            <span className="text-red-400">Could not load the recommendation: {error.message}</span>
+            <span className="text-bad">Could not load the recommendation: {error.message}</span>
           )}
         </CardContent>
       </Card>
@@ -46,17 +46,17 @@ export function RecommendationCard({ symbol }: { symbol: string }) {
         </div>
         <dl className="grid grid-cols-3 gap-6 text-right text-sm">
           <div>
-            <dt className="text-zinc-400">Score</dt>
+            <dt className="text-muted">Score</dt>
             <dd className={cn("font-mono", toneClasses(rec.weighted_score).split(" ")[0])}>
               {formatScore(rec.weighted_score)}
             </dd>
           </div>
           <div>
-            <dt className="text-zinc-400">Confidence</dt>
+            <dt className="text-muted">Confidence</dt>
             <dd className="font-mono">{formatConfidence(rec.confidence)}</dd>
           </div>
           <div>
-            <dt className="text-zinc-400">Signal</dt>
+            <dt className="text-muted">Signal</dt>
             <dd>
               <SignalText signal={rec.signal} />
             </dd>
@@ -66,12 +66,12 @@ export function RecommendationCard({ symbol }: { symbol: string }) {
       <CardContent className="space-y-4">
         <p className="text-sm">{rec.reasoning}</p>
         {rec.risk_override_applied && (
-          <p className="rounded-md bg-red-400/10 px-3 py-2 text-sm text-red-400">
+          <p className="rounded-control border border-bad/30 bg-bad-soft px-3 py-2 text-sm text-bad">
             Risk override applied: a high-confidence bearish risk signal capped this call.
           </p>
         )}
         {rec.agents_missing.length > 0 && (
-          <p className="text-sm text-zinc-400">Missing analysts: {rec.agents_missing.join(", ")}</p>
+          <p className="text-sm text-muted">Missing analysts: {rec.agents_missing.join(", ")}</p>
         )}
         <AgentBreakdownTable breakdown={rec.agent_breakdown} />
         <ComplianceNotice compliance={rec.compliance} disclaimer={rec.disclaimer} />

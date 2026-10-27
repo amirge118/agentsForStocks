@@ -100,7 +100,8 @@ Use `get`/`post`/`put`/`del` from `@/lib/api/client.ts`. Never call `fetch()` di
 - Currency: `toLocaleString("en-US", { style: "currency", currency: "USD" })`
 - Percentages: `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`
 - Prices: `font-mono` class; numeric tables: `tabular-nums`
-- Gain: `text-green-400` / `bg-green-400/10`. Loss: `text-red-400` / `bg-red-400/10`
+- Gain: `text-ok` / `bg-ok-soft`. Loss: `text-bad` / `bg-bad-soft` (`toneClasses()` in `lib/format.ts`)
+- Mono (Atkinson Hyperlegible Mono, tabular, slashed zero) is for what was measured: prices, scores, tokens, ids, times — never a label, a head or a button
 
 ### 9. API Contract Workflow
 After changing a backend schema or route: `cd backend && python -m scripts.export_openapi`, then `cd frontend && npm run generate:api`. `tests/integration/test_openapi_contract.py` fails while `frontend/openapi.json` is stale, and `npm run typecheck` fails while a Zod schema in `src/types/api.ts` no longer matches the generated types.
@@ -219,19 +220,24 @@ frontend/
   e2e/                # Playwright specs (API mocked with page.route)
 ```
 
-## Dark Theme Tokens
+## Dark Theme Tokens (Hallmark "Console")
+
+Tokens live in `frontend/src/app/globals.css` (`@theme`); never write a raw colour (`zinc-*`, `green-*`, hex) — sloplint and the Hallmark floor reject it.
 
 | Token | Use |
 |---|---|
-| `bg-zinc-950` | Page canvas |
-| `bg-zinc-900` | Cards, panels |
-| `bg-zinc-800` | Table headers, hover, inputs |
-| `border-zinc-800` | Card borders |
-| `text-zinc-400` | Secondary / labels |
-| `text-green-400` / `text-red-400` | Gain / loss |
-| `bg-green-400/10` / `bg-red-400/10` | Gain / loss badge backgrounds |
+| `bg-paper` | Page canvas |
+| `bg-paper-2` | Cards, panels |
+| `bg-paper-3` | Deepest step: table headers, inputs, code, the top bar |
+| `border-rule` / `border-rule-2` | Hairline borders / the selected row, outline controls |
+| `text-ink` / `text-ink-2` / `text-muted` | Primary / secondary / labels |
+| `bg-accent text-accent-ink` | Amber: the one primary action, the current place, a person |
+| `text-cool` / `bg-cool-soft` | Blue: an instrument (a reading, a version) |
+| `text-ok` / `text-bad` (+ `bg-ok-soft` / `bg-bad-soft`) | Gain / loss and status only |
 
-Card pattern: `rounded-xl border border-zinc-800 bg-zinc-900`
+Radii: `rounded-card` (10px) for panels, `rounded-control` (6px) for controls, `rounded-chip` (4px) for badges. No shadows. Fonts: Host Grotesk (`font-sans`), Atkinson Hyperlegible Mono (`font-mono`), both via `next/font` in `layout.tsx`.
+
+Card pattern: `rounded-card border border-rule bg-paper-2`
 
 ## CI
 
