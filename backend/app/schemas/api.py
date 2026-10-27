@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.agents.recommendation import ComplianceView, ContributionView, RecommendationResult
 from app.core.symbols import validate_symbol
+from app.domain.outcomes import AgentTrack, SettledCall, TrackStats
 from app.domain.scoring import Action
 from app.domain.signals import SignalLabel
 from app.repositories.llm_calls import GroupBy
@@ -229,3 +230,92 @@ class LLMProviderOut(BaseModel):
     day_start: datetime = Field(description="When the provider's daily quota last reset")
     day_requests: int
     day_tokens: int
+
+
+class TrackStatsOut(BaseModel):
+    """Settled calls, how many were right, and what following them earned vs the benchmark."""
+
+    calls: int
+    hits: int
+    hit_rate: float | None = Field(description="hits / calls (0-1); None without calls")
+    mean_alpha_captured: float | None = Field(
+        description="Mean alpha earned by following each call (long, short or out), as a fraction"
+    )
+
+    @classmethod
+    def from_stats(cls, stats: TrackStats) -> "TrackStatsOut":
+        return cls(
+            calls=stats.calls,
+            hits=stats.hits,
+            hit_rate=stats.hit_rate,
+            mean_alpha_captured=stats.mean_alpha_captured,
+        )
+
+
+class TrackGroupOut(TrackStatsOut):
+    key: str = Field(description="The signal (bullish / neutral / bearish) or confidence bucket")
+
+
+class AgentTrackRecord(BaseModel):
+    agent: str
+    overall: TrackStatsOut
+    by_signal: list[TrackGroupOut]
+    by_confidence: list[TrackGroupOut]
+
+    @classmethod
+    def from_track(cls, track: AgentTrack) -> "AgentTrackRecord":
+        def groups(items: dict[str, TrackStats]) -> list[TrackGroupOut]:
+            return [
+                TrackGroupOut(key=key, **TrackStatsOut.from_stats(s).model_dump())
+                for key, s in items.items()
+            ]
+
+        return cls(
+            agent=track.agent,
+            overall=TrackStatsOut.from_stats(track.overall),
+            by_signal=groups(track.by_signal),
+            by_confidence=groups(track.by_confidence),
+        )
+
+
+class TrackRecordReport(BaseModel):
+    horizon: int = Field(description="Trading sessions after the decision (5, 20 or 60)")
+    since: date | None
+    settled: int
+    pending: int = Field(description="Outcomes whose window has not fully traded yet")
+    unavailable: int = Field(description="Windows that never got prices (e.g. delisted)")
+    agents: list[AgentTrackRecord] = Field(description="Recommendation first, then by name")
+
+
+class OutcomeCallOut(BaseModel):
+    decision_date: date
+    exit_date: date
+    signal: SignalLabel
+    confidence: float
+    raw_return: float
+    benchmark_return: float
+    alpha: float
+    hit: bool
+    benchmark: str
+
+    @classmethod
+    def from_call(cls, call: SettledCall) -> "OutcomeCallOut":
+        return cls(
+            decision_date=call.decision_date,
+            exit_date=call.exit_date,
+            signal=call.signal,
+            confidence=call.confidence,
+            raw_return=call.raw_return,
+            benchmark_return=call.raw_return - call.alpha,
+            alpha=call.alpha,
+            hit=call.hit,
+            benchmark=call.benchmark,
+        )
+
+
+class SymbolTrackRecord(BaseModel):
+    symbol: str
+    horizon: int
+    overall: TrackStatsOut
+    pending: int
+    calls: list[OutcomeCallOut] = Field(description="Settled recommendations, newest first")

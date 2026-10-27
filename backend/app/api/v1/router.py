@@ -6,7 +6,7 @@ covered by RequestLoggingMiddleware (added in main.py). /health stays public.
 from fastapi import APIRouter, Depends
 
 from app.api.auth import require_api_key
-from app.api.v1.endpoints import agents, llm, runs, symbols, watchlist
+from app.api.v1.endpoints import agents, llm, outcomes, runs, symbols, watchlist
 
 api_router = APIRouter(prefix="/api/v1", dependencies=[Depends(require_api_key)])
 api_router.include_router(agents.router)
@@ -14,3 +14,4 @@ api_router.include_router(symbols.router)
 api_router.include_router(runs.router)
 api_router.include_router(llm.router)
 api_router.include_router(watchlist.router)
+api_router.include_router(outcomes.router)

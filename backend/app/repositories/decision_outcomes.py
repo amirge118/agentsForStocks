@@ -5,7 +5,7 @@ from collections.abc import Iterable, Sequence
 from datetime import date
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -81,35 +81,76 @@ class DecisionOutcomeRepository:
         `agent`'s calls on `symbol` whose `horizon` outcome was known before `before`
         (exit session earlier than it), newest first — point-in-time for a run on `before`.
         """
+        rows = await self.scored_calls(
+            horizon, agent=agent, symbol=symbol, before=before, limit=limit
+        )
+        return [call for _, call in rows]
+
+    async def scored_calls(
+        self,
+        horizon: int,
+        *,
+        agent: str | None = None,
+        exclude_agents: Iterable[str] = (),
+        symbol: str | None = None,
+        since: date | None = None,
+        before: date | None = None,
+        limit: int | None = None,
+    ) -> list[tuple[str, SettledCall]]:
+        """(agent, call) for every stored call with a settled `horizon` outcome, newest first."""
         stmt = (
-            select(DecisionOutcome, AgentResult.result_json)
+            select(DecisionOutcome, AgentResult.agent_type, AgentResult.result_json)
             .join(
                 AgentResult,
                 (AgentResult.symbol == DecisionOutcome.symbol)
                 & (AgentResult.run_date == DecisionOutcome.decision_date),
             )
             .where(
-                AgentResult.agent_type == agent,
-                DecisionOutcome.symbol == symbol,
                 DecisionOutcome.horizon_days == horizon,
                 DecisionOutcome.status == "settled",
-                DecisionOutcome.exit_date < before,
             )
-            .order_by(DecisionOutcome.decision_date.desc())
-            .limit(limit)
+            .order_by(DecisionOutcome.decision_date.desc(), AgentResult.agent_type)
         )
+        if agent is not None:
+            stmt = stmt.where(AgentResult.agent_type == agent)
+        excluded = list(exclude_agents)
+        if excluded:
+            stmt = stmt.where(AgentResult.agent_type.not_in(excluded))
+        if symbol is not None:
+            stmt = stmt.where(DecisionOutcome.symbol == symbol)
+        if since is not None:
+            stmt = stmt.where(DecisionOutcome.decision_date >= since)
+        if before is not None:
+            stmt = stmt.where(DecisionOutcome.exit_date < before)
+        if limit is not None:
+            stmt = stmt.limit(limit)
         return [
-            SettledCall(
-                symbol=o.symbol,
-                decision_date=o.decision_date,
-                exit_date=o.exit_date,
-                horizon=o.horizon_days,
-                benchmark=o.benchmark,
-                signal=str(result.get("signal", "neutral")),
-                confidence=float(result.get("confidence", 0.0)),
-                reasoning=str(result.get("reasoning", "")),
-                raw_return=o.raw_return,
-                alpha=o.alpha,
-            )
-            for o, result in (await self._session.execute(stmt)).all()
+            (agent_type, _settled_call(o, result))
+            for o, agent_type, result in (await self._session.execute(stmt)).all()
         ]
+
+    async def status_counts(self, horizon: int, symbol: str | None = None) -> dict[str, int]:
+        """{status: rows} at one horizon — how many outcomes are still pending or unavailable."""
+        stmt = (
+            select(DecisionOutcome.status, func.count())
+            .where(DecisionOutcome.horizon_days == horizon)
+            .group_by(DecisionOutcome.status)
+        )
+        if symbol is not None:
+            stmt = stmt.where(DecisionOutcome.symbol == symbol)
+        return {status: count for status, count in (await self._session.execute(stmt)).all()}
+
+
+def _settled_call(o: DecisionOutcome, result: dict) -> SettledCall:
+    return SettledCall(
+        symbol=o.symbol,
+        decision_date=o.decision_date,
+        exit_date=o.exit_date,
+        horizon=o.horizon_days,
+        benchmark=o.benchmark,
+        signal=str(result.get("signal", "neutral")),
+        confidence=float(result.get("confidence", 0.0)),
+        reasoning=str(result.get("reasoning", "")),
+        raw_return=o.raw_return,
+        alpha=o.alpha,
+    )

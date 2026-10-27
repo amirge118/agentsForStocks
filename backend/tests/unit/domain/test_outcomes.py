@@ -6,7 +6,10 @@ import pytest
 from app.domain.outcomes import (
     SettledCall,
     TrackRecord,
+    TrackStats,
+    agent_tracks,
     captured_alpha,
+    confidence_bucket,
     daily_closes,
     hold_band,
     is_hit,
@@ -141,3 +144,49 @@ def test_track_record_counts_hits_and_captured_alpha() -> None:
     assert track.mean_captured_alpha == pytest.approx(0.02 / 3)
     assert TrackRecord(20, "SPY", (), ()).mean_captured_alpha is None
     assert captured_alpha("bearish", -0.03) == pytest.approx(0.03)
+
+
+@pytest.mark.unit
+def test_confidence_buckets_cover_0_to_100() -> None:
+    assert [confidence_bucket(c) for c in (0, 39.9, 40, 79.9, 80, 100)] == [
+        "0-40",
+        "0-40",
+        "40-60",
+        "60-80",
+        "80-100",
+        "80-100",
+    ]
+
+
+@pytest.mark.unit
+def test_agent_tracks_group_by_signal_and_confidence() -> None:
+    def call(signal: str, alpha: float, confidence: float) -> SettledCall:
+        return SettledCall(
+            "AAPL",
+            date(2026, 9, 1),
+            date(2026, 9, 30),
+            20,
+            "SPY",
+            signal,
+            confidence,
+            "",
+            0.0,
+            alpha,
+        )
+
+    tracks = agent_tracks(
+        [
+            ("moat", call("bullish", 0.03, 85)),
+            ("recommendation", call("bullish", 0.02, 70)),
+            ("recommendation", call("bearish", 0.01, 70)),
+            ("recommendation", call("neutral", 0.005, 30)),
+        ]
+    )
+    assert [t.agent for t in tracks] == ["recommendation", "moat"]  # recommendation first
+    rec = tracks[0]
+    assert (rec.overall.calls, rec.overall.hits) == (3, 2)
+    assert rec.overall.hit_rate == pytest.approx(2 / 3)
+    assert list(rec.by_signal) == ["bullish", "neutral", "bearish"]
+    assert rec.by_signal["bearish"].hits == 0
+    assert {k: v.calls for k, v in rec.by_confidence.items()} == {"0-40": 1, "60-80": 2}
+    assert TrackStats(0, 0, None).hit_rate is None
