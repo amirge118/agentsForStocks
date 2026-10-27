@@ -107,18 +107,24 @@ def risk_capped(
     risk_agent: str = "risk",
 ) -> tuple[SignalLabel, float, bool]:
     """
-    A high-confidence bearish risk call caps a bullish signal at neutral (HOLD).
-    Returns (signal, confidence, capped). Applied to the rule-based score and again
-    to the final judgement, so the cap holds whatever the model answers.
+    A high-confidence bearish risk call caps the call at HOLD with at most
+    RISK_OVERRIDE_MAX_CONFIDENCE: a bullish signal becomes neutral, and a neutral one
+    keeps its signal but not a confidence above the cap (the model may answer HOLD
+    itself, still too sure). A bearish call agrees with the risk analyst and is left
+    alone. Returns (signal, confidence, capped) — capped when anything changed.
+    Applied to the rule-based score and again to the final judgement, so the cap
+    holds whatever the model answers.
     """
     risk = results.get(risk_agent) or {}
-    if (
-        signal == "bullish"
-        and risk.get("signal") == "bearish"
+    override = (
+        risk.get("signal") == "bearish"
         and float(risk.get("confidence") or 0) >= RISK_OVERRIDE_CONFIDENCE
-    ):
-        return "neutral", min(confidence, RISK_OVERRIDE_MAX_CONFIDENCE), True
-    return signal, confidence, False
+    )
+    if not override or signal == "bearish":
+        return signal, confidence, False
+    capped_confidence = min(confidence, RISK_OVERRIDE_MAX_CONFIDENCE)
+    changed = signal != "neutral" or capped_confidence < confidence
+    return "neutral", capped_confidence, changed
 
 
 def to_action(signal: str) -> Action:

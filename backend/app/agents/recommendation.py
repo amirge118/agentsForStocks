@@ -185,12 +185,16 @@ def _apply_risk_cap(
     signal, confidence, capped = risk_capped(judgement.signal, judgement.confidence, results)
     if not capped:
         return judgement, False
-    logger.info("Bullish recommendation capped at HOLD by the risk override")
+    what = "Capped at HOLD" if judgement.signal == "bullish" else "Confidence capped"
+    logger.info(
+        "Recommendation capped by the risk override",
+        extra={"from_signal": judgement.signal, "from_confidence": judgement.confidence},
+    )
     return (
         LLMSignal(
             signal=signal,
             confidence=confidence,
-            reasoning=f"{judgement.reasoning} Capped at HOLD: the risk analyst is bearish "
+            reasoning=f"{judgement.reasoning} {what}: the risk analyst is bearish "
             "with high confidence.",
         ),
         True,
