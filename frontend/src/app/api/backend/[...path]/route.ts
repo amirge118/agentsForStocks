@@ -69,7 +69,9 @@ async function proxy(request: NextRequest, { params }: Context): Promise<NextRes
       body: isWrite ? await request.text() : undefined,
       cache: "no-store",
     })
-    return new NextResponse(await upstream.text(), {
+    // 204 / 304 carry no body, and a Response built with one throws
+    const body = upstream.status === 204 || upstream.status === 304 ? null : await upstream.text()
+    return new NextResponse(body, {
       status: upstream.status,
       headers: { "Content-Type": upstream.headers.get("content-type") ?? "application/json" },
     })

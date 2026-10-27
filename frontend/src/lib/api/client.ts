@@ -40,7 +40,8 @@ async function request<T>(
 ): Promise<T> {
   const response = await fetch(buildUrl(path, options.query), {
     method,
-    headers: options.body === undefined ? undefined : { "Content-Type": "application/json" },
+    // Writes always say JSON: the same-origin proxy refuses any other write (CSRF guard), DELETE included
+    headers: method === "GET" ? undefined : { "Content-Type": "application/json" },
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   })
   const payload: unknown = await response.json().catch(() => undefined)

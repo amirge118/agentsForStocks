@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { AgentErrorBoundary } from "@/components/features/agents/agent-error-boundary"
 import { AgentRunsTable } from "@/components/features/agents/agent-runs-table"
 import { RunPipelineButton } from "@/components/features/dashboard/run-pipeline-button"
@@ -12,7 +13,13 @@ export default async function SymbolPage({ params }: { params: Promise<{ symbol:
   const symbol = decodeURIComponent((await params).symbol).toUpperCase()
   return (
     <>
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Link
+          href={`/symbols/${encodeURIComponent(symbol)}/story`}
+          className="inline-flex h-9 items-center rounded-control border border-rule-2 bg-paper-2 px-4 text-sm hover:bg-paper-3"
+        >
+          Read it as a story
+        </Link>
         <RunPipelineButton symbols={[symbol]} />
       </div>
       <AgentErrorBoundary label="The recommendation">

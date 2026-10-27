@@ -15,6 +15,7 @@ import {
   PriceHistorySchema,
   RecommendationSchema,
   SymbolOverviewSchema,
+  WatchlistItemSchema,
   type AgentInfo,
   type AgentResult,
   type AgentRun,
@@ -29,15 +30,23 @@ import {
   type RunStatus,
   type SymbolOverview,
   type UsageGroup,
+  type WatchlistItem,
 } from "@/types/api"
 
-import { get, post } from "./client"
+import { del, get, post, put } from "./client"
 
 export interface SymbolRepository {
   getAll(): Promise<SymbolOverview[]>
   getRecommendation(symbol: string): Promise<Recommendation>
   getResults(symbol: string, filters?: { agent?: string; runDate?: string; limit?: number }): Promise<AgentResult[]>
   getPrices(symbol: string, range: PriceRange): Promise<PriceHistory>
+}
+
+export interface WatchlistRepository {
+  getAll(): Promise<WatchlistItem[]>
+  add(symbol: string): Promise<WatchlistItem>
+  remove(symbol: string): Promise<void>
+  reorder(symbols: string[]): Promise<WatchlistItem[]>
 }
 
 export interface AgentRepository {
@@ -74,6 +83,13 @@ export const symbolRepository: SymbolRepository = {
     }),
   getPrices: (symbol, range) =>
     get(`/symbols/${encodeURIComponent(symbol)}/prices`, PriceHistorySchema, { range }),
+}
+
+export const watchlistRepository: WatchlistRepository = {
+  getAll: () => get("/watchlist", z.array(WatchlistItemSchema)),
+  add: (symbol) => post("/watchlist", WatchlistItemSchema, { symbol }),
+  remove: (symbol) => del(`/watchlist/${encodeURIComponent(symbol)}`, z.undefined()),
+  reorder: (symbols) => put("/watchlist/order", z.array(WatchlistItemSchema), { symbols }),
 }
 
 export const agentRepository: AgentRepository = {

@@ -190,6 +190,12 @@ export const PriceHistorySchema = z.object({
   bars: z.array(PriceBarSchema),
 })
 
+export const WatchlistItemSchema = z.object({
+  symbol: z.string(),
+  position: z.number().int(),
+  added_at: z.string(),
+})
+
 // ---------------------------------------------------------------------------
 // Agent result payloads. /results returns each agent's stored result as a loose
 // record; panels parse it with these (safeParse) and fall back to the generic
@@ -269,6 +275,7 @@ export type LLMUsageRow = z.infer<typeof LLMUsageRowSchema>
 export type LLMUsageReport = z.infer<typeof LLMUsageReportSchema>
 export type LLMProvider = z.infer<typeof LLMProviderSchema>
 export type PriceRange = z.infer<typeof PriceRangeSchema>
+export type WatchlistItem = z.infer<typeof WatchlistItemSchema>
 export type PriceBar = z.infer<typeof PriceBarSchema>
 export type PriceHistory = z.infer<typeof PriceHistorySchema>
 export type BaseAgentResult = z.infer<typeof BaseAgentResultSchema>
@@ -301,4 +308,5 @@ export type ContractChecks = [
   Assert<Exact<LLMProvider, Schemas["LLMProviderOut"]>>,
   Assert<Exact<PriceBar, Schemas["PriceBarOut"]>>,
   Assert<Exact<PriceHistory, Schemas["PriceHistory"]>>,
+  Assert<Exact<WatchlistItem, Schemas["WatchlistItemOut"]>>,
 ]
