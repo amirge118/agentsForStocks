@@ -37,7 +37,7 @@ export function AgentsTable() {
         {data.map((agent) => (
           <TableRow key={agent.name}>
             <TableCell className="font-mono">{agent.name}</TableCell>
-            <TableCell className="hidden text-zinc-400 md:table-cell">{agent.description}</TableCell>
+            <TableCell className="hidden text-muted md:table-cell">{agent.description}</TableCell>
             <TableCell className="text-right tabular-nums">
               {agent.recommendation_weight || "info"}
             </TableCell>
@@ -53,7 +53,7 @@ export function AgentsTable() {
             </TableCell>
             <TableCell className="space-x-1">
               {agent.profile.skills.length === 0 ? (
-                <span className="text-zinc-400">—</span>
+                <span className="text-muted">None</span>
               ) : (
                 agent.profile.skills.map((skill) => (
                   <Badge key={skill} variant="outline">

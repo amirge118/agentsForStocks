@@ -28,8 +28,8 @@ describe("finance formatting", () => {
   })
 
   it("maps gain/loss to the theme tokens", () => {
-    expect(toneClasses(1)).toBe("text-green-400 bg-green-400/10")
-    expect(toneClasses(-1)).toBe("text-red-400 bg-red-400/10")
-    expect(toneClasses(0)).toContain("text-zinc-400")
+    expect(toneClasses(1)).toBe("text-ok bg-ok-soft")
+    expect(toneClasses(-1)).toBe("text-bad bg-bad-soft")
+    expect(toneClasses(0)).toContain("text-muted")
   })
 })

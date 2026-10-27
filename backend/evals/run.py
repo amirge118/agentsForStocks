@@ -7,6 +7,7 @@ the real model and costs money). From backend/:
     python -m evals.run --agents valuation moat --label calibration --yes \\
         --profiles '{"*": {"skills": ["confidence_calibration"]}}'
     python -m evals.run --suite ledger --dataset evals/datasets/ledger.jsonl --judge --yes
+    python -m evals.run --suite outcomes --label base --yes     # vs realised alpha
 
 Presets in evals/presets/: prompts_v2, haiku55, sonnet55_recommendation,
 rule_based_quant, skills, cheap_alt_news, and the free tiers free_gemini,
@@ -56,7 +57,11 @@ def _load_profiles(value: str) -> dict[str, Any]:
 
 def load_cases(args: argparse.Namespace) -> list[eval_cases.EvalCase]:
     if args.suite == "ledger":
-        return eval_cases.select(eval_cases.ledger_suite(Path(args.dataset)), args.agents)
+        path = Path(args.dataset or "evals/datasets/ledger.jsonl")
+        return eval_cases.select(eval_cases.ledger_suite(path), args.agents)
+    if args.suite == "outcomes":
+        path = Path(args.dataset or "evals/datasets/outcomes.jsonl")
+        return eval_cases.select(eval_cases.outcome_suite(path), args.agents)
     return eval_cases.select(eval_cases.scenario_suite(), args.agents)
 
 
@@ -93,8 +98,10 @@ def quota_notes(config: EvalConfig, default_provider: str, calls: int) -> list[s
 
 async def main(argv: list[str], llm: Any = None, out_dir: Path | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--suite", choices=["scenarios", "ledger"], default="scenarios")
-    parser.add_argument("--dataset", default="evals/datasets/ledger.jsonl")
+    parser.add_argument("--suite", choices=["scenarios", "ledger", "outcomes"], default="scenarios")
+    parser.add_argument(
+        "--dataset", default=None, help="default: evals/datasets/<ledger|outcomes>.jsonl"
+    )
     parser.add_argument("--agents", nargs="+", default=None)
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument(

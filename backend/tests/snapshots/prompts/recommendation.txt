@@ -8,6 +8,10 @@ Bullish = strong buy thesis. Bearish = avoid / sell. Neutral = hold, insufficien
 Respect a risk override when one was applied. Confidence is 0-100; the reasoning
 (max 200 characters) cites the two or three most important signals.
 
+A track record of this system's own past calls on the stock, and lessons drawn from them,
+may follow the analysts. Use it to correct recurring mistakes (e.g. too bullish after
+strong momentum); it describes this system's errors, not the stock's future.
+
 Keep the reasoning fair and balanced: for a bullish call, name the main risk too.
 Never use promissory or absolute language (e.g. "guaranteed", "risk-free", "can't lose",
 "sure thing") or hype ("no-brainer", "can't miss", "to the moon").
@@ -29,6 +33,11 @@ risk               | bullish  |  70% |   15 | +10.50
 valuation          | bullish  |  70% |   20 | +14.00
 
 Missing analysts: none
+
+Track record of this system's recommendations for AAPL (20 trading days later, vs SPY):
+1 settled call, 1 right (100%), mean alpha captured +1.5%
+Lessons from past calls:
+- MSFT 2026-08-03 bearish, alpha +2.1%: Alpha +2.1% against the bearish call: cloud growth outweighed the valuation.
 
 Knowledge base context:
 - Earlier run: steady margins

@@ -10,7 +10,7 @@ import { recommendation, runs } from "@/test/fixtures"
 import { pending, renderWithProviders } from "@/test/render"
 
 function symbols(getRecommendation: SymbolRepository["getRecommendation"]): SymbolRepository {
-  return { getAll: jest.fn(), getRecommendation, getResults: jest.fn() }
+  return { getAll: jest.fn(), getRecommendation, getResults: jest.fn(), getPrices: jest.fn() }
 }
 
 function runRepo(getAll: RunRepository["getAll"]): RunRepository {
@@ -41,8 +41,8 @@ describe("RecommendationCard", () => {
     })
     expect(await screen.findByText("Wide moat and accelerating services growth")).toBeInTheDocument()
     expect(screen.getByText("Missing analysts: institutional")).toBeInTheDocument()
-    expect(screen.getByText("+12.0")).toHaveClass("text-green-400")
-    expect(screen.getByText("-6.0")).toHaveClass("text-red-400")
+    expect(screen.getByText("+12.0")).toHaveClass("text-ok")
+    expect(screen.getByText("-6.0")).toHaveClass("text-bad")
     expect(screen.getByText("—")).toBeInTheDocument() // missing analyst has no confidence
     expect(screen.queryByText(/Risk override/)).not.toBeInTheDocument()
   })
@@ -146,7 +146,7 @@ describe("AgentRunsTable", () => {
     const getAll = jest.fn(async () => runs)
     renderWithProviders(<AgentRunsTable filters={{ symbol: "AAPL" }} />, { runs: runRepo(getAll) })
     expect(await screen.findByText("financial history")).toBeInTheDocument()
-    expect(screen.getByText("failed")).toHaveClass("text-red-400")
+    expect(screen.getByText("failed")).toHaveClass("text-bad")
     expect(screen.getByText("provider down")).toBeInTheDocument()
     expect(getAll).toHaveBeenCalledWith({ symbol: "AAPL" })
   })

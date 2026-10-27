@@ -12,6 +12,7 @@ from app.agents import (  # noqa: F401 — imported for their @register_agent si
     institutional,
     market_scanner,
     moat,
+    outcome_review,
     recommendation,
     risk,
     sentiment,

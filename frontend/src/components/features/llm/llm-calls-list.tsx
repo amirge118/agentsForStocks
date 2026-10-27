@@ -17,7 +17,7 @@ export function LLMCallsList({ runId }: { runId: string }) {
     return <LoadError what="LLM calls" error={error} />
   }
   if (data.length === 0) {
-    return <p className="p-6 text-sm text-zinc-400">This run made no LLM calls.</p>
+    return <p className="p-6 text-sm text-muted">This run made no LLM calls.</p>
   }
   return (
     <ol className="space-y-4" aria-label="LLM calls">
@@ -30,15 +30,15 @@ export function LLMCallsList({ runId }: { runId: string }) {
 
 function CallCard({ call }: { call: LLMCall }) {
   return (
-    <li className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 text-sm">
+    <li className="rounded-card border border-rule bg-paper-2 p-4 text-sm">
       <div className="flex flex-wrap items-center gap-3">
         <Badge variant={call.status === "ok" ? "gain" : "loss"}>{call.status}</Badge>
         <span className="font-mono">{call.model}</span>
-        {call.provider && <span className="text-zinc-400">via {call.provider}</span>}
-        <span className="text-zinc-400">
+        {call.provider && <span className="text-muted">via {call.provider}</span>}
+        <span className="text-muted">
           {call.prompt_name ?? "—"}@{call.prompt_version}
         </span>
-        <span className="text-zinc-400">{formatDateTime(call.created_at)}</span>
+        <span className="text-muted">{formatDateTime(call.created_at)}</span>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-2 tabular-nums md:grid-cols-5">
         <Field label="Input" value={formatTokens(call.input_tokens + call.cache_read_tokens + call.cache_write_tokens)} />
@@ -47,7 +47,7 @@ function CallCard({ call }: { call: LLMCall }) {
         <Field label="Cost" value={formatCost(call.cost_usd)} />
         <Field label="Latency" value={`${call.latency_ms} ms`} />
       </dl>
-      {call.error && <p className="mt-2 text-red-400">{call.error}</p>}
+      {call.error && <p className="mt-2 text-bad">{call.error}</p>}
       <Text label="System prompt" text={call.system_prompt} />
       <Text label="Prompt" text={call.prompt} />
       <Text label="Response" text={call.response} />
@@ -58,7 +58,7 @@ function CallCard({ call }: { call: LLMCall }) {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs text-zinc-400">{label}</dt>
+      <dt className="text-xs text-muted">{label}</dt>
       <dd className="font-mono">{value}</dd>
     </div>
   )
@@ -67,8 +67,8 @@ function Field({ label, value }: { label: string; value: string }) {
 function Text({ label, text }: { label: string; text: string | null }) {
   return (
     <details className="mt-3">
-      <summary className="cursor-pointer text-zinc-400 hover:text-zinc-50">{label}</summary>
-      <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-zinc-950 p-3 font-mono text-xs">
+      <summary className="cursor-pointer text-muted hover:text-ink">{label}</summary>
+      <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded-control border border-rule bg-paper-3 p-3 font-mono text-xs">
         {text ?? "Not captured (LLM_CAPTURE_CONTENT=false)"}
       </pre>
     </details>

@@ -31,14 +31,14 @@ export function ProviderQuotas() {
 
 function ProviderCard({ provider: p }: { provider: LLMProvider }) {
   return (
-    <li className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 text-sm" aria-label={p.name}>
+    <li className="rounded-card border border-rule bg-paper-2 p-4 text-sm" aria-label={p.name}>
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium">{p.name}</span>
         <Badge variant={p.chain_position !== null ? "default" : "outline"}>
           {p.chain_position !== null ? `chain #${p.chain_position}` : "not in chain"}
         </Badge>
       </div>
-      <p className="mt-1 truncate font-mono text-xs text-zinc-400">{p.model}</p>
+      <p className="mt-1 truncate font-mono text-xs text-muted">{p.model}</p>
       <dl className="mt-3 space-y-2 tabular-nums">
         <Usage label="Requests today" used={p.day_requests} limit={p.rpd} />
         <Usage label="Tokens today" used={p.day_tokens} limit={p.tpd} />
@@ -52,7 +52,7 @@ function Usage({ label, used, limit }: { label: string; used: number; limit: num
   return (
     <div>
       <div className="flex justify-between text-xs">
-        <dt className="text-zinc-400">{label}</dt>
+        <dt className="text-muted">{label}</dt>
         <dd className="font-mono">
           {formatTokens(used)}
           {limit ? ` / ${formatTokens(limit)}` : ""}
@@ -60,7 +60,7 @@ function Usage({ label, used, limit }: { label: string; used: number; limit: num
       </div>
       {share !== null && (
         <div
-          className="mt-1 h-1.5 rounded-sm bg-zinc-800"
+          className="mt-1 h-1.5 rounded-full bg-paper-3"
           role="meter"
           aria-label={`${label} of the daily limit`}
           aria-valuenow={Math.round(share)}
@@ -68,7 +68,7 @@ function Usage({ label, used, limit }: { label: string; used: number; limit: num
           aria-valuemax={100}
         >
           <div
-            className={`h-full rounded-sm ${share >= 90 ? "bg-red-400" : "bg-green-400"}`}
+            className={`h-full rounded-full ${share >= 90 ? "bg-bad" : "bg-ok"}`}
             style={{ width: `${share}%` }}
           />
         </div>

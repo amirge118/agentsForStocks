@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from "@playwright/test"
 
-import { llmCalls, llmProviders, llmUsage, overview, recommendation, runs } from "../src/test/fixtures"
+import { agentResults, llmCalls, llmProviders, llmUsage, overview, priceHistory, recommendation, runs } from "../src/test/fixtures"
 
 const API = "**/api/backend"
 
@@ -20,6 +20,13 @@ async function mockApi(page: Page): Promise<string[]> {
     json(route, { detail: "No recommendation for MSFT yet" }, 404),
   )
   await page.route(`${API}/runs**`, (route) => json(route, runs))
+  await page.route(`${API}/symbols/*/prices**`, (route) => json(route, priceHistory))
+  await page.route(`${API}/symbols/AAPL/results**`, (route) => {
+    const agent = new URL(route.request().url()).searchParams.get("agent")
+    return json(route, agent ? agentResults.filter((r) => r.agent_type === agent) : agentResults)
+  })
+  await page.route(`${API}/symbols/MSFT/results**`, (route) => json(route, []))
+  await page.route(`${API}/agents`, (route) => json(route, []))
   // Registered after /runs** so it takes precedence for a run's LLM calls
   await page.route(`${API}/runs/*/llm-calls`, (route) => json(route, llmCalls))
   await page.route(`${API}/llm/usage**`, (route) => json(route, llmUsage))
@@ -47,6 +54,24 @@ test("watchlist links through to the recommendation detail", async ({ page }) =>
   await expect(page.getByText("Wide moat and accelerating services growth")).toBeVisible()
   await expect(page.getByRole("table", { name: "Agent breakdown" })).toBeVisible()
   await expect(page.getByRole("table", { name: "Agent runs" })).toContainText("provider down")
+})
+
+test("symbol page shows the verdict, the charts and one panel per analyst", async ({ page }) => {
+  await mockApi(page)
+  await page.goto("/symbols/AAPL")
+
+  await expect(page.getByLabel("Recommendation: BUY")).toBeVisible()
+  await expect(page.getByRole("meter", { name: "Weighted score" })).toHaveAttribute("aria-valuenow", "42.5")
+  await expect(page.getByRole("img", { name: "1 bullish, 0 neutral, 1 bearish" })).toBeVisible()
+  await expect(page.getByRole("img", { name: /^Contributions: moat \+12\.0, risk -6\.0/ })).toBeVisible()
+  await expect(page.getByTestId("price-chart").locator("canvas").first()).toBeVisible()
+  await expect(page.getByText("$235.00")).toBeVisible()
+  await expect(page.getByRole("article", { name: "valuation analysis" })).toContainText("+12.00%")
+  await expect(page.getByRole("img", { name: /^Score from -20\.0/ })).toBeVisible()
+
+  await page.getByRole("button", { name: "1Y" }).click()
+  await expect(page).toHaveURL(/\/symbols\/AAPL\?range=1Y$/)
+  await expect(page.getByRole("button", { name: "1Y" })).toHaveAttribute("aria-pressed", "true")
 })
 
 test("symbol without a recommendation explains what to do", async ({ page }) => {

@@ -40,9 +40,9 @@ export function formatDateTime(iso: string): string {
 
 /** Text + background classes for a gain / loss / flat value. */
 export function toneClasses(n: number): string {
-  if (n > 0) return "text-green-400 bg-green-400/10"
-  if (n < 0) return "text-red-400 bg-red-400/10"
-  return "text-zinc-400 bg-zinc-800"
+  if (n > 0) return "text-ok bg-ok-soft"
+  if (n < 0) return "text-bad bg-bad-soft"
+  return "text-muted bg-paper-3"
 }
 
 /** LLM cost: dollars with up to 4 decimals (calls cost fractions of a cent). */

@@ -1,7 +1,8 @@
 """
 Scheduler — every job that runs on its own, in one table (JOBS):
 
-  daily_pipeline       PIPELINE_SCHEDULE     full pipeline for the watchlist
+  daily_pipeline       PIPELINE_SCHEDULE     settle past decisions, then the full
+                                             pipeline for the watchlist
   nightly_maintenance  MAINTENANCE_SCHEDULE  prune llm_calls to LLM_CALL_RETENTION_DAYS
 
 Nothing is scheduled unless SCHEDULER_ENABLED=true; a job whose schedule is
@@ -9,6 +10,11 @@ empty stays off. Schedules are crontab lines in New York time. The watchlist is
 read from the database when the job fires, so changes apply to the next run
 without a restart. Runs are idempotent, so a repeated or late job is safe.
 `python -m scripts.schedules` shows what is configured and when it next runs.
+
+Before the agents, the daily job settles past decisions against realised prices
+(app/pipeline/settlement.py) when a settler is given — also with an empty
+watchlist, since it scores what was already decided. A settlement failure is
+logged and never stops the pipeline.
 """
 
 import logging
@@ -24,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.clock import MARKET_TZ, utcnow
 from app.core.config import Settings
 from app.pipeline.orchestrator import PipelineOrchestrator
+from app.pipeline.settlement import OutcomeSettler
 from app.repositories.llm_calls import LLMCallRepository
 from app.repositories.watchlist import WatchlistRepository
 
@@ -43,8 +50,15 @@ async def load_watchlist(session_factory: async_sessionmaker[AsyncSession]) -> l
 
 
 async def run_daily_pipeline(
-    orchestrator: PipelineOrchestrator, symbols_provider: SymbolsProvider
+    orchestrator: PipelineOrchestrator,
+    symbols_provider: SymbolsProvider,
+    settler: OutcomeSettler | None = None,
 ) -> None:
+    if settler is not None:
+        try:
+            await settler.settle()
+        except Exception:
+            logger.exception("Outcome settlement failed; the pipeline runs anyway")
     symbols = await symbols_provider()
     if not symbols:
         logger.warning("Daily pipeline skipped: the watchlist is empty")
@@ -95,7 +109,7 @@ def jobs(settings: Settings) -> list[JobSetting]:
         JobSetting(
             DAILY_JOB_ID,
             "PIPELINE_SCHEDULE",
-            "Full pipeline (all agents) for the watchlist",
+            "Settle past decisions, then the full pipeline for the watchlist",
             settings.pipeline_schedule,
         ),
         JobSetting(
@@ -111,6 +125,7 @@ def build_scheduler(
     settings: Settings,
     orchestrator: PipelineOrchestrator,
     session_factory: async_sessionmaker[AsyncSession],
+    settler: OutcomeSettler | None = None,
 ) -> AsyncIOScheduler | None:
     """The configured scheduler, or None when SCHEDULER_ENABLED is off (nothing runs)."""
     if not settings.scheduler_enabled:
@@ -122,6 +137,7 @@ def build_scheduler(
         maintenance=partial(prune_llm_calls, session_factory, settings.llm_call_retention_days),
         pipeline_schedule=settings.pipeline_schedule,
         maintenance_schedule=settings.maintenance_schedule,
+        settler=settler,
     )
 
 
@@ -132,6 +148,7 @@ def create_scheduler(
     *,
     pipeline_schedule: str = "30 18 * * mon-fri",
     maintenance_schedule: str = "15 3 * * *",
+    settler: OutcomeSettler | None = None,
 ) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone=MARKET_TZ)
     if pipeline_schedule.strip():
@@ -139,6 +156,7 @@ def create_scheduler(
             run_daily_pipeline,
             trigger=CronTrigger.from_crontab(pipeline_schedule, timezone=MARKET_TZ),
             args=[orchestrator, symbols_provider],
+            kwargs={"settler": settler},
             id=DAILY_JOB_ID,
             replace_existing=True,
             misfire_grace_time=3600,

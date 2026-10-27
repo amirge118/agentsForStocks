@@ -26,6 +26,7 @@ def test_daily_job_runs_weekdays_after_close() -> None:
         "cron[month='*', day='*', day_of_week='mon-fri', hour='18', minute='30']"
     )
     assert job.args == (orchestrator, provider)
+    assert job.kwargs == {"settler": None}
     assert str(scheduler.timezone) == "America/New_York"
 
 
@@ -150,3 +151,43 @@ def test_a_bad_schedule_fails_at_startup(session_factory) -> None:
     settings = Settings(scheduler_enabled=True, pipeline_schedule="every day")
     with pytest.raises(ValueError):
         build_scheduler(settings, AsyncMock(), session_factory)
+
+
+@pytest.mark.unit
+async def test_daily_job_settles_outcomes_before_the_agents(session_factory) -> None:
+    calls: list[str] = []
+    settler = AsyncMock()
+    settler.settle.side_effect = lambda: calls.append("settle")
+    orchestrator = AsyncMock()
+    orchestrator.run.side_effect = lambda symbols: (
+        calls.append("run") or PipelineReport("p1", run_date=None, outcomes=())
+    )
+
+    await run_daily_pipeline(orchestrator, AsyncMock(return_value=["AAPL"]), settler=settler)
+
+    assert calls == ["settle", "run"]
+    settings = Settings(scheduler_enabled=True)
+    scheduler = build_scheduler(settings, orchestrator, session_factory, settler=settler)
+    assert scheduler.get_job(DAILY_JOB_ID).kwargs == {"settler": settler}
+
+
+@pytest.mark.unit
+async def test_settlement_runs_even_with_an_empty_watchlist() -> None:
+    settler = AsyncMock()
+    orchestrator = AsyncMock()
+    await run_daily_pipeline(orchestrator, AsyncMock(return_value=[]), settler=settler)
+    settler.settle.assert_awaited_once()
+    orchestrator.run.assert_not_awaited()
+
+
+@pytest.mark.unit
+async def test_settlement_failure_does_not_stop_the_pipeline(caplog) -> None:
+    settler = AsyncMock()
+    settler.settle.side_effect = RuntimeError("db gone")
+    orchestrator = AsyncMock()
+    orchestrator.run.return_value = PipelineReport("p1", run_date=None, outcomes=())
+
+    await run_daily_pipeline(orchestrator, AsyncMock(return_value=["AAPL"]), settler=settler)
+
+    orchestrator.run.assert_awaited_once_with(["AAPL"])
+    assert "Outcome settlement failed" in caplog.text

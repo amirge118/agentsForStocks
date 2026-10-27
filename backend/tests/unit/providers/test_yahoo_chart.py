@@ -1,3 +1,5 @@
+from datetime import date
+
 import httpx
 import pytest
 
@@ -30,7 +32,9 @@ CHART = {
                             "close": [339.5, 343.99, None],  # a session not closed yet
                             "volume": [35851400, 35614100, 46898900],
                         }
-                    ]
+                    ],
+                    # Split- and dividend-adjusted (yfinance's auto_adjust)
+                    "adjclose": [{"adjclose": [338.9, 343.4, None]}],
                 },
             }
         ],
@@ -76,3 +80,38 @@ async def test_unknown_symbol_is_empty_not_an_error(make_http) -> None:
     client = _client(make_http)
     assert (await client.get_history("NOPE")).empty
     assert await client.get_quote("NOPE") == {}
+
+
+@pytest.mark.unit
+async def test_adjusted_closes_for_a_date_range(make_http) -> None:
+    seen: list[httpx.Request] = []
+    client = _client(make_http, seen)
+    # The sessions are 2026-10-20 … 2026-10-22; the third has not closed
+    closes = await client.get_adjusted_closes("aapl", date(2026, 10, 20), date(2026, 10, 23))
+    assert list(closes) == [338.9, 343.4]  # adjclose, not close
+    assert [d.date() for d in closes.index] == [date(2026, 10, 20), date(2026, 10, 21)]
+    params = seen[0].url.params
+    assert (params["period1"], params["period2"]) == ("1792454400", "1792713600")
+    assert params["interval"] == "1d" and params["includeAdjustedClose"] == "true"
+    # [start, end): a range that stops before the second session keeps only the first
+    narrow = await client.get_adjusted_closes("AAPL", date(2026, 10, 20), date(2026, 10, 21))
+    assert list(narrow) == [338.9]
+
+
+@pytest.mark.unit
+async def test_no_adjusted_closes_is_empty_never_unadjusted(make_http, caplog) -> None:
+    import copy
+
+    import httpx as _httpx
+
+    unadjusted = copy.deepcopy(CHART)
+    del unadjusted["chart"]["result"][0]["indicators"]["adjclose"]
+
+    def handler(request: _httpx.Request) -> _httpx.Response:
+        return _httpx.Response(200, json=unadjusted)
+
+    client = YahooChartClient(make_http(handler))
+    assert (await client.get_adjusted_closes("AAPL", date(2026, 10, 1), date(2026, 11, 1))).empty
+    assert "no adjusted closes" in caplog.text
+    unknown = _client(make_http)
+    assert (await unknown.get_adjusted_closes("NOPE", date(2026, 10, 1), date(2026, 11, 1))).empty

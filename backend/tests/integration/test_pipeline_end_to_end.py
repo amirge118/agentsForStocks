@@ -1,5 +1,5 @@
 """
-All 13 real agents through the real orchestrator, runner and SQLite DB.
+All 14 real agents through the real orchestrator, runner and SQLite DB.
 Only the network-facing providers and the LLM are faked.
 """
 
@@ -29,7 +29,7 @@ async def test_full_pipeline_produces_a_recommendation(concurrent_session_factor
 
     report = await orchestrator.run(["AAPL"], run_date=RUN_DATE)
 
-    assert report.counts == {"completed": 13}
+    assert report.counts == {"completed": 14}
     async with concurrent_session_factory() as session:
         stored = await AgentResultRepository(session).get_for_date("AAPL", RUN_DATE)
     assert set(stored) == set(registry.names())

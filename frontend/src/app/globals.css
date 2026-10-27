@@ -1,25 +1,127 @@
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: Console (deal 2/3, seed dark-data-dense-dashboard-where-5fe2·7571aa0b·2026-10-26·r0) · redesign: restyle
+ * nav: kept top bar, current route marked · signature: the recommendation and its per-agent breakdown, figures in the measured face · states: loading, empty, error, full (query-states.tsx) · console: graphite
+ * axes: dark/grotesk-sans/chromatic-amber · posture: restrained · contrast: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P2 H- E2 S2 R1 V2 · weakest: R, the layout is kept at restyle depth; PR 4 recomposes the symbol screen */
+/* Hallmark · reworded "No recommendation for X yet — run the analysis." to "No recommendation for X yet. Run the analysis to get one.", and the empty skills / run-detail cells from "—" to "None" · 19 names the dash */
+
 @import "tailwindcss";
 
 /*
-  Tailwind v3 defaults that v4 dropped, kept so the dashboard looks the same:
-  borders without a color utility were gray-200 (v4: currentcolor), and buttons
-  had a pointer cursor (v4: default).
+  Console tokens (.claude/skills/hallmark/references/themes/console.md). Every colour and
+  font on screen goes through one of these: bg-paper / bg-paper-2 / bg-paper-3 (ground,
+  panel, deepest step), text-ink / text-ink-2 / text-muted, border-rule / border-rule-2,
+  accent (amber: a person, the primary action, the current place), cool (blue: an
+  instrument, a reading), ok / bad (+ -soft tints) for gain / loss and status only.
 */
+@theme {
+  --color-paper: oklch(17% 0.008 250);
+  --color-paper-2: oklch(21% 0.009 250);
+  --color-paper-3: oklch(13.5% 0.007 250);
+  --color-ink: oklch(95% 0.005 250);
+  --color-ink-2: oklch(83% 0.008 250);
+  --color-muted: oklch(71% 0.01 250);
+  --color-rule: oklch(31% 0.01 250);
+  --color-rule-2: oklch(42% 0.012 250);
+  --color-accent: oklch(82% 0.15 80);
+  --color-accent-ink: oklch(18% 0.04 75);
+  --color-accent-soft: oklch(29% 0.05 80);
+  --color-focus: oklch(82% 0.15 80);
+  --color-cool: oklch(77% 0.12 245);
+  --color-cool-soft: oklch(29% 0.05 245);
+  --color-ok: oklch(76% 0.15 150);
+  --color-ok-soft: oklch(24.5% 0.03 150);
+  --color-bad: oklch(70% 0.17 25);
+  --color-bad-soft: oklch(24.5% 0.035 25);
+
+  --radius-card: 10px;
+  --radius-control: 6px;
+  --radius-chip: 4px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Faces come from next/font (layout.tsx), so the theme reads their CSS variables */
+@theme inline {
+  --font-sans: var(--font-host-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-atkinson-mono), ui-monospace, monospace;
+}
+
+:root {
+  color-scheme: dark;
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --tracking-display: -0.03em;
+}
+
 @layer base {
+  /*
+    Tailwind v4 dropped two v3 defaults: borders without a colour utility were a fixed
+    grey (v4: currentcolor), and buttons had a pointer cursor.
+  */
   *,
   ::after,
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-gray-200, currentcolor);
+    border-color: var(--color-rule);
   }
 
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
-}
 
-body {
-  @apply bg-zinc-950 text-zinc-50 antialiased;
+  html,
+  body {
+    overflow-x: clip;
+  }
+
+  html {
+    scrollbar-color: var(--color-muted) var(--color-paper);
+  }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    caret-color: var(--color-accent);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-weight: 500;
+    letter-spacing: var(--tracking-display);
+    line-height: 1.1;
+    overflow-wrap: break-word;
+    min-width: 0;
+    text-wrap: balance;
+  }
+
+  /* What an instrument measured: every figure tabular, the zero slashed */
+  .font-mono {
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-accent) 25%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }

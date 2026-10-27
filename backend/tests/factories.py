@@ -10,7 +10,8 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 
-from app.agents.base import AgentContext
+from app.agents.base import AgentContext, NoOutcomes
+from app.domain.outcomes import Lesson, SettledCall
 from app.llm.errors import LLMError
 from app.llm.pricing import PRICES
 from app.llm.profiles import ProfileBook
@@ -288,6 +289,8 @@ class FakeLLM(RouterStub):
         if "observations" in schema.model_fields:
             fields.setdefault("observations", ["breakout"])
             fields.setdefault("risk_level", "low")
+        if "lesson" in schema.model_fields:
+            fields.setdefault("lesson", "Alpha +1.5% backs the call; margins held. Keep it.")
         return schema.model_validate(fields)
 
     def default_model(self, provider: str | None = None) -> str:
@@ -305,6 +308,66 @@ class FakeResults:
         return {k: v for k, v in self.results.items() if k in agent_types}
 
 
+class FakeOutcomes:
+    """OutcomesReader with canned history; records the dates asked for (point-in-time checks)."""
+
+    def __init__(
+        self, calls: list[SettledCall] | None = None, lessons: list[Lesson] | None = None
+    ) -> None:
+        self.calls = calls if calls is not None else [settled_call()]
+        self.lesson_items = lessons if lessons is not None else [lesson()]
+        self.asked: list[tuple[str, date]] = []
+
+    async def settled_calls(
+        self, symbol: str, *, agent: str, horizon: int, before: date, limit: int
+    ) -> list[SettledCall]:
+        self.asked.append(("calls", before))
+        return [c for c in self.calls if c.symbol == symbol and c.exit_date < before][:limit]
+
+    async def lessons(
+        self,
+        *,
+        until: date,
+        symbol: str | None = None,
+        exclude_symbol: str | None = None,
+        limit: int = 5,
+    ) -> list[Lesson]:
+        self.asked.append(("lessons", until))
+        return [
+            item
+            for item in self.lesson_items
+            if (symbol is None or item.symbol == symbol)
+            and (exclude_symbol is None or item.symbol != exclude_symbol)
+        ][:limit]
+
+
+def settled_call(**overrides: Any) -> SettledCall:
+    fields: dict[str, Any] = {
+        "symbol": "AAPL",
+        "decision_date": date(2026, 9, 1),
+        "exit_date": date(2026, 9, 30),
+        "horizon": 20,
+        "benchmark": "SPY",
+        "signal": "bullish",
+        "confidence": 70.0,
+        "reasoning": "Strong margins and momentum",
+        "raw_return": 0.016,
+        "alpha": 0.015,
+    }
+    return SettledCall(**{**fields, **overrides})
+
+
+def lesson(**overrides: Any) -> Lesson:
+    fields: dict[str, Any] = {
+        "symbol": "MSFT",
+        "decision_date": date(2026, 8, 3),
+        "signal": "bearish",
+        "alpha": 0.021,
+        "text": "Alpha +2.1% against the bearish call: cloud growth outweighed the valuation.",
+    }
+    return Lesson(**{**fields, **overrides})
+
+
 def make_context(
     *,
     yfinance: Any = None,
@@ -313,6 +376,7 @@ def make_context(
     llm: Any = None,
     results: Any = None,
     profiles: ProfileBook | None = None,
+    outcomes: Any = None,
 ) -> AgentContext:
     return AgentContext(
         yfinance=yfinance or FakeYFinance(),
@@ -322,4 +386,5 @@ def make_context(
         results=results or FakeResults(),
         reasoning_model="reasoning-model",
         profiles=profiles or ProfileBook(),
+        outcomes=outcomes or NoOutcomes(),
     )

@@ -28,7 +28,9 @@ async def run_worker(
 ) -> None:
     """Start the scheduler and keep it running until `stop` is set."""
     container = build_container(settings, session_factory)
-    scheduler = build_scheduler(settings, container.orchestrator, session_factory)
+    scheduler = build_scheduler(
+        settings, container.orchestrator, session_factory, settler=container.settler
+    )
     if scheduler is not None:
         scheduler.start()
     logger.info("Scheduler worker started", extra={"scheduling": scheduler is not None})

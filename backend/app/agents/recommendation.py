@@ -8,6 +8,11 @@ Compliance: the reasoning is reviewed (app/domain/compliance.py) before it is
 stored. Promissory language ("guaranteed", "risk-free") fails the review and the
 reasoning is replaced with a neutral, score-based summary; the original text is
 kept in compliance.original_reasoning for audit. Every result carries a disclaimer.
+
+Track record: the prompt also shows how this system's past recommendations on the
+symbol turned out (20 trading days vs the benchmark) and the lessons the outcome
+review drew from them — only outcomes known before the run date, so a rerun of a
+past date never sees the future.
 """
 
 import logging
@@ -27,6 +32,7 @@ from app.agents.base import (
 from app.agents.formatting import knowledge_block
 from app.agents.registry import register_agent, registry
 from app.domain.compliance import DISCLAIMER, review_recommendation
+from app.domain.outcomes import REVIEW_HORIZON, TrackRecord
 from app.domain.scoring import (
     BUY_THRESHOLD,
     SELL_THRESHOLD,
@@ -53,6 +59,10 @@ INPUT_AGENTS = (
     "earnings",
 )
 _MIN_AGENTS_FOR_CONVICTION = 4
+# Track record in the prompt: settled calls counted, lessons quoted
+TRACK_CALLS = 20
+LESSONS_SAME_SYMBOL = 3
+LESSONS_OTHER_SYMBOLS = 2
 
 logger = logging.getLogger(__name__)
 
@@ -82,12 +92,15 @@ class RecommendationResult(AnalysisResult):
 @dataclass(frozen=True)
 class RecommendationData:
     results: dict[str, dict[str, Any]]
+    # Not a missing input when empty: a symbol without settled calls is just new
+    track_record: TrackRecord
 
 
 @register_agent(
     "recommendation",
     description="Weighted BUY/HOLD/SELL across all analyst agents",
-    depends_on=INPUT_AGENTS,
+    # outcome_review first, so today's lessons are in the track record
+    depends_on=(*INPUT_AGENTS, "outcome_review"),
     company_only=True,
 )
 class RecommendationAgent(Agent[RecommendationData, RecommendationResult]):
@@ -95,7 +108,20 @@ class RecommendationAgent(Agent[RecommendationData, RecommendationResult]):
 
     async def fetch(self, symbol: str, run_date: date) -> RecommendationData:
         results = await self.ctx.results.get_for_date(symbol, run_date, list(INPUT_AGENTS))
-        return RecommendationData(results=results)
+        outcomes = self.ctx.outcomes
+        calls = await outcomes.settled_calls(
+            symbol, agent=self.name, horizon=REVIEW_HORIZON, before=run_date, limit=TRACK_CALLS
+        )
+        lessons = await outcomes.lessons(
+            until=run_date, symbol=symbol, limit=LESSONS_SAME_SYMBOL
+        ) + await outcomes.lessons(
+            until=run_date, exclude_symbol=symbol, limit=LESSONS_OTHER_SYMBOLS
+        )
+        benchmark = calls[0].benchmark if calls else "the benchmark"
+        return RecommendationData(
+            results=results,
+            track_record=TrackRecord(REVIEW_HORIZON, benchmark, tuple(calls), tuple(lessons)),
+        )
 
     async def analyze(
         self, symbol: str, data: RecommendationData, memory: list[str]
@@ -113,7 +139,7 @@ class RecommendationAgent(Agent[RecommendationData, RecommendationResult]):
             )
         else:
             judgement = await self.judge(
-                _prompt(symbol, score, memory),
+                _prompt(symbol, score, data.track_record, memory),
                 fallback=quant_fallback(score.base_signal, score.base_confidence, "weighted score"),
                 model=self.ctx.reasoning_model,
             )
@@ -205,7 +231,37 @@ def _fallback_reasoning(score: WeightedScore) -> str:
     )
 
 
-def _prompt(symbol: str, s: WeightedScore, memory: list[str]) -> str:
+def _count(n: int, noun: str) -> str:
+    return f"{n} {noun}{'' if n == 1 else 's'}"
+
+
+def _track_record_block(symbol: str, track: TrackRecord) -> str:
+    if not track.calls and not track.lessons:
+        return "Track record: no settled recommendations yet."
+    lines = [
+        f"Track record of this system's recommendations for {symbol} "
+        f"({track.horizon} trading days later, vs {track.benchmark}):"
+    ]
+    if track.calls:
+        n = len(track.calls)
+        captured = track.mean_captured_alpha or 0.0
+        lines.append(
+            f"{_count(n, 'settled call')}, {track.hits} right ({100 * track.hits / n:.0f}%), "
+            f"mean alpha captured {captured * 100:+.1f}%"
+        )
+    else:
+        lines.append("No settled calls for this symbol yet.")
+    if track.lessons:
+        lines.append("Lessons from past calls:")
+        lines += [
+            f"- {lesson.symbol} {lesson.decision_date} {lesson.signal}, "
+            f"alpha {lesson.alpha * 100:+.1f}%: {lesson.text}"
+            for lesson in track.lessons
+        ]
+    return "\n".join(lines)
+
+
+def _prompt(symbol: str, s: WeightedScore, track: TrackRecord, memory: list[str]) -> str:
     rows = "\n".join(
         f"{c.agent:<18} | {c.signal:<8} | {c.confidence:>3.0f}% | "
         f"{c.weight:>4.0f} | {c.contribution:+.2f}"
@@ -221,5 +277,7 @@ Agent | Signal | Confidence | Weight | Contribution
 {rows}
 
 Missing analysts: {', '.join(s.missing) or 'none'}
+
+{_track_record_block(symbol, track)}
 
 {knowledge_block(memory)}"""

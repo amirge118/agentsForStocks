@@ -36,6 +36,9 @@ cd backend && python -m scripts.preflight
 # Run the pipeline once, now (all agents, or a subset)
 cd backend && python -m scripts.run_pipeline AAPL MSFT [--agents technicals valuation] [--force]
 
+# Settle past decisions against realised prices (the daily job does it before the agents)
+cd backend && python -m scripts.settle_outcomes [--symbols AAPL] [--as-of 2026-10-01]
+
 # Token usage and cost per agent / model / day / prompt version (from the llm_calls ledger)
 cd backend && python -m scripts.token_report [--days 30] [--by model]
 
@@ -44,6 +47,7 @@ cd backend && python -m scripts.token_report [--days 30] [--by model]
 cd backend && python -m evals.run --suite scenarios --repeats 3 [--judge] [--profiles '{"*": {...}}'] --label x --yes
 cd backend && python -m evals.compare evals/reports/<a>.json evals/reports/<b>.json
 cd backend && python -m evals.capture --days 7     # real prompts from the ledger → evals/datasets/ledger.jsonl
+cd backend && python -m evals.capture --outcomes && python -m evals.run --suite outcomes --label x --yes  # vs realised alpha
 
 # What runs on its own, and when (everything is OFF until SCHEDULER_ENABLED=true)
 cd backend && python -m scripts.schedules
@@ -96,7 +100,8 @@ Use `get`/`post`/`put`/`del` from `@/lib/api/client.ts`. Never call `fetch()` di
 - Currency: `toLocaleString("en-US", { style: "currency", currency: "USD" })`
 - Percentages: `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`
 - Prices: `font-mono` class; numeric tables: `tabular-nums`
-- Gain: `text-green-400` / `bg-green-400/10`. Loss: `text-red-400` / `bg-red-400/10`
+- Gain: `text-ok` / `bg-ok-soft`. Loss: `text-bad` / `bg-bad-soft` (`toneClasses()` in `lib/format.ts`)
+- Mono (Atkinson Hyperlegible Mono, tabular, slashed zero) is for what was measured: prices, scores, tokens, ids, times — never a label, a head or a button
 
 ### 9. API Contract Workflow
 After changing a backend schema or route: `cd backend && python -m scripts.export_openapi`, then `cd frontend && npm run generate:api`. `tests/integration/test_openapi_contract.py` fails while `frontend/openapi.json` is stale, and `npm run typecheck` fails while a Zod schema in `src/types/api.ts` no longer matches the generated types.
@@ -151,7 +156,7 @@ Nothing runs on its own unless `SCHEDULER_ENABLED=true` (default false: the app 
 Where they run: `RUN_SCHEDULER=true` runs them in the API process (development); in production `RUN_SCHEDULER=false` on the API plus one `python -m app.worker` (which idles while the switch is off). `/health` reports the scheduler as `disabled`, `external`, `ok` or `stopped`. Outside the app, only CI (push/PR) and Dependabot (weekly PRs) are scheduled. A new job goes in `jobs()` and `build_scheduler`, with its own `*_SCHEDULE` setting.
 
 ### 21. Funds (ETFs) Skip the Company Agents
-A fund has no 10-K, statements, earnings or moat. `@register_agent(company_only=True)` marks the agents that analyse a company (fundamentals, valuation, moat, financial_history, growth, earnings, institutional, risk, broad_analysis and the recommendation); for a symbol whose `quoteType` is ETF or MUTUALFUND (`app/domain/assets.py`, set by yfinance, the Yahoo chart's `instrumentType` or FMP's `isEtf`) the orchestrator runs only the others (market_scanner, technicals, sentiment) and reports the rest as `skipped` — not recorded in `agent_runs`. The FMP fundamentals fill is not fetched for a fund. A new agent that reads company filings must set `company_only=True`.
+A fund has no 10-K, statements, earnings or moat. `@register_agent(company_only=True)` marks the agents that analyse a company (fundamentals, valuation, moat, financial_history, growth, earnings, institutional, risk, broad_analysis, the recommendation and outcome_review); for a symbol whose `quoteType` is ETF or MUTUALFUND (`app/domain/assets.py`, set by yfinance, the Yahoo chart's `instrumentType` or FMP's `isEtf`) the orchestrator runs only the others (market_scanner, technicals, sentiment) and reports the rest as `skipped` — not recorded in `agent_runs`. The FMP fundamentals fill is not fetched for a fund. A new agent that reads company filings must set `company_only=True`.
 
 ### 22. Valuation Uses the Company's Own Numbers
 `app/domain/valuation.py`: growth from the FMP revenue history (CAGR + latest year, 0-25%), a CAPM discount rate from beta (7-13%), owner earnings with maintenance capex ≈ D&A as the cash flow, DCF bear/base/bull around them plus sector EV/EBITDA, and a reverse DCF (`implied_growth`). There is no haircut: the 20% margin-of-safety threshold is the only conservatism. The live calibration is pinned in `tests/unit/domain/test_valuation.py` (AAPL vs MSFT, 2026-10-26); a change that moves it ships with an eval report.
@@ -163,6 +168,9 @@ A fund has no 10-K, statements, earnings or moat. `@register_agent(company_only=
 | Agent classes (one file per agent) | `backend/app/agents/` — register in `agents/catalog.py` |
 | Agent contract / run lifecycle | `backend/app/agents/base.py` / `backend/app/agents/runner.py` |
 | Agent registry (deps, weights, order) | `backend/app/agents/registry.py` |
+| Decision outcomes (forward returns vs benchmark, 5/20/60 sessions) | `backend/app/domain/outcomes.py`, `backend/app/pipeline/settlement.py`, table `decision_outcomes` |
+| Lessons from settled calls + track record (point-in-time) | `backend/app/agents/outcome_review.py` → `AgentContext.outcomes` → recommendation prompt |
+| Plans for larger features | `docs/plans/` |
 | Pipeline orchestration + scheduler | `backend/app/pipeline/orchestrator.py`, `backend/app/agents/scheduler.py`, `backend/app/worker.py` |
 | Preflight / manual runs | `backend/app/ops/`, `backend/scripts/preflight.py`, `backend/scripts/run_pipeline.py` |
 | Pure financial logic | `backend/app/domain/` |
@@ -218,19 +226,24 @@ frontend/
   e2e/                # Playwright specs (API mocked with page.route)
 ```
 
-## Dark Theme Tokens
+## Dark Theme Tokens (Hallmark "Console")
+
+Tokens live in `frontend/src/app/globals.css` (`@theme`); never write a raw colour (`zinc-*`, `green-*`, hex) — sloplint and the Hallmark floor reject it.
 
 | Token | Use |
 |---|---|
-| `bg-zinc-950` | Page canvas |
-| `bg-zinc-900` | Cards, panels |
-| `bg-zinc-800` | Table headers, hover, inputs |
-| `border-zinc-800` | Card borders |
-| `text-zinc-400` | Secondary / labels |
-| `text-green-400` / `text-red-400` | Gain / loss |
-| `bg-green-400/10` / `bg-red-400/10` | Gain / loss badge backgrounds |
+| `bg-paper` | Page canvas |
+| `bg-paper-2` | Cards, panels |
+| `bg-paper-3` | Deepest step: table headers, inputs, code, the top bar |
+| `border-rule` / `border-rule-2` | Hairline borders / the selected row, outline controls |
+| `text-ink` / `text-ink-2` / `text-muted` | Primary / secondary / labels |
+| `bg-accent text-accent-ink` | Amber: the one primary action, the current place, a person |
+| `text-cool` / `bg-cool-soft` | Blue: an instrument (a reading, a version) |
+| `text-ok` / `text-bad` (+ `bg-ok-soft` / `bg-bad-soft`) | Gain / loss and status only |
 
-Card pattern: `rounded-xl border border-zinc-800 bg-zinc-900`
+Radii: `rounded-card` (10px) for panels, `rounded-control` (6px) for controls, `rounded-chip` (4px) for badges. No shadows. Fonts: Host Grotesk (`font-sans`), Atkinson Hyperlegible Mono (`font-mono`), both via `next/font` in `layout.tsx`.
+
+Card pattern: `rounded-card border border-rule bg-paper-2`
 
 ## CI
 

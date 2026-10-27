@@ -1,8 +1,10 @@
 import type {
+  AgentResult,
   AgentRun,
   LLMCall,
   LLMProvider,
   LLMUsageReport,
+  PriceHistory,
   Recommendation,
   SymbolOverview,
 } from "@/types/api"
@@ -92,3 +94,65 @@ export const claude: LLMProvider = {
   day_start: "2026-10-23T00:00:00Z", day_requests: 12, day_tokens: 30000,
 }
 export const llmProviders: LLMProvider[] = [claude, gemini]
+
+export const priceHistory: PriceHistory = {
+  symbol: "AAPL",
+  range: "6M",
+  bars: [
+    { date: "2026-10-21", open: 228, high: 231, low: 227, close: 230, volume: 5e7, sma20: 226, sma50: 220, rsi14: 58 },
+    { date: "2026-10-22", open: 230, high: 233, low: 229, close: 232.5, volume: 4.8e7, sma20: 226.5, sma50: 220.4, rsi14: 61 },
+    { date: "2026-10-23", open: 232, high: 236, low: 231, close: 235, volume: 6.1e7, sma20: 227.1, sma50: 220.9, rsi14: 66 },
+  ],
+}
+
+const resultRow = (agent_type: string, result: Record<string, unknown>, run_date = "2026-10-23"): AgentResult => ({
+  agent_type,
+  symbol: "AAPL",
+  run_date,
+  run_id: `${agent_type}-${run_date}`,
+  updated_at: `${run_date}T22:30:00Z`,
+  result,
+})
+
+const base = (signal: string, confidence: number, reasoning: string) => ({
+  signal,
+  confidence,
+  reasoning,
+  summary: `${signal} ${confidence}`,
+  data_gaps: [],
+  contract_violations: [],
+})
+
+/** Newest first, as /symbols/{symbol}/results returns them */
+export const agentResults: AgentResult[] = [
+  resultRow("recommendation", { ...recommendation, weighted_score: 42.5, action: "BUY" }),
+  resultRow("valuation", {
+    ...base("bullish", 70, "Trades below the DCF base case"),
+    dcf: { bear: 2.6e12, base: 3.9e12, bull: 5.1e12 },
+    earnings_power_value: 1.4e12,
+    ev_ebitda_value: null,
+    avg_intrinsic_value: 3.65e12,
+    margin_of_safety: 0.12,
+    market_cap: 3.26e12,
+    growth_rate: 0.158,
+    discount_rate: 0.097,
+    implied_growth: 0.135,
+  }),
+  resultRow("technicals", {
+    ...base("bullish", 64, "Trend and momentum agree"),
+    strategies: { trend: 0.6, mean_rev: -0.2, momentum: 0.5, volatility: 0.1, stat_arb: 0 },
+    composite: 0.31,
+  }),
+  resultRow("risk", {
+    ...base("bearish", 40, "Litigation"),
+    debt_to_equity: 1.8,
+    current_ratio: 0.9,
+    beta: 1.2,
+    risk_keywords: ["litigation"],
+  }),
+  resultRow("moat", { ...base("bullish", 80, "Brand"), data_gaps: ["edgar"] }),
+  resultRow("earnings", { signal: "neutral" }), // malformed: no confidence / reasoning
+  resultRow("moat", base("neutral", 10, "older run"), "2026-10-22"),
+  resultRow("recommendation", { ...recommendation, weighted_score: 3, action: "HOLD" }, "2026-10-22"),
+  resultRow("recommendation", { ...recommendation, weighted_score: -20, action: "SELL" }, "2026-10-21"),
+]
