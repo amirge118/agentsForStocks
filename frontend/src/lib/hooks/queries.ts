@@ -107,6 +107,37 @@ export function useLLMProviders() {
   return useQuery({ queryKey: queryKeys.llmProviders, queryFn: () => llm.getProviders() })
 }
 
+/**
+ * Add / remove / reorder watchlist symbols. Each change refreshes the overview the
+ * watchlist table renders; failures surface as a destructive toast.
+ */
+export function useWatchlistMutations() {
+  const { watchlist } = useRepositories()
+  const queryClient = useQueryClient()
+  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.symbols })
+  const fail = (title: string) => (error: Error) => toast({ variant: "destructive", title, description: error.message })
+  return {
+    add: useMutation({
+      mutationFn: (symbol: string) => watchlist.add(symbol),
+      onSuccess: async (item) => {
+        await refresh()
+        toast({ title: `${item.symbol} added`, description: "It is analysed in the next daily run, or run it now." })
+      },
+      onError: fail("Could not add the symbol"),
+    }),
+    remove: useMutation({
+      mutationFn: (symbol: string) => watchlist.remove(symbol),
+      onSuccess: refresh,
+      onError: fail("Could not remove the symbol"),
+    }),
+    reorder: useMutation({
+      mutationFn: (symbols: string[]) => watchlist.reorder(symbols),
+      onSuccess: refresh,
+      onError: fail("Could not reorder the watchlist"),
+    }),
+  }
+}
+
 export function useStartPipelineRun() {
   const { runs } = useRepositories()
   const queryClient = useQueryClient()

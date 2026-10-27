@@ -101,6 +101,11 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 - [x] Manage the watchlist through the API (`watchlist` table, `/api/v1/watchlist` add / remove / reorder; WATCHLIST only seeds it once; the scheduler reads it when the job fires)
 - [ ] Check that a ticker exists (yfinance quote) when it is added to the watchlist, not only its format [PRIORITY: MED]
 - [ ] Watchlist groups / tags (e.g. "core", "ideas") and per-group runs [PRIORITY: LOW]
+- [x] Watchlist management in the dashboard: add (format checked client-side, duplicate by the API), move up / down, remove with a confirm step, a 30-run score sparkline per row, an empty state that says when the next run is
+- [ ] Drag-to-reorder on the watchlist (today: up / down buttons, which also work by keyboard) [PRIORITY: LOW]
+- [ ] Watchlist on phones: the row controls sit past the right edge and need a sideways scroll; fold them into one row menu below `sm` [PRIORITY: MED]
+- [x] Analysis story (`/symbols/{symbol}/story`): one screen per analyst in pipeline order, a "they don't all agree" beat when the signals split, the verdict as the peak; CSS scroll-timeline reveal, static under reduced motion or without support
+- [ ] Story: show how each analyst moved the running score (the waterfall, one step per act) as a sticky aside on wide screens [PRIORITY: LOW]
 - [x] Next.js frontend: watchlist, symbol detail, run history; types generated from OpenAPI + Zod validated and checked against them
 - [x] Symbol detail: verdict hero with score scale, analyst consensus, contribution waterfall, price chart (SMA20/50, volume, RSI, BUY/SELL markers, range in the URL), per-agent panels (valuation, technicals, fundamentals, earnings, risk, sentiment + generic), score history
 - [ ] Expose the BUY / SELL thresholds through the API instead of mirroring them in `frontend/src/lib/scoring.ts` [PRIORITY: LOW]

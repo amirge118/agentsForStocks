@@ -133,6 +133,58 @@ test("token usage page and a run's prompts", async ({ page }) => {
   await expect(providers.getByRole("listitem", { name: "gemini" })).toContainText("chain #1")
 })
 
+test("adding, reordering and removing watchlist symbols", async ({ page }) => {
+  await mockApi(page)
+  let list = overview.map((o) => o.symbol)
+  const calls: string[] = []
+  // Registered after mockApi, so these win for /symbols and /watchlist
+  await page.route(`${API}/symbols`, (route) => json(route, list.map((symbol) => ({ symbol, recommendation: null }))))
+  await page.route(`${API}/watchlist**`, async (route) => {
+    const request = route.request()
+    calls.push(`${request.method()} ${new URL(request.url()).pathname}`)
+    expect(request.headers()["content-type"]).toBe("application/json")
+    if (request.method() === "POST") {
+      const { symbol } = request.postDataJSON() as { symbol: string }
+      list = [...list, symbol]
+      return json(route, { symbol, position: list.length - 1, added_at: "2026-10-27T00:00:00Z" }, 201)
+    }
+    if (request.method() === "PUT") {
+      list = (request.postDataJSON() as { symbols: string[] }).symbols
+      return json(route, list.map((symbol, position) => ({ symbol, position, added_at: "2026-10-27T00:00:00Z" })))
+    }
+    list = list.filter((s) => !request.url().endsWith(`/${s}`))
+    return route.fulfill({ status: 204 })
+  })
+  await page.goto("/")
+
+  await page.getByLabel("Ticker symbol").fill("nvda")
+  await page.getByRole("button", { name: "Add", exact: true }).click()
+  await expect(page.getByText("NVDA added", { exact: true })).toBeVisible()
+  await expect(page.getByRole("link", { name: "NVDA" })).toBeVisible()
+
+  await page.getByRole("button", { name: "Move NVDA up" }).click()
+  await expect(page.locator("tbody tr").nth(1)).toContainText("NVDA")
+
+  await page.getByRole("button", { name: "Remove AAPL" }).click()
+  await page.getByRole("row", { name: /AAPL/ }).getByRole("button", { name: "Remove AAPL" }).click()
+  await expect(page.getByRole("link", { name: "AAPL" })).toHaveCount(0)
+  expect(calls).toEqual(["POST /api/backend/watchlist", "PUT /api/backend/watchlist/order", "DELETE /api/backend/watchlist/AAPL"])
+})
+
+test("the analysis reads as a story that ends on the verdict", async ({ page }) => {
+  await mockApi(page)
+  await page.goto("/symbols/AAPL")
+  await page.getByRole("link", { name: "Read it as a story" }).click()
+
+  await expect(page).toHaveURL(/\/symbols\/AAPL\/story$/)
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("BUY, SELL or HOLD for AAPL?")
+  await expect(page.getByRole("region", { name: /analyst \d of 5/ })).toHaveCount(5)
+  const verdict = page.getByRole("region", { name: "The verdict" })
+  await verdict.scrollIntoViewIfNeeded()
+  await expect(verdict).toContainText("BUY")
+  await expect(verdict).toContainText("+42.5")
+})
+
 test("track record page and a symbol's past calls", async ({ page }) => {
   await mockApi(page)
   await page.goto("/")

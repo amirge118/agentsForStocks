@@ -15,6 +15,7 @@ import {
   PriceHistorySchema,
   RecommendationSchema,
   SymbolOverviewSchema,
+  WatchlistItemSchema,
   SymbolTrackRecordSchema,
   TrackRecordReportSchema,
   type AgentInfo,
@@ -34,9 +35,10 @@ import {
   type SymbolTrackRecord,
   type TrackRecordReport,
   type UsageGroup,
+  type WatchlistItem,
 } from "@/types/api"
 
-import { get, post } from "./client"
+import { del, get, post, put } from "./client"
 
 export interface SymbolRepository {
   getAll(): Promise<SymbolOverview[]>
@@ -48,6 +50,13 @@ export interface SymbolRepository {
 
 export interface OutcomeRepository {
   getTrackRecord(horizon: Horizon): Promise<TrackRecordReport>
+}
+
+export interface WatchlistRepository {
+  getAll(): Promise<WatchlistItem[]>
+  add(symbol: string): Promise<WatchlistItem>
+  remove(symbol: string): Promise<void>
+  reorder(symbols: string[]): Promise<WatchlistItem[]>
 }
 
 export interface AgentRepository {
@@ -90,6 +99,13 @@ export const symbolRepository: SymbolRepository = {
 
 export const outcomeRepository: OutcomeRepository = {
   getTrackRecord: (horizon) => get("/outcomes/track-record", TrackRecordReportSchema, { horizon }),
+}
+
+export const watchlistRepository: WatchlistRepository = {
+  getAll: () => get("/watchlist", z.array(WatchlistItemSchema)),
+  add: (symbol) => post("/watchlist", WatchlistItemSchema, { symbol }),
+  remove: (symbol) => del(`/watchlist/${encodeURIComponent(symbol)}`, z.undefined()),
+  reorder: (symbols) => put("/watchlist/order", z.array(WatchlistItemSchema), { symbols }),
 }
 
 export const agentRepository: AgentRepository = {

@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { ApiError, del, get, post, put } from "@/lib/api/client"
-import { agentRepository, runRepository, symbolRepository } from "@/lib/api/repositories"
+import { agentRepository, runRepository, symbolRepository, watchlistRepository } from "@/lib/api/repositories"
 import { overview, recommendation } from "@/test/fixtures"
 
 function mockFetch(status: number, body: unknown): jest.Mock {
@@ -37,7 +37,12 @@ describe("api client", () => {
     await put("/things/1", z.object({ id: z.string() }), {})
     expect(fetchMock.mock.calls[1][1].method).toBe("PUT")
     await del("/things/1", z.object({ id: z.string() }))
-    expect(fetchMock.mock.calls[2][1].method).toBe("DELETE")
+    // the proxy refuses a write that doesn't say JSON, so a bodiless DELETE says it too
+    expect(fetchMock.mock.calls[2][1]).toEqual({
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: undefined,
+    })
   })
 
   it("raises ApiError with the backend detail message", async () => {
@@ -113,5 +118,28 @@ describe("agent repository", () => {
       "/api/backend/runs",
       "/api/backend/symbols/AAPL/results",
     ])
+  })
+})
+
+describe("watchlist repository", () => {
+  const item = { symbol: "NVDA", position: 2, added_at: "2026-10-27T00:00:00Z" }
+
+  it("lists, adds, reorders and removes", async () => {
+    const list = mockFetch(200, [item])
+    await expect(watchlistRepository.getAll()).resolves.toEqual([item])
+    expect(list.mock.calls[0][0]).toBe("/api/backend/watchlist")
+
+    const add = mockFetch(201, item)
+    await expect(watchlistRepository.add("NVDA")).resolves.toEqual(item)
+    expect(add.mock.calls[0][1]).toMatchObject({ method: "POST", body: '{"symbol":"NVDA"}' })
+
+    const order = mockFetch(200, [item])
+    await watchlistRepository.reorder(["NVDA"])
+    expect(order.mock.calls[0][0]).toBe("/api/backend/watchlist/order")
+    expect(order.mock.calls[0][1]).toMatchObject({ method: "PUT", body: '{"symbols":["NVDA"]}' })
+
+    const remove = mockFetch(204, undefined)
+    await expect(watchlistRepository.remove("BRK.B")).resolves.toBeUndefined()
+    expect(remove.mock.calls[0][0]).toBe("/api/backend/watchlist/BRK.B")
   })
 })

@@ -8,11 +8,13 @@ import {
   outcomeRepository,
   runRepository,
   symbolRepository,
+  watchlistRepository,
   type AgentRepository,
   type LLMRepository,
   type OutcomeRepository,
   type RunRepository,
   type SymbolRepository,
+  type WatchlistRepository,
 } from "./repositories"
 
 export interface Repositories {
@@ -20,6 +22,7 @@ export interface Repositories {
   agents: AgentRepository
   runs: RunRepository
   llm: LLMRepository
+  watchlist: WatchlistRepository
   outcomes: OutcomeRepository
 }
 
@@ -28,6 +31,7 @@ const defaultRepositories: Repositories = {
   agents: agentRepository,
   runs: runRepository,
   llm: llmRepository,
+  watchlist: watchlistRepository,
   outcomes: outcomeRepository,
 }
 

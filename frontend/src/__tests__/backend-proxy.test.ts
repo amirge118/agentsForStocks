@@ -14,8 +14,8 @@ async function call(
   body?: string,
   headers: Record<string, string> = body ? { "content-type": "application/json" } : {},
 ) {
-  const { GET, POST } = await import("@/app/api/backend/[...path]/route")
-  const handler = method === "GET" ? GET : POST
+  const { DELETE, GET, POST } = await import("@/app/api/backend/[...path]/route")
+  const handler = method === "GET" ? GET : method === "DELETE" ? DELETE : POST
   const request = new NextRequest(url, { method, body, headers })
   return handler(request, { params: Promise.resolve({ path }) })
 }
@@ -128,6 +128,16 @@ describe("backend proxy", () => {
       "{}", { "content-type": "text/plain" })
     expect(plain.status).toBe(415)
     expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it("forwards a JSON DELETE and passes a 204 through without a body", async () => {
+    const fetchMock = jest.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    global.fetch = fetchMock
+    const resp = await call("DELETE", "http://dash/api/backend/watchlist/AAPL", ["watchlist", "AAPL"], undefined,
+      { "content-type": "application/json", origin: "http://dash", host: "dash" })
+    expect(resp.status).toBe(204)
+    expect(await resp.text()).toBe("")
+    expect(fetchMock.mock.calls[0][1].method).toBe("DELETE")
   })
 
   it("returns 502 when the backend is unreachable", async () => {
