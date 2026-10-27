@@ -75,6 +75,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/track-record": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Track Record */
+        get: operations["track_record_api_v1_outcomes_track_record_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pipeline/runs": {
         parameters: {
             query?: never;
@@ -135,6 +152,23 @@ export interface paths {
         };
         /** List Symbols */
         get: operations["list_symbols_api_v1_symbols_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/symbols/{symbol}/outcomes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Outcomes */
+        get: operations["get_outcomes_api_v1_symbols__symbol__outcomes_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -370,6 +404,16 @@ export interface components {
             /** Symbol */
             symbol: string;
         };
+        /** AgentTrackRecord */
+        AgentTrackRecord: {
+            /** Agent */
+            agent: string;
+            /** By Confidence */
+            by_confidence: components["schemas"]["TrackGroupOut"][];
+            /** By Signal */
+            by_signal: components["schemas"]["TrackGroupOut"][];
+            overall: components["schemas"]["TrackStatsOut"];
+        };
         /** ComplianceFindingView */
         ComplianceFindingView: {
             /** Phrase */
@@ -562,6 +606,36 @@ export interface components {
             /** Output Tokens */
             output_tokens: number;
         };
+        /** OutcomeCallOut */
+        OutcomeCallOut: {
+            /** Alpha */
+            alpha: number;
+            /** Benchmark */
+            benchmark: string;
+            /** Benchmark Return */
+            benchmark_return: number;
+            /** Confidence */
+            confidence: number;
+            /**
+             * Decision Date
+             * Format: date
+             */
+            decision_date: string;
+            /**
+             * Exit Date
+             * Format: date
+             */
+            exit_date: string;
+            /** Hit */
+            hit: boolean;
+            /** Raw Return */
+            raw_return: number;
+            /**
+             * Signal
+             * @enum {string}
+             */
+            signal: "bullish" | "bearish" | "neutral";
+        };
         /** PipelineRunAccepted */
         PipelineRunAccepted: {
             /** Agents */
@@ -682,6 +756,90 @@ export interface components {
             recommendation: components["schemas"]["Recommendation"] | null;
             /** Symbol */
             symbol: string;
+        };
+        /** SymbolTrackRecord */
+        SymbolTrackRecord: {
+            /**
+             * Calls
+             * @description Settled recommendations, newest first
+             */
+            calls: components["schemas"]["OutcomeCallOut"][];
+            /** Horizon */
+            horizon: number;
+            overall: components["schemas"]["TrackStatsOut"];
+            /** Pending */
+            pending: number;
+            /** Symbol */
+            symbol: string;
+        };
+        /** TrackGroupOut */
+        TrackGroupOut: {
+            /** Calls */
+            calls: number;
+            /**
+             * Hit Rate
+             * @description hits / calls (0-1); None without calls
+             */
+            hit_rate: number | null;
+            /** Hits */
+            hits: number;
+            /**
+             * Key
+             * @description The signal (bullish / neutral / bearish) or confidence bucket
+             */
+            key: string;
+            /**
+             * Mean Alpha Captured
+             * @description Mean alpha earned by following each call (long, short or out), as a fraction
+             */
+            mean_alpha_captured: number | null;
+        };
+        /** TrackRecordReport */
+        TrackRecordReport: {
+            /**
+             * Agents
+             * @description Recommendation first, then by name
+             */
+            agents: components["schemas"]["AgentTrackRecord"][];
+            /**
+             * Horizon
+             * @description Trading sessions after the decision (5, 20 or 60)
+             */
+            horizon: number;
+            /**
+             * Pending
+             * @description Outcomes whose window has not fully traded yet
+             */
+            pending: number;
+            /** Settled */
+            settled: number;
+            /** Since */
+            since: string | null;
+            /**
+             * Unavailable
+             * @description Windows that never got prices (e.g. delisted)
+             */
+            unavailable: number;
+        };
+        /**
+         * TrackStatsOut
+         * @description Settled calls, how many were right, and what following them earned vs the benchmark.
+         */
+        TrackStatsOut: {
+            /** Calls */
+            calls: number;
+            /**
+             * Hit Rate
+             * @description hits / calls (0-1); None without calls
+             */
+            hit_rate: number | null;
+            /** Hits */
+            hits: number;
+            /**
+             * Mean Alpha Captured
+             * @description Mean alpha earned by following each call (long, short or out), as a fraction
+             */
+            mean_alpha_captured: number | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -840,6 +998,40 @@ export interface operations {
             };
         };
     };
+    track_record_api_v1_outcomes_track_record_get: {
+        parameters: {
+            query?: {
+                /** @description Only decisions on or after this day */
+                since?: string | null;
+                /** @description Trading sessions: 5, 20 or 60 */
+                horizon?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackRecordReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     start_pipeline_run_api_v1_pipeline_runs_post: {
         parameters: {
             query?: never;
@@ -962,6 +1154,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SymbolOverview"][];
+                };
+            };
+        };
+    };
+    get_outcomes_api_v1_symbols__symbol__outcomes_get: {
+        parameters: {
+            query?: {
+                /** @description Most recent settled calls */
+                limit?: number;
+                /** @description Trading sessions: 5, 20 or 60 */
+                horizon?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Ticker, e.g. AAPL or BRK.B */
+                symbol: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SymbolTrackRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

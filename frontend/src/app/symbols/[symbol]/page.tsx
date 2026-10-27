@@ -2,6 +2,7 @@ import { AgentErrorBoundary } from "@/components/features/agents/agent-error-bou
 import { AgentRunsTable } from "@/components/features/agents/agent-runs-table"
 import { RunPipelineButton } from "@/components/features/dashboard/run-pipeline-button"
 import { RecommendationCard } from "@/components/features/stocks/recommendation-card"
+import { TrackRecordCard } from "@/components/features/stocks/track-record-card"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default async function SymbolPage({ params }: { params: Promise<{ symbol: string }> }) {
@@ -13,6 +14,9 @@ export default async function SymbolPage({ params }: { params: Promise<{ symbol:
       </div>
       <AgentErrorBoundary label="The recommendation">
         <RecommendationCard symbol={symbol} />
+      </AgentErrorBoundary>
+      <AgentErrorBoundary label="The track record">
+        <TrackRecordCard symbol={symbol} />
       </AgentErrorBoundary>
       <Card>
         <CardHeader>

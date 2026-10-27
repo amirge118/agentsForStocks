@@ -1,6 +1,15 @@
 import { expect, test, type Page, type Route } from "@playwright/test"
 
-import { llmCalls, llmProviders, llmUsage, overview, recommendation, runs } from "../src/test/fixtures"
+import {
+  llmCalls,
+  llmProviders,
+  llmUsage,
+  overview,
+  recommendation,
+  runs,
+  symbolTrackRecord,
+  trackRecord,
+} from "../src/test/fixtures"
 
 const API = "**/api/backend"
 
@@ -24,6 +33,8 @@ async function mockApi(page: Page): Promise<string[]> {
   await page.route(`${API}/runs/*/llm-calls`, (route) => json(route, llmCalls))
   await page.route(`${API}/llm/usage**`, (route) => json(route, llmUsage))
   await page.route(`${API}/llm/providers`, (route) => json(route, llmProviders))
+  await page.route(`${API}/outcomes/track-record**`, (route) => json(route, trackRecord))
+  await page.route(`${API}/symbols/*/outcomes**`, (route) => json(route, symbolTrackRecord))
   await page.route(`${API}/pipeline/runs`, async (route) => {
     posted.push(route.request().postData() ?? "")
     return json(
@@ -93,4 +104,21 @@ test("token usage page and a run's prompts", async ({ page }) => {
   await expect(page.getByLabel("Totals")).toContainText("$0.0288")
   const providers = page.getByRole("list", { name: "Model providers" })
   await expect(providers.getByRole("listitem", { name: "gemini" })).toContainText("chain #1")
+})
+
+test("track record page and a symbol's past calls", async ({ page }) => {
+  await mockApi(page)
+  await page.goto("/")
+  await page.getByRole("link", { name: "Track record" }).click()
+  await expect(page).toHaveURL(/\/track-record$/)
+  const table = page.getByRole("table", { name: "Track record" })
+  await expect(table).toContainText("recommendation")
+  await expect(table).toContainText("+1.23%")
+  await expect(page.getByRole("table", { name: "Calibration" })).toBeVisible()
+
+  await page.goto("/symbols/AAPL")
+  const calls = page.getByRole("table", { name: "Past recommendations" })
+  await expect(calls).toContainText("Sep 22, 2026")
+  await expect(calls).toContainText("Wrong")
+  await expect(page.getByText(/of 2 calls \(50%\)/)).toBeVisible()
 })

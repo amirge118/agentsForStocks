@@ -10,7 +10,7 @@ import { recommendation, runs } from "@/test/fixtures"
 import { pending, renderWithProviders } from "@/test/render"
 
 function symbols(getRecommendation: SymbolRepository["getRecommendation"]): SymbolRepository {
-  return { getAll: jest.fn(), getRecommendation, getResults: jest.fn() }
+  return { getAll: jest.fn(), getRecommendation, getResults: jest.fn(), getOutcomes: jest.fn() }
 }
 
 function runRepo(getAll: RunRepository["getAll"]): RunRepository {

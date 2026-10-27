@@ -39,6 +39,9 @@ cd backend && python -m scripts.run_pipeline AAPL MSFT [--agents technicals valu
 # Settle past decisions against realised prices (the daily job does it before the agents)
 cd backend && python -m scripts.settle_outcomes [--symbols AAPL] [--as-of 2026-10-01]
 
+# Track record: each agent's hit rate and alpha captured from the settled outcomes
+cd backend && python -m scripts.track_report [--horizon 5|20|60] [--since 2026-09-01]
+
 # Token usage and cost per agent / model / day / prompt version (from the llm_calls ledger)
 cd backend && python -m scripts.token_report [--days 30] [--by model]
 
@@ -164,6 +167,7 @@ Where they run: `RUN_SCHEDULER=true` runs them in the API process (development);
 | Agent registry (deps, weights, order) | `backend/app/agents/registry.py` |
 | Decision outcomes (forward returns vs benchmark, 5/20/60 sessions) | `backend/app/domain/outcomes.py`, `backend/app/pipeline/settlement.py`, table `decision_outcomes` |
 | Lessons from settled calls + track record (point-in-time) | `backend/app/agents/outcome_review.py` → `AgentContext.outcomes` → recommendation prompt |
+| Track record read side (API, page, card) | `backend/app/api/v1/endpoints/outcomes.py`, `GET /symbols/{symbol}/outcomes`, `frontend/src/components/features/outcomes/`, `stocks/track-record-card.tsx` |
 | Plans for larger features | `docs/plans/` |
 | Pipeline orchestration + scheduler | `backend/app/pipeline/orchestrator.py`, `backend/app/agents/scheduler.py`, `backend/app/worker.py` |
 | Preflight / manual runs | `backend/app/ops/`, `backend/scripts/preflight.py`, `backend/scripts/run_pipeline.py` |

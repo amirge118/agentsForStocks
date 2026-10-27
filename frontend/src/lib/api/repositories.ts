@@ -14,6 +14,8 @@ import {
   PipelineRunAcceptedSchema,
   RecommendationSchema,
   SymbolOverviewSchema,
+  SymbolTrackRecordSchema,
+  TrackRecordReportSchema,
   type AgentInfo,
   type AgentResult,
   type AgentRun,
@@ -24,7 +26,10 @@ import {
   type PipelineRunRequest,
   type Recommendation,
   type RunStatus,
+  type Horizon,
   type SymbolOverview,
+  type SymbolTrackRecord,
+  type TrackRecordReport,
   type UsageGroup,
 } from "@/types/api"
 
@@ -34,6 +39,11 @@ export interface SymbolRepository {
   getAll(): Promise<SymbolOverview[]>
   getRecommendation(symbol: string): Promise<Recommendation>
   getResults(symbol: string, filters?: { agent?: string; runDate?: string }): Promise<AgentResult[]>
+  getOutcomes(symbol: string, horizon: Horizon): Promise<SymbolTrackRecord>
+}
+
+export interface OutcomeRepository {
+  getTrackRecord(horizon: Horizon): Promise<TrackRecordReport>
 }
 
 export interface AgentRepository {
@@ -67,6 +77,12 @@ export const symbolRepository: SymbolRepository = {
       agent: filters.agent,
       run_date: filters.runDate,
     }),
+  getOutcomes: (symbol, horizon) =>
+    get(`/symbols/${encodeURIComponent(symbol)}/outcomes`, SymbolTrackRecordSchema, { horizon }),
+}
+
+export const outcomeRepository: OutcomeRepository = {
+  getTrackRecord: (horizon) => get("/outcomes/track-record", TrackRecordReportSchema, { horizon }),
 }
 
 export const agentRepository: AgentRepository = {

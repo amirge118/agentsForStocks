@@ -9,10 +9,15 @@ const LINKS = [
   { href: "/", label: "Watchlist", match: (path: string) => path === "/" || path.startsWith("/symbols") },
   { href: "/runs", label: "Runs", match: (path: string) => path.startsWith("/runs") },
   { href: "/agents", label: "Agents", match: (path: string) => path.startsWith("/agents") },
+  {
+    href: "/track-record",
+    label: "Track record",
+    match: (path: string) => path.startsWith("/track-record"),
+  },
   { href: "/usage", label: "Tokens & cost", match: (path: string) => path.startsWith("/usage") },
 ] as const
 
-/** Top bar: the wordmark and the four destinations, the current one marked. */
+/** Top bar: the wordmark and the destinations, the current one marked. */
 export function MainNav() {
   const pathname = usePathname() ?? "/"
   return (

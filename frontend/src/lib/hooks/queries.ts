@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRepositories } from "@/lib/api/repository-context"
 import type { RunFilters } from "@/lib/api/repositories"
 import { toast } from "@/lib/hooks/use-toast"
-import type { PipelineRunRequest, UsageGroup } from "@/types/api"
+import type { Horizon, PipelineRunRequest, UsageGroup } from "@/types/api"
 
 export const queryKeys = {
   symbols: ["symbols"] as const,
@@ -16,6 +16,9 @@ export const queryKeys = {
   llmUsage: (days: number, groupBy: UsageGroup) => ["llm", "usage", days, groupBy] as const,
   runLLMCalls: (runId: string) => ["llm", "runs", runId] as const,
   llmProviders: ["llm", "providers"] as const,
+  symbolOutcomes: (symbol: string, horizon: Horizon) =>
+    ["symbols", symbol, "outcomes", horizon] as const,
+  trackRecord: (horizon: Horizon) => ["outcomes", "track-record", horizon] as const,
 }
 
 export function useSymbols() {
@@ -83,5 +86,21 @@ export function useStartPipelineRun() {
     onError: (error) => {
       toast({ variant: "destructive", title: "Could not start pipeline", description: error.message })
     },
+  })
+}
+
+export function useSymbolOutcomes(symbol: string, horizon: Horizon) {
+  const { symbols } = useRepositories()
+  return useQuery({
+    queryKey: queryKeys.symbolOutcomes(symbol, horizon),
+    queryFn: () => symbols.getOutcomes(symbol, horizon),
+  })
+}
+
+export function useTrackRecord(horizon: Horizon) {
+  const { outcomes } = useRepositories()
+  return useQuery({
+    queryKey: queryKeys.trackRecord(horizon),
+    queryFn: () => outcomes.getTrackRecord(horizon),
   })
 }
