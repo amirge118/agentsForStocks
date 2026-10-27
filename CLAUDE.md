@@ -42,6 +42,9 @@ cd backend && python -m scripts.settle_outcomes [--symbols AAPL] [--as-of 2026-1
 # Track record: each agent's hit rate and alpha captured from the settled outcomes
 cd backend && python -m scripts.track_report [--horizon 5|20|60] [--since 2026-09-01]
 
+# Backtest the recommendation weights/thresholds on the settled outcomes (no model calls)
+cd backend && python -m scripts.backtest_weights [--horizon 20] [--since 2026-09-01] [--top 15]
+
 # Token usage and cost per agent / model / day / prompt version (from the llm_calls ledger)
 cd backend && python -m scripts.token_report [--days 30] [--by model]
 
