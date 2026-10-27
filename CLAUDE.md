@@ -35,6 +35,8 @@ cd backend && python -m scripts.preflight
 
 # Run the pipeline once, now (all agents, or a subset)
 cd backend && python -m scripts.run_pipeline AAPL MSFT [--agents technicals valuation] [--force]
+# ... or as of a past day: point-in-time data only — use a separate DATABASE_URL
+cd backend && python -m scripts.run_pipeline AAPL --date 2026-06-15
 
 # Settle past decisions against realised prices (the daily job does it before the agents)
 cd backend && python -m scripts.settle_outcomes [--symbols AAPL] [--as-of 2026-10-01]
@@ -177,6 +179,7 @@ A fund has no 10-K, statements, earnings or moat. `@register_agent(company_only=
 | Decision outcomes (forward returns vs benchmark, 5/20/60 sessions) | `backend/app/domain/outcomes.py`, `backend/app/pipeline/settlement.py`, table `decision_outcomes` |
 | Lessons from settled calls + track record (point-in-time) | `backend/app/agents/outcome_review.py` → `AgentContext.outcomes` → recommendation prompt |
 | Track record read side (API, page, card) | `backend/app/api/v1/endpoints/outcomes.py`, `GET /symbols/{symbol}/outcomes`, `frontend/src/components/features/outcomes/`, `stocks/track-record-card.tsx` |
+| Point-in-time providers (runs of a past date: no data from after it) | `backend/app/providers/point_in_time.py`, applied by `AgentRunner(as_of=)` when the orchestrator runs a date before today |
 | Plans for larger features | `docs/plans/` |
 | Pipeline orchestration + scheduler | `backend/app/pipeline/orchestrator.py`, `backend/app/agents/scheduler.py`, `backend/app/worker.py` |
 | Preflight / manual runs | `backend/app/ops/`, `backend/scripts/preflight.py`, `backend/scripts/run_pipeline.py` |

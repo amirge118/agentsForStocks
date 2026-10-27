@@ -89,3 +89,43 @@ async def test_company_without_10k_returns_empty(make_http) -> None:
 
     edgar = EdgarClient(make_http(handler), user_agent="agentsForStocks test@example.com")
     assert await edgar.get_business_section("SPY") == ""
+
+
+def _two_10ks(with_dates: bool = True):
+    recent = {
+        "form": ["10-K", "8-K", "10-K"],
+        "accessionNumber": ["0000320193-25-000106", "0000320193-25-000050", "0000320193-24-000123"],
+        "primaryDocument": ["new.htm", "x.htm", "old.htm"],
+    }
+    if with_dates:
+        recent["filingDate"] = ["2025-10-31", "2025-05-01", "2024-11-01"]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.endswith("company_tickers.json"):
+            return httpx.Response(200, json={"0": {"cik_str": 320193, "ticker": "AAPL"}})
+        if "submissions/" in url:
+            return httpx.Response(200, json={"filings": {"recent": recent}})
+        year = "2025" if url.endswith("new.htm") else "2024"
+        body = f"<p>Item 1. Business</p><p>Fiscal {year} filing about the installed base.</p>"
+        return httpx.Response(200, text=body + "<p>Item 1A. Risk Factors</p><p>Risks.</p>")
+
+    return handler
+
+
+@pytest.mark.unit
+async def test_10k_filed_by_a_date_picks_the_one_known_then(make_http) -> None:
+    from datetime import date
+
+    edgar = EdgarClient(make_http(_two_10ks()), user_agent="agentsForStocks test@example.com")
+    assert "2025" in await edgar.get_10k_section("AAPL", "business")
+    assert "2024" in await edgar.get_10k_section("AAPL", "business", filed_by=date(2025, 6, 1))
+    assert "2025" in await edgar.get_10k_section("AAPL", "business", filed_by=date(2025, 10, 31))
+    assert await edgar.get_10k_section("AAPL", "business", filed_by=date(2024, 1, 1)) == ""
+
+    undated = EdgarClient(
+        make_http(_two_10ks(with_dates=False)), user_agent="agentsForStocks test@example.com"
+    )
+    assert "2025" in await undated.get_10k_section("AAPL", "business")
+    # No filing date: none can be shown to have been filed early enough
+    assert await undated.get_10k_section("AAPL", "business", filed_by=date(2025, 6, 1)) == ""

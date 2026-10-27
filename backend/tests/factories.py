@@ -221,6 +221,10 @@ class FakeEdgar:
     async def get_risk_factors(self, symbol: str) -> str:
         return self.risk
 
+    async def get_10k_section(self, symbol: str, section: str, filed_by: Any = None) -> str:
+        self.filed_by = filed_by
+        return self.business if section == "business" else self.risk
+
 
 class RouterStub:
     """The read-only side of LLMRouter for fakes that stand in for it: Claude only, no chain."""

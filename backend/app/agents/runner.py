@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.agents.base import Agent, AnalysisResult
 from app.agents.compliance import apply_compliance
 from app.agents.contracts import apply_contract, missing_inputs
-from app.core.clock import utcnow
+from app.core.clock import market_today, utcnow
 from app.core.context import RunUsage, bind_run
 from app.knowledge.store import KnowledgeStore
 from app.models.agent_run import AgentRun
@@ -70,7 +70,13 @@ class AgentRunner:
         *,
         force: bool = False,
         pipeline_run_id: str | None = None,
+        as_of: date | None = None,
     ) -> RunOutcome:
+        """
+        `as_of`: a historical run — the agent's providers serve only what was known on
+        that day (AgentContext.as_of) and the knowledge base, which is not dated, is
+        not consulted.
+        """
         run_id = str(uuid4())
         started_at = utcnow()
         timings = _Timings()
@@ -85,7 +91,12 @@ class AgentRunner:
             ) as span,
         ):
             logger.info("Agent run started")
-            outcome = await self._execute(agent, symbol, run_date, run_id, force, timings)
+            if as_of is not None:
+                agent.ctx = agent.ctx.as_of(as_of, market_today())
+                logger.info("Historical run: data as of %s", as_of.isoformat())
+            outcome = await self._execute(
+                agent, symbol, run_date, run_id, force, timings, recall=as_of is None
+            )
             if outcome.status == "completed" and outcome.result is not None:
                 for learning in agent.learnings(symbol, outcome.result):
                     await self._knowledge.store(symbol, agent.name, learning)
@@ -111,6 +122,7 @@ class AgentRunner:
         run_id: str,
         force: bool,
         timings: "_Timings",
+        recall: bool = True,
     ) -> RunOutcome:
         try:
             async with self._session_factory() as session:
@@ -119,7 +131,7 @@ class AgentRunner:
                     logger.info("Agent run skipped — already ran today")
                     return RunOutcome(agent.name, symbol, run_id, "skipped")
 
-                memory = await self._knowledge.recall(symbol, agent.name)
+                memory = await self._knowledge.recall(symbol, agent.name) if recall else []
                 phase = time.perf_counter()
                 with tracer.start_as_current_span("agent.fetch"):
                     data = await agent.fetch(symbol, run_date)

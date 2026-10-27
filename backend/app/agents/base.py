@@ -13,7 +13,7 @@ error handling) lives in AgentRunner, so agents stay small and testable.
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Any, ClassVar, Generic, Literal, Protocol, Self, TypeVar
 
@@ -155,6 +155,24 @@ class AgentContext:
     profiles: ProfileBook = field(default_factory=ProfileBook)
     # Settled outcomes of past calls and the lessons drawn from them
     outcomes: OutcomesReader = field(default_factory=NoOutcomes)
+
+    def as_of(self, day: date, today: date) -> "AgentContext":
+        """
+        The same context with providers that only serve what was known on `day`
+        (app/providers/point_in_time.py) — for runs of a past date.
+        """
+        from app.providers.point_in_time import (
+            PointInTimeEdgar,
+            PointInTimeFmp,
+            PointInTimeYFinance,
+        )
+
+        return replace(
+            self,
+            yfinance=PointInTimeYFinance(self.yfinance, day, today),  # type: ignore[arg-type]
+            fmp=PointInTimeFmp(self.fmp, day),  # type: ignore[arg-type]
+            edgar=PointInTimeEdgar(self.edgar, day),  # type: ignore[arg-type]
+        )
 
 
 DataT = TypeVar("DataT")

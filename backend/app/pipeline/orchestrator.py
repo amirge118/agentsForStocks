@@ -71,8 +71,11 @@ class PipelineOrchestrator:
         max_concurrent_symbols: int = 2,
         max_concurrent_agents: int = 4,
         is_fund: Callable[[str], Awaitable[bool]] | None = None,
+        today: Callable[[], date] = market_today,
     ) -> None:
+        """`today`: the market date a run counts as live; earlier dates are historical."""
         self._runner = runner
+        self._today = today
         self._is_fund = is_fund
         self._registry = registry
         self._build_agent = build_agent
@@ -187,4 +190,6 @@ class PipelineOrchestrator:
                 run_date,
                 force=force,
                 pipeline_run_id=pipeline_run_id,
+                # A past date sees only what was known then (app/providers/point_in_time.py)
+                as_of=run_date if run_date < self._today() else None,
             )

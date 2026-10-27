@@ -92,6 +92,7 @@ async def test_every_agent_completes_every_scenario(scenario, concurrent_session
         AgentRunner(concurrent_session_factory, NullKnowledgeStore()),
         registry,
         build_agent=lambda name: registry.get(name).agent_cls(ctx),
+        today=lambda: RUN_DATE,  # a live run on RUN_DATE, not a historical one
     )
     report = await orchestrator.run(["AAPL"], run_date=RUN_DATE)
     assert report.failed == []

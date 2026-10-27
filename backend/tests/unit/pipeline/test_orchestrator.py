@@ -178,3 +178,29 @@ async def test_a_fund_skips_the_company_only_agents(concurrent_session_factory) 
     async with concurrent_session_factory() as session:
         runs = (await session.execute(select(AgentRun))).scalars().all()
     assert len(runs) == 6  # a skipped fund agent is not an execution
+
+
+@pytest.mark.unit
+async def test_a_past_date_runs_as_of_that_day(concurrent_session_factory) -> None:
+    from datetime import date
+
+    seen: list = []
+
+    class _Runner:
+        async def run(self, agent, symbol, run_date, **kwargs):
+            seen.append(kwargs["as_of"])
+            from app.agents.runner import RunOutcome
+
+            return RunOutcome(agent.name, symbol, "r", "completed")
+
+    reg = _registry(_Tracker())
+    for today, expected in ((date(2026, 10, 30), date(2026, 10, 23)), (date(2026, 10, 23), None)):
+        seen.clear()
+        orchestrator = PipelineOrchestrator(
+            _Runner(),  # type: ignore[arg-type]
+            reg,
+            build_agent=lambda name: reg.get(name).agent_cls(make_context()),
+            today=lambda today=today: today,
+        )
+        await orchestrator.run(["AAPL"], run_date=date(2026, 10, 23))
+        assert seen and set(seen) == {expected}
