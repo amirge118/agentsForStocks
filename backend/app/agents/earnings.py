@@ -13,6 +13,7 @@ from app.domain.earnings import (
     QUARTERS_ANALYZED,
     next_earnings_date,
     post_earnings_reaction,
+    reported,
     surprise_pct,
     surprise_stats,
 )
@@ -111,8 +112,8 @@ def _format_surprises(surprises: list[dict]) -> str:
     if not surprises:
         return "No earnings surprise data available."
     lines = ["Date | Actual EPS | Est. EPS | Surprise"]
-    for s in surprises[:QUARTERS_ANALYZED]:
-        actual, est = s.get("actualEarningResult"), s.get("estimatedEarning")
+    for s in reported(surprises)[:QUARTERS_ANALYZED]:
+        actual, est = s.get("epsActual"), s.get("epsEstimated")
         pct = surprise_pct(actual, est)
         day = str(s.get("date") or "?")[:10]
         if pct is None:

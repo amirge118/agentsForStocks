@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRepositories } from "@/lib/api/repository-context"
 import type { RunFilters } from "@/lib/api/repositories"
 import { toast } from "@/lib/hooks/use-toast"
-import type { PipelineRunRequest, UsageGroup } from "@/types/api"
+import type { AgentResult, PipelineRunRequest, PriceRange, UsageGroup } from "@/types/api"
 
 export const queryKeys = {
   symbols: ["symbols"] as const,
@@ -16,6 +16,16 @@ export const queryKeys = {
   llmUsage: (days: number, groupBy: UsageGroup) => ["llm", "usage", days, groupBy] as const,
   runLLMCalls: (runId: string) => ["llm", "runs", runId] as const,
   llmProviders: ["llm", "providers"] as const,
+  agentResults: (symbol: string) => ["symbols", symbol, "results"] as const,
+  scoreHistory: (symbol: string) => ["symbols", symbol, "results", "recommendation"] as const,
+  prices: (symbol: string, range: PriceRange) => ["symbols", symbol, "prices", range] as const,
+}
+
+/** The newest stored result of each agent (rows arrive newest first). */
+export function latestPerAgent(rows: AgentResult[]): Map<string, AgentResult> {
+  const latest = new Map<string, AgentResult>()
+  for (const row of rows) if (!latest.has(row.agent_type)) latest.set(row.agent_type, row)
+  return latest
 }
 
 export function useSymbols() {
@@ -33,6 +43,34 @@ export function useRecommendation(symbol: string) {
   return useQuery({
     queryKey: queryKeys.recommendation(symbol),
     queryFn: () => symbols.getRecommendation(symbol),
+  })
+}
+
+export function useAgentResults(symbol: string) {
+  const { symbols } = useRepositories()
+  return useQuery({
+    queryKey: queryKeys.agentResults(symbol),
+    queryFn: () => symbols.getResults(symbol, { limit: 200 }),
+    select: latestPerAgent,
+  })
+}
+
+/** Recommendation results over time, oldest first (one row per market day). */
+export function useScoreHistory(symbol: string) {
+  const { symbols } = useRepositories()
+  return useQuery({
+    queryKey: queryKeys.scoreHistory(symbol),
+    queryFn: () => symbols.getResults(symbol, { agent: "recommendation", limit: 250 }),
+    select: (rows: AgentResult[]) => [...rows].sort((a, b) => a.run_date.localeCompare(b.run_date)),
+  })
+}
+
+export function usePrices(symbol: string, range: PriceRange) {
+  const { symbols } = useRepositories()
+  return useQuery({
+    queryKey: queryKeys.prices(symbol, range),
+    queryFn: () => symbols.getPrices(symbol, range),
+    retry: false, // a 502 means the provider is down; the panel says so instead of spinning
   })
 }
 

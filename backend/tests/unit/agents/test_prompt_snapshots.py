@@ -17,7 +17,7 @@ import pytest
 
 from app.agents.catalog import load_agents
 from tests import scenarios
-from tests.factories import FakeLLM, FakeResults, make_context
+from tests.factories import FakeLLM, FakeOutcomes, FakeResults, make_context
 
 RUN_DATE = date(2026, 10, 23)
 SNAPSHOTS = Path(__file__).resolve().parents[2] / "snapshots" / "prompts"
@@ -40,7 +40,12 @@ async def _prompts(name: str) -> tuple[str, list[dict]]:
     base = scenarios.baseline()
     llm = FakeLLM()
     ctx = make_context(
-        yfinance=base.yfinance, fmp=base.fmp, edgar=base.edgar, llm=llm, results=_analysts()
+        yfinance=base.yfinance,
+        fmp=base.fmp,
+        edgar=base.edgar,
+        llm=llm,
+        results=_analysts(),
+        outcomes=FakeOutcomes(),
     )
     agent = registry.get(name).agent_cls(ctx)
     data = await agent.fetch("AAPL", RUN_DATE)

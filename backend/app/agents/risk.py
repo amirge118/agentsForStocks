@@ -26,7 +26,7 @@ class RiskResult(AnalysisResult):
 class RiskData:
     risk_text: str
     balance: list[dict]
-    key_metrics: list[dict]
+    ratios: list[dict]
     info: dict
 
 
@@ -39,18 +39,22 @@ class RiskAgent(Agent[RiskData, RiskResult]):
     result_model = RiskResult
 
     async def fetch(self, symbol: str, run_date: date) -> RiskData:
-        risk_text, balance, key_metrics, info = await asyncio.gather(
+        risk_text, balance, ratios, info = await asyncio.gather(
             self.ctx.edgar.get_risk_factors(symbol),
             self.ctx.fmp.get_balance_sheets(symbol, limit=3),
-            self.ctx.fmp.get_key_metrics(symbol, limit=5),  # same calls as moat's ratios
+            self.ctx.fmp.get_financial_ratios(symbol, limit=1),
             self.ctx.yfinance.get_info(symbol),
         )
-        return RiskData(risk_text, balance, key_metrics, info)
+        return RiskData(risk_text, balance, ratios, info)
 
     async def analyze(self, symbol: str, data: RiskData, memory: list[str]) -> RiskResult:
-        km = data.key_metrics[0] if data.key_metrics else {}
-        debt_to_equity = float(km.get("debtToEquity") or data.info.get("debtToEquity") or 0.0)
-        current_ratio = float(km.get("currentRatio") or data.info.get("currentRatio") or 0.0)
+        latest = data.ratios[0] if data.ratios else {}
+        # FMP gives D/E as a ratio (1.5); yfinance gives it in percent (150)
+        yf_de = data.info.get("debtToEquity")
+        debt_to_equity = float(
+            latest.get("debtToEquityRatio") or (yf_de / 100 if yf_de else 0.0) or 0.0
+        )
+        current_ratio = float(latest.get("currentRatio") or data.info.get("currentRatio") or 0.0)
         beta = float(data.info.get("beta") or 1.0)
         short_ratio = float(data.info.get("shortRatio") or 0.0)
         keywords = find_keywords(data.risk_text, HIGH_RISK_KEYWORDS)

@@ -62,10 +62,10 @@ def test_liquidity_trend() -> None:
 @pytest.mark.unit
 def test_surprise_stats() -> None:
     surprises = [
-        {"actualEarningResult": 1.1, "estimatedEarning": 1.0},
-        {"actualEarningResult": 0.9, "estimatedEarning": 1.0},
-        {"actualEarningResult": None, "estimatedEarning": 1.0},
-        {"actualEarningResult": 1.0, "estimatedEarning": 0},
+        {"epsActual": 1.1, "epsEstimated": 1.0},
+        {"epsActual": 0.9, "epsEstimated": 1.0},
+        {"epsActual": None, "epsEstimated": 1.0},
+        {"epsActual": 1.0, "epsEstimated": 0},
     ]
     stats = surprise_stats(surprises)
     assert (stats.beats, stats.total, stats.beat_rate) == (1, 2, 0.5)

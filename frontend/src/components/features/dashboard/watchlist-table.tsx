@@ -34,7 +34,7 @@ export function WatchlistTable() {
   if (isError) {
     return (
       <div role="alert" className="flex items-center justify-between p-6 text-sm">
-        <span className="text-red-400">Could not load the watchlist: {error.message}</span>
+        <span className="text-bad">Could not load the watchlist: {error.message}</span>
         <Button variant="outline" size="sm" onClick={() => void refetch()}>
           Retry
         </Button>
@@ -61,7 +61,7 @@ export function WatchlistTable() {
         <TableBody>
           {data.map(({ symbol, recommendation: rec }) => (
             <TableRow key={symbol}>
-              <TableCell className="font-mono font-semibold">
+              <TableCell className="font-mono font-medium">
                 <Link href={`/symbols/${symbol}`} className="hover:underline">
                   {symbol}
                 </Link>
@@ -75,18 +75,18 @@ export function WatchlistTable() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    <span className={cn("rounded-sm px-1.5 py-0.5", toneClasses(rec.weighted_score))}>
+                    <span className={cn("rounded-chip px-1.5 py-0.5", toneClasses(rec.weighted_score))}>
                       {formatScore(rec.weighted_score)}
                     </span>
                   </TableCell>
                   <TableCell className="text-right font-mono">{formatConfidence(rec.confidence)}</TableCell>
-                  <TableCell className="text-zinc-400">{formatDate(rec.run_date)}</TableCell>
-                  <TableCell className="hidden max-w-md truncate text-zinc-400 md:table-cell">
+                  <TableCell className="text-muted">{formatDate(rec.run_date)}</TableCell>
+                  <TableCell className="hidden max-w-md truncate text-muted md:table-cell">
                     {rec.reasoning}
                   </TableCell>
                 </>
               ) : (
-                <TableCell colSpan={5} className="text-zinc-400">
+                <TableCell colSpan={5} className="text-muted">
                   Not analysed yet
                 </TableCell>
               )}
@@ -95,7 +95,7 @@ export function WatchlistTable() {
         </TableBody>
       </Table>
       {disclaimer && (
-        <p className="border-t border-zinc-800 px-4 py-3 text-xs text-zinc-400">{disclaimer}</p>
+        <p className="border-t border-rule px-4 py-3 text-xs text-muted">{disclaimer}</p>
       )}
     </>
   )

@@ -12,13 +12,13 @@ registry = load_agents()
 
 @pytest.mark.unit
 def test_all_agents_registered() -> None:
-    assert len(registry.names()) == 13
+    assert len(registry.names()) == 14
 
 
 @pytest.mark.unit
 def test_recommendation_inputs_match_weighted_agents() -> None:
     assert set(INPUT_AGENTS) == set(registry.weights())
-    assert set(registry.get("recommendation").depends_on) == set(INPUT_AGENTS)
+    assert set(registry.get("recommendation").depends_on) == {*INPUT_AGENTS, "outcome_review"}
     assert sum(registry.weights().values()) == 100
 
 

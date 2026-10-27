@@ -36,6 +36,9 @@ cd backend && python -m scripts.preflight
 # Run the pipeline once, now (all agents, or a subset)
 cd backend && python -m scripts.run_pipeline AAPL MSFT [--agents technicals valuation] [--force]
 
+# Settle past decisions against realised prices (the daily job does it before the agents)
+cd backend && python -m scripts.settle_outcomes [--symbols AAPL] [--as-of 2026-10-01]
+
 # Token usage and cost per agent / model / day / prompt version (from the llm_calls ledger)
 cd backend && python -m scripts.token_report [--days 30] [--by model]
 
@@ -44,6 +47,10 @@ cd backend && python -m scripts.token_report [--days 30] [--by model]
 cd backend && python -m evals.run --suite scenarios --repeats 3 [--judge] [--profiles '{"*": {...}}'] --label x --yes
 cd backend && python -m evals.compare evals/reports/<a>.json evals/reports/<b>.json
 cd backend && python -m evals.capture --days 7     # real prompts from the ledger → evals/datasets/ledger.jsonl
+cd backend && python -m evals.capture --outcomes && python -m evals.run --suite outcomes --label x --yes  # vs realised alpha
+
+# What runs on its own, and when (everything is OFF until SCHEDULER_ENABLED=true)
+cd backend && python -m scripts.schedules
 
 # Production scheduler: API processes with RUN_SCHEDULER=false + exactly one worker
 cd backend && python -m app.worker
@@ -60,7 +67,7 @@ cd frontend && npm run test:e2e
 
 ## Architecture in One Paragraph
 
-Frontend (Next.js 15 App Router) talks to Backend (FastAPI) via JSON REST under `/api/v1/`. Frontend has zero business logic and zero direct DB access. Backend layers: HTTP router → Pydantic schemas → `pipeline/` orchestrator → `agents/` (via `AgentRunner`) → `domain/` (pure financial logic) + `providers/` (yfinance, FMP, SEC EDGAR) + `llm/` (Claude) → `repositories/` → models/DB. Dependencies are wired once in `app/container.py` and injected through `AgentContext`. Agents run once per weekday as a dependency graph (registry), are idempotent, and store typed results in PostgreSQL.
+Frontend (Next.js 16 App Router) talks to Backend (FastAPI) via JSON REST under `/api/v1/`. Frontend has zero business logic and zero direct DB access. Backend layers: HTTP router → Pydantic schemas → `pipeline/` orchestrator → `agents/` (via `AgentRunner`) → `domain/` (pure financial logic) + `providers/` (yfinance, FMP, SEC EDGAR) + `llm/` (Claude) → `repositories/` → models/DB. Dependencies are wired once in `app/container.py` and injected through `AgentContext`. Agents run once per weekday as a dependency graph (registry), are idempotent, and store typed results in PostgreSQL.
 
 ## Non-Obvious Gotchas (Read Before Writing Code)
 
@@ -81,7 +88,7 @@ All calls to `yfinance`, financial APIs, or any external service MUST go through
 - Exponential backoff + retry on transient errors only (3 attempts, 1s/2s/4s)
 - Per-domain rate limiting (`RateLimiter`, limits in `app/container.py`)
 - Timeout of 10s max per request, plus a TTL cache shared by all agents
-FMP calls also count against `DailyCallBudget` (free tier = 250/day). Claude is called only through `app/llm/client.py` (structured outputs).
+FMP calls also count against `DailyCallBudget` (free tier = 250/day). FMP is called on `/stable/<endpoint>?symbol=` (the old `/api/v3/` is closed to new accounts); an endpoint outside the plan (HTTP 402 — on the free plan: transcripts, institutional ownership) returns no data instead of failing the agent. When yfinance can't get prices (Yahoo refuses its crumb on cloud hosts), `YahooChartClient` (`providers/yahoo_chart.py`) fills in history and the quote; data with no chart equivalent (earnings dates, insider trades, news) comes back empty, so the agent runs on with a data gap. When `info` comes back without a market cap (a quote-only answer), `FmpClient.get_info_fields` fills the fundamentals under yfinance's names and units (`providers/fmp.py` `to_info_fields`: D/E in percent, margins and growth as fractions); yfinance's own values always win. That costs about 21 FMP calls per symbol per run — about 105 of the 250 free calls for the 5-symbol watchlist. A missing field is no evidence: never default it to 0 in a calculation (see the fundamentals vote and `valuation.summarize`). Claude is called only through `app/llm/client.py` (structured outputs).
 
 ### 6. TanStack Query v5 Patterns
 Use `isPending` for loading skeletons (NOT `isLoading` — that's v4). Get query client via `useQueryClient()` hook. On mutation success: `invalidateQueries`. On mutation error: `toast({ variant: "destructive" })`.
@@ -93,7 +100,8 @@ Use `get`/`post`/`put`/`del` from `@/lib/api/client.ts`. Never call `fetch()` di
 - Currency: `toLocaleString("en-US", { style: "currency", currency: "USD" })`
 - Percentages: `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`
 - Prices: `font-mono` class; numeric tables: `tabular-nums`
-- Gain: `text-green-400` / `bg-green-400/10`. Loss: `text-red-400` / `bg-red-400/10`
+- Gain: `text-ok` / `bg-ok-soft`. Loss: `text-bad` / `bg-bad-soft` (`toneClasses()` in `lib/format.ts`)
+- Mono (Atkinson Hyperlegible Mono, tabular, slashed zero) is for what was measured: prices, scores, tokens, ids, times — never a label, a head or a button
 
 ### 9. API Contract Workflow
 After changing a backend schema or route: `cd backend && python -m scripts.export_openapi`, then `cd frontend && npm run generate:api`. `tests/integration/test_openapi_contract.py` fails while `frontend/openapi.json` is stale, and `npm run typecheck` fails while a Zod schema in `src/types/api.ts` no longer matches the generated types.
@@ -124,6 +132,29 @@ Ready-made experiments live in `evals/presets/` (`--profiles @evals/presets/haik
 ### 17. Free Tiers First, Through the Chain
 `LLM_PROVIDER=chain` sends each call along `LLM_CHAIN` (`app/llm/chain.py`): Gemini → Groq → Cerebras (`app/llm/providers_catalog.py`, on when their `*_API_KEY` is set) → Claude Haiku 5.5. Each free provider has a `ProviderQuota` (`app/llm/quota.py`): a call that won't fit its RPM/TPM within `LLM_QUOTA_MAX_WAIT_SECONDS`, or its daily limit, is skipped without being sent, and a 429 cools the provider down instead of retrying. Daily counts are seeded from `llm_calls.provider`, so record the provider on every call. Model ids and quotas change often: override them in `LLM_PROVIDERS` and confirm with `python -m scripts.preflight`, which checks each model id against the provider's `/models`. Groq and Cerebras use `json_object` mode (schema in the system prompt), so every reply is still validated by Pydantic. Where it shows: `GET /api/v1/llm/providers` (chain order, limits, use today from the ledger) and the Tokens & cost page, `/llm/usage?group_by=provider` and `token_report --by provider`, and the Grafana "Model providers" row (calls per provider, use today, chain fall-throughs).
 
+### 18. Dependency Versions Come From the Registry, Never From Memory
+Model training data lags the registries, so a version "remembered" is usually a release or a major behind.
+- Before adding or bumping a dependency, look up the current release: `npm view <pkg> version peerDependencies` / `pip index versions <pkg>` — and check it fits its peers (`npm ls`, `pip check`).
+- Pin exactly (`==` / no `^`) and commit the lockfile; let Dependabot propose later bumps.
+- Holding a dependency back is a decision, not a default: write the reason in `FUTURE_IMPROVEMENTS.md` (Dependencies) and add an `ignore` for it in `.github/dependabot.yml` (see aiosqlite, TypeScript 7).
+- A major upgrade ships with evidence: the CI commands below green, the official codemod/upgrade tool where one exists (reviewed, not trusted blindly — `@tailwindcss/upgrade` renamed cva variant keys), and a before/after screenshot comparison when it touches the UI.
+
+### 19. Design Skills (`.claude/skills/`)
+Two design skills are vendored in the repo (sources and update steps: `.claude/skills/VENDORED.md`):
+- `hallmark` — the design system for the dashboard. Its description says to use it on an existing design only when the user names it; the owner has named it for this project, so UI work on the dashboard follows it (`/hallmark redesign <path>`, `/hallmark audit <path>`). Port its HTML/CSS output into Tailwind 4 tokens and React components; its floor rules (tokens only, no `transition: all`, `:focus-visible` everywhere, ...) apply to all frontend code.
+- `scroll-craft` — scroll-driven storytelling pages (e.g. a per-symbol analysis story). Use its taste and verification rules; don't drop its vanilla-JS engine into React-owned DOM.
+- Charts follow the `dataviz` skill. Every frontend PR attaches desktop and mobile screenshots (Playwright).
+
+### 20. Scheduled Jobs Are Off Until Turned On
+Nothing runs on its own unless `SCHEDULER_ENABLED=true` (default false: the app isn't live, and a run costs FMP and LLM quota). Every job is in one table, `jobs()` in `app/agents/scheduler.py`, each with a crontab setting in New York time; an empty value turns that job off:
+
+| Job | Setting (default) | What it does |
+|---|---|---|
+| `daily_pipeline` | `PIPELINE_SCHEDULE` (`30 18 * * mon-fri`) | full pipeline for the watchlist |
+| `nightly_maintenance` | `MAINTENANCE_SCHEDULE` (`15 3 * * *`) | prune `llm_calls` past `LLM_CALL_RETENTION_DAYS` |
+
+Where they run: `RUN_SCHEDULER=true` runs them in the API process (development); in production `RUN_SCHEDULER=false` on the API plus one `python -m app.worker` (which idles while the switch is off). `/health` reports the scheduler as `disabled`, `external`, `ok` or `stopped`. Outside the app, only CI (push/PR) and Dependabot (weekly PRs) are scheduled. A new job goes in `jobs()` and `build_scheduler`, with its own `*_SCHEDULE` setting.
+
 ## Key File Map
 
 | What you need | Where |
@@ -131,6 +162,9 @@ Ready-made experiments live in `evals/presets/` (`--profiles @evals/presets/haik
 | Agent classes (one file per agent) | `backend/app/agents/` — register in `agents/catalog.py` |
 | Agent contract / run lifecycle | `backend/app/agents/base.py` / `backend/app/agents/runner.py` |
 | Agent registry (deps, weights, order) | `backend/app/agents/registry.py` |
+| Decision outcomes (forward returns vs benchmark, 5/20/60 sessions) | `backend/app/domain/outcomes.py`, `backend/app/pipeline/settlement.py`, table `decision_outcomes` |
+| Lessons from settled calls + track record (point-in-time) | `backend/app/agents/outcome_review.py` → `AgentContext.outcomes` → recommendation prompt |
+| Plans for larger features | `docs/plans/` |
 | Pipeline orchestration + scheduler | `backend/app/pipeline/orchestrator.py`, `backend/app/agents/scheduler.py`, `backend/app/worker.py` |
 | Preflight / manual runs | `backend/app/ops/`, `backend/scripts/preflight.py`, `backend/scripts/run_pipeline.py` |
 | Pure financial logic | `backend/app/domain/` |
@@ -139,6 +173,7 @@ Ready-made experiments live in `evals/presets/` (`--profiles @evals/presets/haik
 | Model providers: contract, router, chain, free tiers, quotas | `backend/app/llm/provider.py`, `router.py`, `chain.py`, `providers_catalog.py`, `quota.py`, `openai_compat.py` |
 | Remote MCP data sources (FactSet, S&P, ...) | `backend/app/llm/mcp.py` → `Agent.judge(mcp_servers=...)` |
 | DB access | `backend/app/repositories/` |
+| Watchlist (DB table; `WATCHLIST` env only seeds it once, migration 0005) | `backend/app/repositories/watchlist.py`, `backend/app/api/v1/endpoints/watchlist.py` |
 | Dependency wiring | `backend/app/container.py` |
 | Migrations | `backend/alembic/` (`alembic upgrade head`) |
 | FastAPI routers | `backend/app/api/v1/endpoints/` |
@@ -163,7 +198,7 @@ backend/
     repositories/     # SQL lives here only
     api/v1/endpoints/ # FastAPI routers
     schemas/          # Pydantic request/response models
-    models/           # SQLAlchemy models (AgentResult, AgentRun)
+    models/           # SQLAlchemy models (AgentResult, AgentRun, LLMCall, WatchlistItem)
     middleware/       # request_logging.py
     container.py      # Composition root
   tests/
@@ -185,19 +220,24 @@ frontend/
   e2e/                # Playwright specs (API mocked with page.route)
 ```
 
-## Dark Theme Tokens
+## Dark Theme Tokens (Hallmark "Console")
+
+Tokens live in `frontend/src/app/globals.css` (`@theme`); never write a raw colour (`zinc-*`, `green-*`, hex) — sloplint and the Hallmark floor reject it.
 
 | Token | Use |
 |---|---|
-| `bg-zinc-950` | Page canvas |
-| `bg-zinc-900` | Cards, panels |
-| `bg-zinc-800` | Table headers, hover, inputs |
-| `border-zinc-800` | Card borders |
-| `text-zinc-400` | Secondary / labels |
-| `text-green-400` / `text-red-400` | Gain / loss |
-| `bg-green-400/10` / `bg-red-400/10` | Gain / loss badge backgrounds |
+| `bg-paper` | Page canvas |
+| `bg-paper-2` | Cards, panels |
+| `bg-paper-3` | Deepest step: table headers, inputs, code, the top bar |
+| `border-rule` / `border-rule-2` | Hairline borders / the selected row, outline controls |
+| `text-ink` / `text-ink-2` / `text-muted` | Primary / secondary / labels |
+| `bg-accent text-accent-ink` | Amber: the one primary action, the current place, a person |
+| `text-cool` / `bg-cool-soft` | Blue: an instrument (a reading, a version) |
+| `text-ok` / `text-bad` (+ `bg-ok-soft` / `bg-bad-soft`) | Gain / loss and status only |
 
-Card pattern: `rounded-xl border border-zinc-800 bg-zinc-900`
+Radii: `rounded-card` (10px) for panels, `rounded-control` (6px) for controls, `rounded-chip` (4px) for badges. No shadows. Fonts: Host Grotesk (`font-sans`), Atkinson Hyperlegible Mono (`font-mono`), both via `next/font` in `layout.tsx`.
+
+Card pattern: `rounded-card border border-rule bg-paper-2`
 
 ## CI
 

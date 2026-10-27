@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from app.providers.errors import PlanRestrictedError, ProviderError
+from app.providers.errors import ProviderError
 
 
 @pytest.mark.unit
@@ -31,6 +31,16 @@ async def test_client_errors_are_not_retried(make_http) -> None:
     with pytest.raises(ProviderError, match="401"):
         await http.get_json("https://api.example/x")
     assert attempts == 1
+
+
+@pytest.mark.unit
+async def test_a_redirect_is_an_error_not_an_empty_page(make_http) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(301, headers={"Location": "https://api.example/y"})
+
+    http = make_http(handler)
+    with pytest.raises(ProviderError, match=r"HTTP 301 from api.example/x → https://api.example/y"):
+        await http.get_text("https://api.example/x")
 
 
 @pytest.mark.unit
@@ -65,21 +75,3 @@ async def test_responses_are_cached_and_on_request_runs_per_network_call(make_ht
     await http.get_json("https://api.example/s", params={"q": "b"}, on_request=count)
     assert hits == 2
     assert counted == 2
-
-
-@pytest.mark.unit
-async def test_redirect_is_an_error_not_an_empty_body(make_http) -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(301, headers={"Location": "https://api.example/y"})
-
-    with pytest.raises(ProviderError, match="301"):
-        await make_http(handler).get_text("https://api.example/x")
-
-
-@pytest.mark.unit
-async def test_payment_required_is_plan_restricted(make_http) -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(402, text="Restricted Endpoint")
-
-    with pytest.raises(PlanRestrictedError, match="402"):
-        await make_http(handler).get_text("https://api.example/x")

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agents.base import Agent, AgentContext
 from app.agents.catalog import load_agents
+from app.agents.outcome_review import SessionOutcomesReader
 from app.agents.registry import AgentRegistry
 from app.agents.runner import AgentRunner, SessionResultsReader
 from app.core.config import Settings
@@ -30,11 +31,13 @@ from app.llm.recording import DbLLMCallRecorder, LedgerUsage, LLMCallRecorder
 from app.llm.router import LLMRouter
 from app.pipeline.launcher import PipelineLauncher
 from app.pipeline.orchestrator import PipelineOrchestrator
+from app.pipeline.settlement import OutcomeSettler
 from app.providers.cache import TTLCache
 from app.providers.edgar import EdgarClient
 from app.providers.fmp import DailyCallBudget, FmpClient
 from app.providers.http import HttpClient
 from app.providers.rate_limit import RateLimiter
+from app.providers.yahoo_chart import YahooChartClient
 from app.providers.yfinance import YFinanceClient
 
 logger = logging.getLogger(__name__)
@@ -45,6 +48,7 @@ _RATE_LIMITS = {
     "www.sec.gov": 5.0,
     "data.sec.gov": 5.0,
     "yahoo": 2.0,
+    "query1.finance.yahoo.com": 2.0,  # the chart fallback (YahooChartClient)
 }
 
 
@@ -60,6 +64,7 @@ class Container:
     session_factory: async_sessionmaker[AsyncSession]
     http: HttpClient
     llm: LLMRouter
+    settler: OutcomeSettler
 
     def build_agent(self, name: str) -> Agent:
         return self.registry.get(name).agent_cls(self.agent_context)
@@ -164,14 +169,23 @@ def build_container(
         if settings.openviking_enabled
         else NullKnowledgeStore()
     )
+    fmp = FmpClient(http, settings.fmp_api_key, DailyCallBudget(settings.fmp_daily_call_limit))
     context = AgentContext(
-        yfinance=YFinanceClient(rate_limiter=rate_limiter, cache=cache),
-        fmp=FmpClient(http, settings.fmp_api_key, DailyCallBudget(settings.fmp_daily_call_limit)),
+        yfinance=YFinanceClient(
+            rate_limiter=rate_limiter,
+            cache=cache,
+            # When Yahoo refuses yfinance's crumb (cloud hosts): prices from the chart
+            # endpoint, fundamentals from FMP
+            fallback=YahooChartClient(http),
+            fundamentals=fmp.get_info_fields if settings.fmp_api_key else None,
+        ),
+        fmp=fmp,
         edgar=EdgarClient(http, settings.edgar_user_agent),
         llm=llm,
         results=SessionResultsReader(session_factory),
         reasoning_model=settings.llm_reasoning_model,
         profiles=ProfileBook.from_config(settings.agent_profiles, settings.agent_profiles_file),
+        outcomes=SessionOutcomesReader(session_factory),
     )
     registry = load_agents()
     runner = AgentRunner(session_factory, knowledge)
@@ -193,4 +207,7 @@ def build_container(
         session_factory=session_factory,
         http=http,
         llm=llm,
+        settler=OutcomeSettler(
+            session_factory, context.yfinance, benchmark=settings.outcome_benchmark
+        ),
     )

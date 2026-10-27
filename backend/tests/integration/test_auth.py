@@ -30,8 +30,11 @@ async def client_for(session_factory) -> AsyncIterator[Callable[[Settings], http
         await container.aclose()
 
 
+_RUN = {"symbols": ["AAPL"], "agents": ["technicals"]}
+
+
 def _secured() -> Settings:
-    return Settings(openviking_enabled=False, watchlist="AAPL", api_keys=f"{KEY_A}, {KEY_B}")
+    return Settings(openviking_enabled=False, api_keys=f"{KEY_A}, {KEY_B}")
 
 
 @pytest.mark.integration
@@ -41,6 +44,8 @@ async def test_requests_without_a_valid_key_are_rejected(client_for, headers) ->
         for method, path in [
             ("GET", "/api/v1/agents"),
             ("GET", "/api/v1/symbols"),
+            ("GET", "/api/v1/watchlist"),
+            ("POST", "/api/v1/watchlist"),
             ("GET", "/api/v1/runs"),
             ("POST", "/api/v1/pipeline/runs"),
         ]:
@@ -66,7 +71,7 @@ async def test_health_is_public(client_for) -> None:
 
 @pytest.mark.integration
 async def test_auth_disabled_in_development_without_keys(client_for) -> None:
-    async with client_for(Settings(openviking_enabled=False, watchlist="AAPL")) as client:
+    async with client_for(Settings(openviking_enabled=False)) as client:
         assert (await client.get("/api/v1/agents")).status_code == 200
 
 
@@ -74,12 +79,8 @@ async def test_auth_disabled_in_development_without_keys(client_for) -> None:
 async def test_second_manual_run_while_one_is_active_returns_409(client_for) -> None:
     async with client_for(_secured()) as client:
         headers = {"X-API-Key": KEY_A}
-        first = await client.post(
-            "/api/v1/pipeline/runs", headers=headers, json={"agents": ["technicals"]}
-        )
-        second = await client.post(
-            "/api/v1/pipeline/runs", headers=headers, json={"agents": ["technicals"]}
-        )
+        first = await client.post("/api/v1/pipeline/runs", headers=headers, json=_RUN)
+        second = await client.post("/api/v1/pipeline/runs", headers=headers, json=_RUN)
     assert first.status_code == 202
     assert second.status_code == 409
     assert second.json()["detail"] == "A pipeline run is already in progress"

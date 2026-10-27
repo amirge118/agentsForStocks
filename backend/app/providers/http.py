@@ -16,7 +16,7 @@ import httpx
 
 from app.observability import metrics
 from app.providers.cache import TTLCache
-from app.providers.errors import PlanRestrictedError, ProviderError, RetryableError
+from app.providers.errors import ProviderError, RetryableError
 from app.providers.rate_limit import RateLimiter
 from app.providers.retry import RETRYABLE_STATUS, RetryPolicy, with_retry
 
@@ -110,12 +110,16 @@ class HttpClient:
             )
             if resp.status_code in RETRYABLE_STATUS:
                 raise RetryableError(f"HTTP {resp.status_code} from {domain}")
-            if resp.status_code == 402:
-                raise PlanRestrictedError(f"HTTP 402 from {domain}{path}")
-            if not resp.is_success:
-                # Client errors (bad key, unknown symbol) never succeed on retry. A redirect
-                # is not followed, and its empty body must not pass for a real response.
-                raise ProviderError(f"HTTP {resp.status_code} from {domain}{path}")
+            if resp.status_code >= 300:
+                # Client errors (bad key, unknown symbol) never succeed on retry. Redirects
+                # aren't followed — they would bypass the per-domain rate limit — and their
+                # empty body must not be mistaken for content (it was, for SEC archive URLs)
+                where = resp.headers.get("location", "")
+                detail = f" → {where}" if 300 <= resp.status_code < 400 and where else ""
+                raise ProviderError(
+                    f"HTTP {resp.status_code} from {domain}{urlsplit(url).path}{detail}",
+                    status=resp.status_code,
+                )
             return resp.text
 
         return await with_retry(_attempt, self._retry, label=f"GET {domain}")

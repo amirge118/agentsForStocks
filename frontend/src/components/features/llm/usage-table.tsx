@@ -45,7 +45,7 @@ export function UsageTable() {
             {g.label}
           </Button>
         ))}
-        <span className="mx-2 h-5 w-px bg-zinc-800" aria-hidden />
+        <span className="mx-2 h-5 w-px bg-rule" aria-hidden />
         {PERIODS.map((d) => (
           <Button
             key={d}
@@ -90,7 +90,7 @@ export function UsageTable() {
                 <TableRow key={row.key}>
                   <TableCell className="font-mono">{row.key.replaceAll("_", " ")}</TableCell>
                   <TableCell className="text-right">{row.calls}</TableCell>
-                  <TableCell className={row.errors ? "text-right text-red-400" : "text-right"}>
+                  <TableCell className={row.errors ? "text-right text-bad" : "text-right"}>
                     {row.errors}
                   </TableCell>
                   <TableCell className="text-right font-mono">{formatTokens(row.input_tokens)}</TableCell>
@@ -114,8 +114,8 @@ export function UsageTable() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-      <dt className="text-xs text-zinc-400">{label}</dt>
+    <div className="rounded-card border border-rule bg-paper-2 p-4">
+      <dt className="text-xs text-muted">{label}</dt>
       <dd className="font-mono text-lg tabular-nums">{value}</dd>
     </div>
   )

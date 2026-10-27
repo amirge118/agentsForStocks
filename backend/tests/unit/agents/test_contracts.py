@@ -99,7 +99,11 @@ async def test_every_agent_completes_every_scenario(scenario, concurrent_session
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("name", [n for n in registry.names() if n != "recommendation"])
+# recommendation: tested below; outcome_review reads no market data (an empty backlog
+# is a quiet day, not a data gap — tests/unit/agents/test_outcome_review.py)
+@pytest.mark.parametrize(
+    "name", [n for n in registry.names() if n not in ("recommendation", "outcome_review")]
+)
 async def test_no_data_means_gaps_low_confidence_and_a_warned_prompt(
     name: str, session_factory, db_session
 ) -> None:

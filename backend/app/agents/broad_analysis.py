@@ -51,7 +51,7 @@ class BroadAnalysisAgent(Agent[BroadAnalysisData, BroadAnalysisResult]):
         name = p.get("companyName") or symbol
         sector = p.get("sector") or info.get("sector") or "Unknown"
         industry = p.get("industry") or info.get("industry") or "Unknown"
-        market_cap_b = (p.get("mktCap") or info.get("marketCap") or 0) / 1e9
+        market_cap_b = (p.get("marketCap") or info.get("marketCap") or 0) / 1e9
 
         judgement = await self.judge(
             f"""Symbol: {symbol} | Company: {name}

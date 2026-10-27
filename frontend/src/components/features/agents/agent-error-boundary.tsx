@@ -22,7 +22,7 @@ export class AgentErrorBoundary extends Component<Props, State> {
   render(): ReactNode {
     if (this.state.failed) {
       return (
-        <div role="alert" className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 text-sm text-red-400">
+        <div role="alert" className="rounded-card border border-rule bg-paper-2 p-6 text-sm text-bad">
           {this.props.label} could not be displayed.
         </div>
       )

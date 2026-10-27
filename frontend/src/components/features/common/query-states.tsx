@@ -19,12 +19,12 @@ export function LoadError({
   className?: string
 }) {
   return (
-    <p role="alert" className={cn("p-6 text-sm text-red-400", className)}>
+    <p role="alert" className={cn("p-6 text-sm text-bad", className)}>
       Could not load {what}: {error.message}
     </p>
   )
 }
 
 export function Empty({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn("p-6 text-sm text-zinc-400", className)}>{children}</p>
+  return <p className={cn("p-6 text-sm text-muted", className)}>{children}</p>
 }

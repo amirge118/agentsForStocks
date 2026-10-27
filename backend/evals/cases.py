@@ -8,6 +8,9 @@ stability, contracts, faithfulness and cost only.
 
 ledger — real (system, user) prompts captured from llm_calls (evals.capture)
 and replayed against the configuration under test.
+
+outcomes — ledger cases whose decision has a settled outcome (evals.capture
+--outcomes): graded against the alpha that followed — hit rate and alpha captured.
 """
 
 import json
@@ -48,6 +51,9 @@ class EvalCase:
     expected: frozenset[str] | None = None
     max_confidence: float | None = None
     tags: tuple[str, ...] = field(default_factory=tuple)
+    # Outcome cases: the alpha vs the benchmark after `outcome_horizon` sessions
+    outcome_alpha: float | None = None
+    outcome_horizon: int | None = None
 
     @property
     def labelled(self) -> bool:
@@ -148,6 +154,7 @@ def ledger_suite(path: Path) -> list[EvalCase]:
         if not line.strip():
             continue
         row = json.loads(line)
+        outcome = row.get("outcome") or {}
         cases.append(
             EvalCase(
                 case_id=f"ledger/{row['call_id']}",
@@ -157,9 +164,16 @@ def ledger_suite(path: Path) -> list[EvalCase]:
                 reference=row.get("response"),
                 expected=frozenset(row["expected"]) if row.get("expected") else None,
                 tags=("ledger", row.get("prompt_name") or ""),
+                outcome_alpha=outcome.get("alpha"),
+                outcome_horizon=outcome.get("horizon"),
             )
         )
     return cases
+
+
+def outcome_suite(path: Path) -> list[EvalCase]:
+    """Ledger cases that carry a settled outcome (exported with evals.capture --outcomes)."""
+    return [c for c in ledger_suite(path) if c.outcome_alpha is not None]
 
 
 def select(cases: list[EvalCase], agents: list[str] | None) -> list[EvalCase]:

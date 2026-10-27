@@ -8,7 +8,7 @@ import { overview, recommendation } from "@/test/fixtures"
 import { pending, renderWithProviders } from "@/test/render"
 
 function symbols(getAll: SymbolRepository["getAll"]): SymbolRepository {
-  return { getAll, getRecommendation: jest.fn(), getResults: jest.fn() }
+  return { getAll, getRecommendation: jest.fn(), getResults: jest.fn(), getPrices: jest.fn() }
 }
 
 describe("WatchlistTable", () => {
@@ -34,8 +34,8 @@ describe("WatchlistTable", () => {
 
     const link = await screen.findByRole("link", { name: "AAPL" })
     expect(link).toHaveAttribute("href", "/symbols/AAPL")
-    expect(screen.getByText("BUY")).toHaveClass("text-green-400")
-    expect(screen.getByText("+42.5")).toHaveClass("text-green-400")
+    expect(screen.getByText("BUY")).toHaveClass("text-ok")
+    expect(screen.getByText("+42.5")).toHaveClass("text-ok")
     expect(screen.getByText("72%")).toBeInTheDocument()
     expect(screen.getByText("Oct 23, 2026")).toBeInTheDocument()
     expect(screen.getByText("Not analysed yet")).toBeInTheDocument()

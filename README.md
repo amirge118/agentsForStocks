@@ -113,9 +113,9 @@ execution order are derived from the registry's dependency graph.
 ### Frontend
 | Area | Technology |
 |---|---|
-| Framework | **Next.js 15** (App Router) · **React 19** · TypeScript (strict) |
+| Framework | **Next.js 16** (App Router) · **React 19** · TypeScript 6 (strict) |
 | Data | **TanStack Query v5** · **Zod** runtime validation |
-| UI | Tailwind CSS (dark theme) · shadcn/ui primitives (Radix) |
+| UI | Tailwind CSS 4 (dark theme) · shadcn/ui primitives (Radix) |
 | API contract | Types generated from the backend's OpenAPI with `openapi-typescript`, checked against the Zod schemas at compile time |
 
 ---

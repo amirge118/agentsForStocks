@@ -121,6 +121,7 @@ jobs:
             echo "BACKEND_API_KEY=$KEY"
             echo "DASHBOARD_PASSWORD=ci-password"
             echo "WATCHLIST=AAPL,MSFT"
+            echo "SCHEDULER_ENABLED=true"   # checks the jobs run in the worker, not the API
           } > .env
       - name: Optional profiles and dashboards are valid
         run: |
