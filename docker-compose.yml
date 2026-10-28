@@ -1,4 +1,6 @@
 # Full stack:            docker compose up --build
+# On a server:           docker compose --profile https --profile backup up -d --build
+#                        (HTTPS via Caddy + daily database backups — docs/deploy.md)
 # Database only (dev):   docker compose up -d db
 # With knowledge layer:  docker compose --profile knowledge up --build
 # With monitoring:       OTEL_ENABLED=true in .env, then
@@ -7,6 +9,7 @@
 #
 # Settings come from .env (see .env.example). API_KEYS, BACKEND_API_KEY and
 # DASHBOARD_PASSWORD are required — the containers run in production mode.
+# Every port binds to 127.0.0.1: on a server only Caddy (80/443) faces the internet.
 
 x-backend: &backend
   build: ./backend
@@ -37,7 +40,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-agentsforstocks}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -58,7 +61,7 @@ services:
   api:
     <<: *backend
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -89,9 +92,55 @@ services:
       DASHBOARD_USER: ${DASHBOARD_USER:-admin}
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?Set DASHBOARD_PASSWORD in .env}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---- server deployment (profile "https") --------------------------------------
+  # The only service that listens on the internet: HTTPS for the dashboard, with a
+  # certificate from Let's Encrypt for $DOMAIN (renewed by Caddy itself).
+  caddy:
+    image: caddy:2.11.7
+    profiles: ["https"]
+    # Checked here, not with ${DOMAIN:?}: compose interpolates every profile, and the
+    # stack without this one must still start without a domain
+    command:
+      - /bin/sh
+      - -c
+      - test -n "$$DOMAIN" || { echo "Set DOMAIN in .env (the dashboard's host name)" >&2; exit 1; };
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    environment:
+      DOMAIN: ${DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_started
+    restart: unless-stopped
+
+  # ---- daily database backups (profile "backup") --------------------------------
+  backup:
+    image: postgres:16-alpine
+    profiles: ["backup"]
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-agentsforstocks}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./infra/backup/backup.sh:/backup.sh:ro
+      - ./backups:/backups
+    depends_on:
+      db:
         condition: service_healthy
     restart: unless-stopped
 
@@ -127,7 +176,7 @@ services:
     container_name: openviking
     profiles: ["knowledge"]
     ports:
-      - "1933:1933"
+      - "127.0.0.1:1933:1933"
     volumes:
       - ./infra/openviking/ov.conf:/app/ov.conf
       - openviking_data:/app/data
@@ -147,7 +196,7 @@ services:
     profiles: ["knowledge"]
     command: ["uv", "run", "mcp_server.py", "--port", "2033", "--transport", "http"]
     ports:
-      - "2033:2033"
+      - "127.0.0.1:2033:2033"
     volumes:
       - ./infra/openviking/ov.conf:/app/ov.conf
       - openviking_data:/app/data
@@ -160,3 +209,5 @@ volumes:
   postgres_data:
   openviking_data:
   observability_data:
+  caddy_data:
+  caddy_config:
