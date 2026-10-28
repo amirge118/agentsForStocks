@@ -57,6 +57,9 @@ class Recommendation(BaseModel):
     compliance: ComplianceView
     disclaimer: str
     agent_breakdown: list[ContributionView]
+    needs_review: list[str] = Field(
+        default_factory=list, description="Why to check this call before trusting it; empty = none"
+    )
 
     @classmethod
     def from_row(

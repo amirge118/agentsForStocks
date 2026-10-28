@@ -57,6 +57,20 @@ def test_liquidity_trend() -> None:
     ]
     assert liquidity_trend(worsening) == "cash declining, debt rising"
     assert liquidity_trend([{"totalDebt": 1}, {"totalDebt": 1}]) == "stable"
+    # A figure one sheet lacks is no trend: not "cash declining" to 0, not "debt falling"
+    partial = [{"cashAndCashEquivalents": 5}, {"cashAndCashEquivalents": 9, "totalDebt": 4}]
+    assert liquidity_trend(partial) == "cash declining"
+    assert liquidity_trend([{}, {"cashAndCashEquivalents": 9, "totalDebt": 4}]) == "stable"
+
+
+@pytest.mark.unit
+def test_a_missing_revenue_year_is_skipped_not_minus_100() -> None:
+    income = [
+        {"date": "2025-09-30"},
+        {"date": "2024-09-30", "revenue": 100},
+        {"date": "2023-09-30", "revenue": 80},
+    ]
+    assert yearly_revenue_growth(income) == [("2024", pytest.approx(0.25))]
 
 
 @pytest.mark.unit
@@ -139,8 +153,15 @@ def test_institutional_metrics() -> None:
     holders = [{"shares": 50, "change": 5}] * 5 + [{"shares": 50, "change": -1}] * 5
     assert net_share_change(holders) == 20
     assert top5_concentration(holders) == 0.5
-    assert top5_concentration([]) == 0.0
-    assert [flow_direction(x) for x in (1, -1, 0)] == ["accumulating", "distributing", "flat"]
+    # No holder rows is no evidence: unknown, not a flat 0
+    assert top5_concentration([]) is None
+    assert net_share_change([]) is None
+    assert [flow_direction(x) for x in (1, -1, 0, None)] == [
+        "accumulating",
+        "distributing",
+        "flat",
+        "unknown",
+    ]
 
 
 @pytest.mark.unit

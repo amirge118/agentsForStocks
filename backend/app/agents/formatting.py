@@ -12,6 +12,11 @@ def pct(value: float | None) -> str:
     return "N/A" if value is None else f"{value * 100:.1f}%"
 
 
+def num(value: float | None, spec: str = ".2f") -> str:
+    """A number, or N/A when the source didn't report it — never 0 for unknown."""
+    return "N/A" if value is None else format(value, spec)
+
+
 def knowledge_block(memory: list[str]) -> str:
     """The prompt section with what the knowledge base recalled for this symbol."""
     items = "\n".join(f"- {item}" for item in memory) if memory else "None"

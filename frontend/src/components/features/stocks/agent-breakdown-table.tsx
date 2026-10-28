@@ -1,4 +1,5 @@
 import { ComplianceMarker } from "@/components/features/stocks/compliance-marker"
+import { ReviewMarker } from "@/components/features/stocks/review-marker"
 import { SignalText } from "@/components/features/stocks/signal-text"
 import {
   Table,
@@ -33,6 +34,7 @@ export function AgentBreakdownTable({ breakdown }: { breakdown: readonly Contrib
               <div className="flex items-center gap-2">
                 <SignalText signal={c.signal} />
                 <ComplianceMarker status={c.compliance_status} findings={c.compliance_findings} />
+                <ReviewMarker reasons={c.needs_review} />
               </div>
             </TableCell>
             <TableCell className="text-right font-mono">

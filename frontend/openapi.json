@@ -382,6 +382,11 @@
             "title": "Contribution",
             "type": "number"
           },
+          "needs_review": {
+            "default": false,
+            "title": "Needs Review",
+            "type": "boolean"
+          },
           "reasoning": {
             "title": "Reasoning",
             "type": "string"
@@ -1156,6 +1161,14 @@
           "disclaimer": {
             "title": "Disclaimer",
             "type": "string"
+          },
+          "needs_review": {
+            "description": "Why to check this call before trusting it; empty = none",
+            "items": {
+              "type": "string"
+            },
+            "title": "Needs Review",
+            "type": "array"
           },
           "reasoning": {
             "title": "Reasoning",

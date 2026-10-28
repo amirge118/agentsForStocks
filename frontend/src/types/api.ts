@@ -31,6 +31,7 @@ export const ContributionSchema = z.object({
   reasoning: z.string(),
   compliance_status: ComplianceStatusSchema.nullish(),
   compliance_findings: z.array(ComplianceFindingSchema).optional(),
+  needs_review: z.boolean(),
 })
 
 export const ComplianceSchema = z.object({
@@ -55,6 +56,7 @@ export const RecommendationSchema = z.object({
   compliance: ComplianceSchema,
   disclaimer: z.string(),
   agent_breakdown: z.array(ContributionSchema),
+  needs_review: z.array(z.string()).optional(),
 })
 
 export const SymbolOverviewSchema = z.object({
@@ -251,6 +253,7 @@ export const BaseAgentResultSchema = z.object({
   summary: z.string().optional(),
   data_gaps: z.array(z.string()).optional(),
   contract_violations: z.array(z.string()).optional(),
+  needs_review: z.array(z.string()).optional(),
 })
 
 export const ValuationResultSchema = BaseAgentResultSchema.extend({
@@ -288,9 +291,10 @@ export const EarningsResultSchema = BaseAgentResultSchema.extend({
 })
 
 export const RiskResultSchema = BaseAgentResultSchema.extend({
-  debt_to_equity: z.number(),
-  current_ratio: z.number(),
-  beta: z.number(),
+  // null: not reported — shown as "N/A", never as 0
+  debt_to_equity: z.number().nullable(),
+  current_ratio: z.number().nullable(),
+  beta: z.number().nullable(),
   risk_keywords: z.array(z.string()).optional(),
 })
 

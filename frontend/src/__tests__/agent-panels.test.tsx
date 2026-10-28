@@ -58,6 +58,10 @@ describe("AgentPanels", () => {
     const moat = screen.getByRole("article", { name: "moat analysis" })
     expect(within(moat).getByText("80%")).toBeInTheDocument() // newest run, not the older 10%
     expect(within(moat).getByText("No data from: edgar")).toBeInTheDocument()
+    expect(
+      within(moat).getByText("Needs review: model unavailable for 1 judgement: a rule-based fallback was used"),
+    ).toBeInTheDocument()
+    expect(within(moat).getByText("Broke its own rules: bullish without a moat")).toBeInTheDocument()
 
     const valuation = screen.getByRole("article", { name: "valuation analysis" })
     expect(within(valuation).getByText("+12.00%")).toHaveClass("text-ok")
@@ -114,6 +118,20 @@ describe("AgentPanels variants", () => {
     expect(within(earnings).getByText("75%")).toHaveClass("text-ok")
     expect(within(earnings).getByText("+4.20%")).toBeInTheDocument()
     expect(within(earnings).getByText("2026-10-29")).toBeInTheDocument()
+  })
+
+  it("shows N/A, not 0, for risk figures the sources didn't report", async () => {
+    const row = {
+      ...agentResults[1]!,
+      agent_type: "risk",
+      run_id: "risk",
+      result: { signal: "neutral", confidence: 20, reasoning: "r", debt_to_equity: null, current_ratio: null, beta: 1.1 },
+    }
+    renderWithProviders(<AgentPanels symbol="AAPL" />, { symbols: symbols(async () => [row]), agents })
+
+    const risk = await screen.findByRole("article", { name: "risk analysis" })
+    expect(within(risk).getAllByText("N/A")).toHaveLength(2)
+    expect(within(risk).getByText("1.10")).toBeInTheDocument()
   })
 
   it("still draws a valuation stored before the company-specific fields", async () => {

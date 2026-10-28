@@ -23,13 +23,14 @@ export const recommendation: Recommendation = {
   summary: "RECOMMENDATION: BUY",
   agents_available: 7,
   agents_missing: ["institutional"],
+  needs_review: [],
   risk_override_applied: false,
   compliance: { status: "pass", findings: [], original_reasoning: null },
   disclaimer: "This is an automated analysis for informational purposes only and is not investment advice.",
   agent_breakdown: [
-    { agent: "moat", signal: "bullish", confidence: 80, weight: 15, contribution: 12, reasoning: "brand" },
-    { agent: "risk", signal: "bearish", confidence: 40, weight: 15, contribution: -6, reasoning: "litigation" },
-    { agent: "institutional", signal: "missing", confidence: 0, weight: 5, contribution: 0, reasoning: "" },
+    { agent: "moat", signal: "bullish", confidence: 80, weight: 15, contribution: 12, reasoning: "brand", needs_review: false },
+    { agent: "risk", signal: "bearish", confidence: 40, weight: 15, contribution: -6, reasoning: "litigation", needs_review: false },
+    { agent: "institutional", signal: "missing", confidence: 0, weight: 5, contribution: 0, reasoning: "", needs_review: false },
   ],
 }
 
@@ -190,7 +191,12 @@ export const agentResults: AgentResult[] = [
     beta: 1.2,
     risk_keywords: ["litigation"],
   }),
-  resultRow("moat", { ...base("bullish", 80, "Brand"), data_gaps: ["edgar"] }),
+  resultRow("moat", {
+    ...base("bullish", 80, "Brand"),
+    data_gaps: ["edgar"],
+    needs_review: ["model unavailable for 1 judgement: a rule-based fallback was used"],
+    contract_violations: ["bullish without a moat"],
+  }),
   resultRow("earnings", { signal: "neutral" }), // malformed: no confidence / reasoning
   resultRow("moat", base("neutral", 10, "older run"), "2026-10-22"),
   resultRow("recommendation", { ...recommendation, weighted_score: 3, action: "HOLD" }, "2026-10-22"),

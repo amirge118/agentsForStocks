@@ -113,7 +113,9 @@ def owner_earnings(info: dict) -> float | None:
     if not isinstance(net_income, int | float) or net_income <= 0:
         return None
     depreciation = info.get("depreciation") or 0
-    maintenance = min(abs(info.get("capitalExpenditures") or 0), depreciation)
+    capex = info.get("capitalExpenditures")
+    # Capex not reported: assume maintenance ≈ D&A, never add the D&A back unspent
+    maintenance = depreciation if capex is None else min(abs(capex), depreciation)
     value = net_income + depreciation - maintenance
     return value if value > 0 else None
 
@@ -179,9 +181,13 @@ def earnings_power_value(info: dict, wacc: float) -> float | None:
 
 
 def ev_ebitda_value(info: dict) -> float | None:
-    """EBITDA × sector multiple − debt + cash. None when EBITDA is not positive."""
+    """
+    EBITDA × sector multiple − debt + cash. None when EBITDA is not positive, or debt is
+    not reported: an enterprise value can't be turned into equity without it, and
+    reading it as 0 would overstate the equity. Missing cash only understates it.
+    """
     ebitda = info.get("ebitda") or 0
-    if ebitda <= 0:
+    if ebitda <= 0 or info.get("totalDebt") is None:
         return None
     multiple = _SECTOR_EV_EBITDA.get(
         (info.get("sector") or "").lower(), _DEFAULT_EV_EBITDA_MULTIPLE

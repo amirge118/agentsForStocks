@@ -82,6 +82,7 @@ async def test_run_persists_result_and_learnings(session_factory, db_session) ->
         "data_gaps": [],
         "contract_violations": [],
         "compliance": {"status": "pass", "findings": [], "original_reasoning": None},
+        "needs_review": [],
     }
     assert row.run_id == outcome.run_id
     assert [lr.kind for lr in knowledge.stored] == ["case", "pattern"]
@@ -231,6 +232,19 @@ async def test_llm_fallback_is_counted(session_factory, db_session) -> None:
     assert outcome.result is not None and outcome.result.signal == "neutral"
     run = (await db_session.execute(select(AgentRun))).scalar_one()
     assert (run.llm_fallbacks, run.llm_calls) == (1, 0)
+    # The stored result says so: a fallback is not a judgement
+    row = (await db_session.execute(select(AgentResult))).scalar_one()
+    assert row.result_json["needs_review"] == [
+        "model unavailable for 1 judgement: a rule-based fallback was used"
+    ]
+    assert outcome.result.needs_review == row.result_json["needs_review"]
+
+
+@pytest.mark.unit
+async def test_a_judgement_made_is_not_flagged(session_factory, db_session) -> None:
+    agent = _LLMStubAgent(make_context(llm=_UsageLLM()), reasoning="x")
+    outcome = await AgentRunner(session_factory, _RecordingKnowledge()).run(agent, "AAPL", RUN_DATE)
+    assert outcome.result is not None and outcome.result.needs_review == []
 
 
 @pytest.mark.unit

@@ -134,14 +134,19 @@ function Risk({ result }: { result: unknown }) {
   const r = parsed.data
   return (
     <dl className="grid grid-cols-3 gap-3">
-      <Metric label="Debt / equity" hint="Debt for every dollar of shareholder equity. Above 3 is heavy." value={r.debt_to_equity.toFixed(2)} tone={r.debt_to_equity > 3 ? "bad" : undefined} />
+      <Metric
+        label="Debt / equity"
+        hint="Debt for every dollar of shareholder equity. Above 3 is heavy."
+        value={r.debt_to_equity?.toFixed(2) ?? "N/A"}
+        tone={r.debt_to_equity != null && r.debt_to_equity > 3 ? "bad" : undefined}
+      />
       <Metric
         label="Current ratio"
         hint="Short-term assets over short-term debts. Above 1.5 is healthy, below 1.0 is stress."
-        value={r.current_ratio.toFixed(2)}
-        tone={r.current_ratio >= 1.5 ? "ok" : r.current_ratio < 1 ? "bad" : undefined}
+        value={r.current_ratio?.toFixed(2) ?? "N/A"}
+        tone={r.current_ratio == null ? undefined : r.current_ratio >= 1.5 ? "ok" : r.current_ratio < 1 ? "bad" : undefined}
       />
-      <Metric label="Beta" hint="How much the stock moves with the market: 1 moves with it, above 1 swings harder." value={r.beta.toFixed(2)} />
+      <Metric label="Beta" hint="How much the stock moves with the market: 1 moves with it, above 1 swings harder." value={r.beta?.toFixed(2) ?? "N/A"} />
     </dl>
   )
 }

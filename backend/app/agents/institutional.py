@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.agents.base import Agent, AnalysisResult, neutral_fallback
-from app.agents.formatting import knowledge_block
+from app.agents.formatting import knowledge_block, num, pct
 from app.agents.registry import register_agent
 from app.domain.institutional import (
     FlowDirection,
@@ -17,10 +17,11 @@ from app.knowledge.store import Learning
 
 
 class InstitutionalResult(AnalysisResult):
-    institutional_pct: float
-    net_share_change: float
+    # None: not reported (no holder rows, no ownership figure) — never 0 for unknown
+    institutional_pct: float | None
+    net_share_change: float | None
     direction: FlowDirection
-    top5_concentration: float
+    top5_concentration: float | None
 
 
 @dataclass(frozen=True)
@@ -50,7 +51,8 @@ class InstitutionalAgent(Agent[InstitutionalData, InstitutionalResult]):
     async def analyze(
         self, symbol: str, data: InstitutionalData, memory: list[str]
     ) -> InstitutionalResult:
-        inst_pct = float(data.info.get("heldPercentInstitutions") or 0.0)
+        held = data.info.get("heldPercentInstitutions")
+        inst_pct = float(held) if isinstance(held, int | float) else None
         net_change = net_share_change(data.holders)
         concentration = top5_concentration(data.holders)
         direction = flow_direction(net_change)
@@ -58,9 +60,9 @@ class InstitutionalAgent(Agent[InstitutionalData, InstitutionalResult]):
         judgement = await self.judge(
             f"""Symbol: {symbol}
 
-Institutional ownership: {inst_pct * 100:.1f}% of shares outstanding
-Net change across top holders: {net_change:+,.0f} shares ({direction})
-Top-5 holder concentration: {concentration * 100:.1f}% of institutional holdings
+Institutional ownership: {pct(inst_pct)} of shares outstanding
+Net change across top holders: {num(net_change, "+,.0f")} shares ({direction})
+Top-5 holder concentration: {pct(concentration)} of institutional holdings
 
 Top institutional holders:
 {_format_holders(data.holders)}
@@ -83,12 +85,12 @@ Quarterly 13F ownership trend:
 
     def learnings(self, symbol: str, result: InstitutionalResult) -> list[Learning]:
         learnings = super().learnings(symbol, result)
-        if result.direction != "flat":
+        if result.direction in ("accumulating", "distributing"):
             learnings.append(
                 Learning(
                     kind="pattern",
                     content=f"Institutions {result.direction} — net change "
-                    f"{result.net_share_change:+,.0f} shares",
+                    f"{num(result.net_share_change, '+,.0f')} shares",
                     tags=("institutional", "smart_money"),
                 )
             )

@@ -131,6 +131,30 @@ describe("RecommendationCard", () => {
     })
     expect(await screen.findByText(/Risk override applied/)).toBeInTheDocument()
   })
+
+  it("says why a call needs review and marks the analysts that fell back", async () => {
+    const shaky = {
+      ...recommendation,
+      needs_review: ["analysts needing review: risk"],
+      agent_breakdown: recommendation.agent_breakdown.map((c) => ({ ...c, needs_review: c.agent === "risk" })),
+    }
+    renderWithProviders(<RecommendationCard symbol="AAPL" />, { symbols: symbols(async () => shaky) })
+
+    expect(await screen.findByText("Needs review before you rely on it:")).toBeInTheDocument()
+    expect(screen.getByText("analysts needing review: risk")).toBeInTheDocument()
+    const table = screen.getByRole("table", { name: "Agent breakdown" })
+    const marked = within(table).getAllByText("Needs review")
+    expect(marked).toHaveLength(1)
+    expect(marked[0]!.closest("tr")).toHaveTextContent("risk")
+  })
+
+  it("shows no review notice when nothing needs one", async () => {
+    renderWithProviders(<RecommendationCard symbol="AAPL" />, {
+      symbols: symbols(async () => recommendation),
+    })
+    await screen.findByText("Wide moat and accelerating services growth")
+    expect(screen.queryByText(/Needs review/)).not.toBeInTheDocument()
+  })
 })
 
 describe("AgentRunsTable", () => {

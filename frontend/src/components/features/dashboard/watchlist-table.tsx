@@ -25,6 +25,7 @@ import { useState, type ReactNode } from "react"
 
 import { ActionBadge } from "@/components/features/stocks/action-badge"
 import { ComplianceMarker } from "@/components/features/stocks/compliance-marker"
+import { ReviewMarker } from "@/components/features/stocks/review-marker"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -130,6 +131,7 @@ export function WatchlistTable() {
                         <div className="flex items-center gap-2">
                           <ActionBadge action={rec.action} />
                           <ComplianceMarker status={rec.compliance.status} findings={rec.compliance.findings} />
+                          <ReviewMarker reasons={rec.needs_review} />
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-mono">

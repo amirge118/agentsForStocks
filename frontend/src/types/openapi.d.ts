@@ -450,6 +450,11 @@ export interface components {
             confidence: number;
             /** Contribution */
             contribution: number;
+            /**
+             * Needs Review
+             * @default false
+             */
+            needs_review: boolean;
             /** Reasoning */
             reasoning: string;
             /** Signal */
@@ -725,6 +730,11 @@ export interface components {
             confidence: number;
             /** Disclaimer */
             disclaimer: string;
+            /**
+             * Needs Review
+             * @description Why to check this call before trusting it; empty = none
+             */
+            needs_review?: string[];
             /** Reasoning */
             reasoning: string;
             /** Risk Override Applied */

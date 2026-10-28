@@ -54,6 +54,14 @@ describe("WatchlistTable", () => {
     expect(screen.queryByLabelText(/^Compliance:/)).not.toBeInTheDocument()
   })
 
+  it("marks rows that need review, with the reasons", async () => {
+    const shaky = { ...recommendation, needs_review: ["only 2/8 analysts reported"] }
+    renderWithProviders(<WatchlistTable />, {
+      symbols: symbols(async () => [{ symbol: "AAPL", recommendation: shaky }]),
+    })
+    expect(await screen.findByLabelText("Needs review: only 2/8 analysts reported")).toBeInTheDocument()
+  })
+
   it("marks rows whose reasoning was flagged or replaced", async () => {
     const finding = { rule: "promissory_language", severity: "fail" as const, phrase: "guaranteed" }
     const failed = { ...recommendation, compliance: { status: "fail" as const, findings: [finding] } }

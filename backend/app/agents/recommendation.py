@@ -76,6 +76,7 @@ class ContributionView(BaseModel):
     reasoning: str
     compliance_status: ComplianceStatus | None = None
     compliance_findings: list[ComplianceFindingView] = Field(default_factory=list)
+    needs_review: bool = False
 
 
 class RecommendationResult(AnalysisResult):
@@ -161,7 +162,22 @@ class RecommendationAgent(Agent[RecommendationData, RecommendationResult]):
             disclaimer=DISCLAIMER,
             summary=f"RECOMMENDATION: {action} ({judgement.confidence:.0f}%) "
             f"score={score.score:+.1f} — {reasoning}",
+            needs_review=_review_reasons(score, available),
         )
+
+
+def _review_reasons(score: WeightedScore, available: int) -> list[str]:
+    """
+    Why this call should be checked before it is trusted: a HOLD for lack of
+    analysts is not a view on the stock, and an analyst's fallback is not a judgement.
+    """
+    reasons = []
+    if available < _MIN_AGENTS_FOR_CONVICTION:
+        reasons.append(f"only {available}/{len(INPUT_AGENTS)} analysts reported")
+    fell_back = [c.agent for c in score.contributions if c.needs_review and c.weight > 0]
+    if fell_back:
+        reasons.append(f"analysts needing review: {', '.join(fell_back)}")
+    return reasons
 
 
 def _contribution_view(c: Contribution) -> ContributionView:

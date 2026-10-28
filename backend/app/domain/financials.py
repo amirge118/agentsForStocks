@@ -80,19 +80,20 @@ def liquidity_trend(balance: list[dict]) -> str:
     if len(balance) < 2:
         return "insufficient data"
     newest, oldest = balance[0], balance[-1]
-    cash_new = newest.get("cashAndCashEquivalents") or 0
-    cash_old = oldest.get("cashAndCashEquivalents") or 0
-    debt_new = newest.get("totalDebt") or 0
-    debt_old = oldest.get("totalDebt") or 0
     parts = []
-    if cash_new > cash_old:
-        parts.append("cash increasing")
-    elif cash_new < cash_old:
-        parts.append("cash declining")
-    if debt_new > debt_old * 1.1:
-        parts.append("debt rising")
-    elif debt_new < debt_old * 0.9:
-        parts.append("debt falling")
+    # A side compares only when both sheets report it: a missing figure is no trend
+    cash_new, cash_old = newest.get("cashAndCashEquivalents"), oldest.get("cashAndCashEquivalents")
+    if cash_new is not None and cash_old is not None:
+        if cash_new > cash_old:
+            parts.append("cash increasing")
+        elif cash_new < cash_old:
+            parts.append("cash declining")
+    debt_new, debt_old = newest.get("totalDebt"), oldest.get("totalDebt")
+    if debt_new is not None and debt_old is not None:
+        if debt_new > debt_old * 1.1:
+            parts.append("debt rising")
+        elif debt_new < debt_old * 0.9:
+            parts.append("debt falling")
     return ", ".join(parts) if parts else "stable"
 
 
@@ -101,7 +102,9 @@ def yearly_revenue_growth(income: list[dict], years: int = 3) -> list[tuple[str,
     result = []
     for current, previous in zip(income[:years], income[1 : years + 1], strict=False):
         prev_rev = previous.get("revenue") or 0
-        if prev_rev > 0:
-            growth = ((current.get("revenue") or 0) - prev_rev) / prev_rev
+        cur_rev = current.get("revenue")
+        # A missing year is skipped, not read as revenue falling to 0 (-100%)
+        if prev_rev > 0 and cur_rev is not None:
+            growth = (cur_rev - prev_rev) / prev_rev
             result.append(((current.get("date") or "?")[:4], growth))
     return result
