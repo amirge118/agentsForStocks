@@ -141,7 +141,10 @@ jobs:
           } > .env
       - name: Optional profiles and dashboards are valid
         run: |
-          docker compose --profile observability --profile knowledge config -q
+          docker compose --profile observability --profile knowledge --profile https --profile backup config -q
+          docker run --rm -e DOMAIN=ci.example.com -v "$PWD/infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2.11.7 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          sh -n infra/backup/backup.sh && sh -n infra/deploy/init-env.sh
           for f in infra/grafana/dashboards/*.json; do jq -e '.panels | length > 0' "$f" > /dev/null; done
       - name: Build images
         run: docker compose build
@@ -159,6 +162,16 @@ jobs:
             -X POST localhost:3000/api/backend/pipeline/runs -d '{"agents":["technicals"]}')
           test "$code" = 202
           test "$(docker compose ps -a migrate --format '{{.ExitCode}}')" = 0
+          # Nothing but the dashboard proxy may face the network: every port is on 127.0.0.1
+          ! docker compose ps --format '{{.Ports}}' | grep -q '0.0.0.0'
+      - name: A backup can be written and read back
+        run: |
+          set -euo pipefail
+          docker compose --profile backup run --rm -e BACKUP_ONCE=1 backup
+          dump=$(ls backups/agentsforstocks-*.sql.gz)
+          gunzip -t "$dump"
+          # grep reads it all (no -q): an early exit would fail the pipe with SIGPIPE
+          gunzip -c "$dump" | grep 'CREATE TABLE public.agent_results' > /dev/null
       - name: Logs on failure
         if: failure()
         run: docker compose logs --no-color

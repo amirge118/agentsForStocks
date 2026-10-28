@@ -21,7 +21,9 @@ current pipeline is trustworthy and measured. A new idea goes in the section it 
 - [x] One pipeline run at a time across processes: a Postgres advisory lock (`PipelineLock`) held by the daily job, its retries and manual runs (a manual run during the daily job gets 409; the daily job waits for a manual run)
 
 ## 2. Go live and verify on real data
-- [ ] Go live: a hosted Postgres (`DATABASE_URL`), the keys (`FMP_API_KEY`, the free-chain `*_API_KEY`s, `ANTHROPIC_API_KEY`, `API_KEYS`, `DASHBOARD_PASSWORD`), one `python -m app.worker` with `SCHEDULER_ENABLED=true` and `RUN_SCHEDULER=false` on the API; confirm with `python -m scripts.preflight` and the first scheduled `daily_pipeline` [PRIORITY: HIGH]
+- [x] Deployment ready in the repo: `docs/deploy.md` (server, firewall, DNS, keys, checks, upgrades, restore), `infra/deploy/init-env.sh` (a production `.env` with fresh secrets), profile `https` (Caddy + Let's Encrypt, the only service on the internet; every other port on 127.0.0.1), profile `backup` (a daily `pg_dump`, kept 14 days) — CI checks the Caddyfile, that no port binds 0.0.0.0, and that a backup is written and readable
+- [ ] Go live (the person's side): a server, a domain pointed at it, the provider keys; then `docs/deploy.md` steps 2–5 [PRIORITY: HIGH]
+- [ ] Copy the backups off the server (rsync / object storage / provider snapshots) — a dump on the same disk doesn't survive the disk [PRIORITY: MED]
 - [ ] First run with `ANTHROPIC_API_KEY`: preflight confirms a live request on SDK 2.x / API version 2026-10-21, and one `run_pipeline` exercises the chain's last step (Claude Haiku 5.5) and the reasoning model [PRIORITY: HIGH]
 - [ ] Smoke-test yfinance against live Yahoo from production (yfinance 1.x fetches through curl_cffi; Yahoo isn't reachable from CI / the dev sandbox) [PRIORITY: MED]
 - [ ] Publish images to GHCR and add a deploy workflow [PRIORITY: MED]

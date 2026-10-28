@@ -14,6 +14,9 @@ Detailed coding standards are in `.claude/rules/` — Claude enforces these auto
 # Whole stack in Docker (db → migrate → api + worker → frontend); needs .env
 docker compose up --build
 
+# On a server: HTTPS (Caddy, Let's Encrypt for $DOMAIN) + daily DB backups — docs/deploy.md
+sh infra/deploy/init-env.sh && docker compose --profile https --profile backup up -d --build
+
 # ... plus monitoring: Grafana with traces, metrics, logs and the agents dashboard (:3001)
 # (set OTEL_ENABLED=true in .env)
 docker compose --profile observability up --build
@@ -195,6 +198,7 @@ A fund has no 10-K, statements, earnings or moat. `@register_agent(company_only=
 | Watchlist (DB table; `WATCHLIST` env only seeds it once, migration 0005) | `backend/app/repositories/watchlist.py`, `backend/app/api/v1/endpoints/watchlist.py` |
 | Dependency wiring | `backend/app/container.py` |
 | Migrations | `backend/alembic/` (`alembic upgrade head`) |
+| Server deployment (runbook, Caddy, backups, `.env` generator) | `docs/deploy.md`, `infra/caddy/`, `infra/backup/`, `infra/deploy/init-env.sh` |
 | FastAPI routers | `backend/app/api/v1/endpoints/` |
 | Pydantic schemas | `backend/app/schemas/` |
 | SQLAlchemy models | `backend/app/models/` |

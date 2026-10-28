@@ -38,3 +38,6 @@ Thumbs.db
 
 # Docker volumes (local data)
 data/
+
+# Database dumps from the "backup" compose profile
+backups/
