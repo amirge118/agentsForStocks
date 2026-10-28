@@ -50,8 +50,11 @@ class Settings(BaseSettings):
     # Overrides for those providers (model, quotas, ...) or extra ones (JSON, inline/file)
     llm_providers: str = ""
     llm_providers_file: str = ""
-    # A free provider that would need a longer wait for its rate limit is skipped
-    llm_quota_max_wait_seconds: float = 5.0
+    # A free provider that would need a longer wait for its rate limit is skipped. The
+    # pipeline runs in the background, so it waits: free tiers allow ~10-30 calls a
+    # minute and a 5-symbol run makes ~70 calls (with 5 s, 47 of 70 fell back; with
+    # 60 s, none did — the run takes ~6 minutes)
+    llm_quota_max_wait_seconds: float = 60.0
     # Paid model calls (Claude, a priced alt provider) stop for the market day once
     # they have cost this much; agents then fall back and are marked needs_review.
     # 0 = no cap. Today's free chain costs $0; a day on Claude Haiku ≈ $0.15

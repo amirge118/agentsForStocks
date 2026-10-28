@@ -8,7 +8,7 @@ worker can be up while the job is not.
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from apscheduler.triggers.cron import CronTrigger
@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 # How long after its scheduled time a run may start and finish before it counts as
 # missed (APScheduler still starts a job up to an hour late)
 GRACE = timedelta(hours=2)
+# Recorded each time a scheduler starts: a run due before the first one is not missed
+# (a fresh install), while a scheduler that never started leaves every job missed
+SCHEDULER_STARTED = "scheduler_started"
 JobState = Literal["ok", "running", "partial", "failed", "missed", "not due"]
 
 
@@ -47,6 +50,11 @@ class JobRecorder:
         status, detail = _outcome(result)
         await self._finish(job_id, run_id, status, detail)
         return result
+
+    async def scheduler_started(self) -> None:
+        """Note that a scheduler is running from now on (see SCHEDULER_STARTED)."""
+        run_id = await self._start(SCHEDULER_STARTED)
+        await self._finish(SCHEDULER_STARTED, run_id, "completed", None)
 
     async def _start(self, job_id: str) -> str | None:
         try:
@@ -104,7 +112,17 @@ async def job_state(
     if due is None:
         return "not due"
     async with session_factory() as session:
-        run = await JobRunRepository(session).latest(job_id, since=due - timedelta(minutes=1))
+        repo = JobRunRepository(session)
+        run = await repo.latest(job_id, since=due - timedelta(minutes=1))
+        first_start = await repo.first(SCHEDULER_STARTED)
     if run is None:
+        # Due before any scheduler ever ran (a fresh install): nothing was missed yet
+        if first_start is not None and due < _aware(first_start.started_at):
+            return "not due"
         return "missed"
     return {"running": "running", "partial": "partial", "failed": "failed"}.get(run.status, "ok")
+
+
+def _aware(at: datetime) -> datetime:
+    """SQLite hands back naive datetimes; they are stored in UTC."""
+    return at if at.tzinfo is not None else at.replace(tzinfo=UTC)

@@ -27,6 +27,10 @@ class JobRunRepository:
             run.finished_at = utcnow()
             run.detail = detail
 
+    async def first(self, job_id: str) -> JobRun | None:
+        stmt = select(JobRun).where(JobRun.job_id == job_id).order_by(JobRun.started_at).limit(1)
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
     async def latest(self, job_id: str, since: datetime | None = None) -> JobRun | None:
         """The most recent run of `job_id` (started at or after `since`, when given)."""
         stmt = select(JobRun).where(JobRun.job_id == job_id)
