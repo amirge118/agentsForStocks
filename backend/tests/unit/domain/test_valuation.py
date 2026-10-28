@@ -91,6 +91,8 @@ def test_owner_earnings_count_only_maintenance_capex() -> None:
     assert owner_earnings(MSFT) == pytest.approx(133.749e9)
     assert owner_earnings({"netIncome": 100, "depreciation": 20, "capitalExpenditures": -10}) == 110
     assert owner_earnings({"netIncomeToCommon": -1}) is None
+    # Capex not reported: maintenance assumed ≈ D&A, not 0 (which would add D&A back)
+    assert owner_earnings({"netIncome": 100, "depreciation": 20}) == 100
     assert normalized_cash_flow(MSFT) == (pytest.approx(133.749e9), "owner earnings")
     assert normalized_cash_flow({"freeCashflow": 5.0}) == (5.0, "free cash flow")
     assert normalized_cash_flow({"operatingIncome": 100}) == (75.0, "75% of operating income")
@@ -103,7 +105,10 @@ def test_owner_earnings_count_only_maintenance_capex() -> None:
 def test_ev_ebitda() -> None:
     tech = {"ebitda": 100, "sector": "Technology", "totalDebt": 300, "totalCash": 50}
     assert ev_ebitda_value(tech) == 100 * 20 - 300 + 50
-    assert ev_ebitda_value({"ebitda": 100, "sector": "Unknown"}) == 1200
+    no_cash = {"ebitda": 100, "sector": "Unknown", "totalDebt": 0}
+    assert ev_ebitda_value(no_cash) == 1200  # a missing cash figure only understates
+    # Debt not reported is not "no debt": no equity value rather than an inflated one
+    assert ev_ebitda_value({"ebitda": 100, "sector": "Unknown"}) is None
     assert ev_ebitda_value({"ebitda": 0}) is None
 
 

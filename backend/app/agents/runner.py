@@ -5,7 +5,8 @@ AgentRunner — executes one agent for one symbol with the cross-cutting rules:
   2. recall      — pull relevant memory from the knowledge store
   3. fetch → analyze → contract checks (app/agents/contracts.py: data gaps, no-data
                    confidence cap, per-agent invariants) → compliance review of the
-                   reasoning (app/agents/compliance.py)
+                   reasoning (app/agents/compliance.py) → a result built on a
+                   fallback because the model was unavailable is marked needs_review
   4. persist     — upsert the typed result (re-runs replace, never duplicate)
   5. learnings   — best-effort knowledge writes (never fail the run)
   6. audit       — every outcome, failures included, is recorded in agent_runs,
@@ -95,7 +96,7 @@ class AgentRunner:
                 agent.ctx = agent.ctx.as_of(as_of, market_today())
                 logger.info("Historical run: data as of %s", as_of.isoformat())
             outcome = await self._execute(
-                agent, symbol, run_date, run_id, force, timings, recall=as_of is None
+                agent, symbol, run_date, run_id, force, timings, usage, recall=as_of is None
             )
             if outcome.status == "completed" and outcome.result is not None:
                 for learning in agent.learnings(symbol, outcome.result):
@@ -122,6 +123,7 @@ class AgentRunner:
         run_id: str,
         force: bool,
         timings: "_Timings",
+        usage: RunUsage,
         recall: bool = True,
     ) -> RunOutcome:
         try:
@@ -142,7 +144,7 @@ class AgentRunner:
                     analysed = await agent.analyze(symbol, data, memory)
                 timings.analyze_ms = _ms(phase)
                 checked = apply_contract(agent.name, symbol, data, analysed, agent.invariants)
-                result = apply_compliance(agent.name, symbol, checked)
+                result = _flag_fallbacks(apply_compliance(agent.name, symbol, checked), usage)
 
                 await repo.upsert(
                     agent_type=agent.name,
@@ -192,6 +194,19 @@ class AgentRunner:
                 await session.commit()
         except Exception as exc:
             logger.error("Could not record agent run", extra={"error": str(exc)})
+
+
+def _flag_fallbacks(result: AnalysisResult, usage: RunUsage) -> AnalysisResult:
+    """
+    A judgement the model never made must not pass for one: a rule-based fallback
+    (often a neutral 0%) would otherwise be stored like any other HOLD.
+    """
+    if not usage.llm_fallbacks:
+        return result
+    noun = "judgement" if usage.llm_fallbacks == 1 else "judgements"
+    reason = f"model unavailable for {usage.llm_fallbacks} {noun}: a rule-based fallback was used"
+    logger.warning("Result needs review", extra={"reason": reason})
+    return result.model_copy(update={"needs_review": [*result.needs_review, reason]})
 
 
 @dataclass

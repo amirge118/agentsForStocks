@@ -82,6 +82,12 @@ function AgentPanel({ row, description }: { row: AgentResult; description?: stri
           {(base.data.data_gaps?.length ?? 0) > 0 && (
             <p className="text-xs text-muted">No data from: {base.data.data_gaps!.join(", ")}</p>
           )}
+          {(base.data.needs_review?.length ?? 0) > 0 && (
+            <p className="text-xs text-ink-2">Needs review: {base.data.needs_review!.join("; ")}</p>
+          )}
+          {(base.data.contract_violations?.length ?? 0) > 0 && (
+            <p className="text-xs text-ink-2">Broke its own rules: {base.data.contract_violations!.join("; ")}</p>
+          )}
         </>
       ) : (
         <p className="text-sm text-muted">This result has an unexpected shape and can&apos;t be shown.</p>

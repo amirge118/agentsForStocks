@@ -18,7 +18,7 @@ class BroadAnalysisResult(AnalysisResult):
     company_name: str
     sector: str
     industry: str
-    market_cap_b: float
+    market_cap_b: float | None  # None: not reported (e.g. withheld in a historical run)
 
 
 @dataclass(frozen=True)
@@ -52,12 +52,14 @@ class BroadAnalysisAgent(Agent[BroadAnalysisData, BroadAnalysisResult]):
         name = p.get("companyName") or symbol
         sector = p.get("sector") or info.get("sector") or "Unknown"
         industry = p.get("industry") or info.get("industry") or "Unknown"
-        market_cap_b = (p.get("marketCap") or info.get("marketCap") or 0) / 1e9
+        cap = p.get("marketCap") or info.get("marketCap")
+        market_cap_b = cap / 1e9 if isinstance(cap, int | float) and cap > 0 else None
+        cap_text = "N/A" if market_cap_b is None else f"${market_cap_b:.1f}B"
 
         judgement = await self.judge(
             f"""Symbol: {symbol} | Company: {name}
 Sector: {sector} | Industry: {industry}
-Market cap: ${market_cap_b:.1f}B | CEO: {p.get('ceo') or 'Unknown'} | \
+Market cap: {cap_text} | CEO: {p.get('ceo') or 'Unknown'} | \
 Employees: {p.get('fullTimeEmployees') or 'Unknown'} | IPO: {p.get('ipoDate') or 'Unknown'}
 
 Company description (FMP):

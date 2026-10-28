@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.agents.base import Agent, AnalysisResult, neutral_fallback
-from app.agents.formatting import knowledge_block
+from app.agents.formatting import knowledge_block, num
 from app.agents.registry import register_agent
 from app.domain.financials import HIGH_RISK_KEYWORDS, liquidity_trend
 from app.domain.stats import find_keywords, relevant_excerpt
@@ -16,9 +16,10 @@ _RISK_TEXT_CHARS = 4_500
 
 
 class RiskResult(AnalysisResult):
-    debt_to_equity: float
-    current_ratio: float
-    beta: float
+    # None: not reported. A missing D/E is not "no debt", a missing current ratio not distress
+    debt_to_equity: float | None
+    current_ratio: float | None
+    beta: float | None
     risk_keywords: list[str]
 
 
@@ -50,24 +51,20 @@ class RiskAgent(Agent[RiskData, RiskResult]):
 
     async def analyze(self, symbol: str, data: RiskData, memory: list[str]) -> RiskResult:
         latest = data.ratios[0] if data.ratios else {}
-        # FMP gives D/E as a ratio (1.5); yfinance gives it in percent (150)
-        yf_de = data.info.get("debtToEquity")
-        debt_to_equity = float(
-            latest.get("debtToEquityRatio") or (yf_de / 100 if yf_de else 0.0) or 0.0
-        )
-        current_ratio = float(latest.get("currentRatio") or data.info.get("currentRatio") or 0.0)
-        beta = float(data.info.get("beta") or 1.0)
-        short_ratio = float(data.info.get("shortRatio") or 0.0)
+        debt_to_equity = debt_to_equity_ratio(latest, data.info)
+        current_ratio = _first_number(latest.get("currentRatio"), data.info.get("currentRatio"))
+        beta = _first_number(data.info.get("beta"))
+        short_ratio = _first_number(data.info.get("shortRatio"))
         keywords = find_keywords(data.risk_text, HIGH_RISK_KEYWORDS)
 
         judgement = await self.judge(
             f"""Symbol: {symbol}
 
 Financial risk metrics:
-  Debt/equity:   {debt_to_equity:.2f}
-  Current ratio: {current_ratio:.2f} (> 1.5 healthy, < 1.0 stress)
-  Beta:          {beta:.2f}
-  Short ratio:   {short_ratio:.1f} days
+  Debt/equity:   {num(debt_to_equity)}
+  Current ratio: {num(current_ratio)} (> 1.5 healthy, < 1.0 stress)
+  Beta:          {num(beta)}
+  Short ratio:   {num(short_ratio, ".1f")} days
   Liquidity:     {liquidity_trend(data.balance)}
 
 High-risk phrases in Risk Factors: {', '.join(keywords) or 'none'}
@@ -83,7 +80,7 @@ Bearish = high risk, bullish = low risk.""",
         return RiskResult.from_judgement(
             "Risk",
             judgement,
-            detail=f"D/E={debt_to_equity:.1f}",
+            detail=f"D/E={num(debt_to_equity, '.1f')}",
             debt_to_equity=debt_to_equity,
             current_ratio=current_ratio,
             beta=beta,
@@ -101,3 +98,20 @@ Bearish = high risk, bullish = low risk.""",
                 )
             )
         return learnings
+
+
+def _first_number(*values: object) -> float | None:
+    """The first value that is a number (0 included); None when none is."""
+    for value in values:
+        if isinstance(value, int | float) and not isinstance(value, bool):
+            return float(value)
+    return None
+
+
+def debt_to_equity_ratio(ratios: dict, info: dict) -> float | None:
+    """D/E as a ratio: FMP gives 1.5, yfinance gives the same in percent (150)."""
+    fmp = _first_number(ratios.get("debtToEquityRatio"))
+    if fmp is not None:
+        return fmp
+    yf = _first_number(info.get("debtToEquity"))
+    return yf / 100 if yf is not None else None

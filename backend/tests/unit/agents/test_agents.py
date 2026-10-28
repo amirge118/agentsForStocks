@@ -234,6 +234,22 @@ async def test_recommendation_holds_without_enough_analysts() -> None:
     assert result.action == "HOLD"
     assert len(result.agents_missing) == 6
     assert llm.calls == []
+    # A HOLD for lack of analysts is not a view on the stock
+    assert result.needs_review == ["only 2/8 analysts reported"]
+
+
+@pytest.mark.unit
+async def test_recommendation_names_analysts_that_fell_back() -> None:
+    results = _analyst_results("bullish")
+    results["moat"]["needs_review"] = ["model unavailable for 1 judgement"]
+    _, result = await _run(RecommendationAgent, llm=FakeLLM(), results=FakeResults(results))
+    assert result.needs_review == ["analysts needing review: moat"]
+    by_agent = {c.agent: c.needs_review for c in result.agent_breakdown}
+    assert by_agent["moat"] and not by_agent["valuation"]
+    clean = await _run(
+        RecommendationAgent, llm=FakeLLM(), results=FakeResults(_analyst_results("bullish"))
+    )
+    assert clean[1].needs_review == []
 
 
 @pytest.mark.unit
@@ -312,3 +328,41 @@ def test_results_from_a_judgement_share_one_summary_format() -> None:
         "Moat", judgement, detail="keywords=2", moat_keywords=["brand", "network"], **fields
     )
     assert detailed.summary == "Moat: bullish (72%) keywords=2 — Durable brand"
+
+
+@pytest.mark.unit
+async def test_unreported_figures_reach_the_model_as_na_never_as_zero() -> None:
+    """A missing D/E is not "debt-free", a missing current ratio not distress."""
+    llm = FakeLLM()
+    _, risk = await _run(RiskAgent, llm=llm, yfinance=FakeYFinance(info={}), fmp=FakeFmp(ratios=[]))
+    assert (risk.debt_to_equity, risk.current_ratio, risk.beta) == (None, None, None)
+    prompt = llm.calls[0]["prompt"]
+    assert "Debt/equity:   N/A" in prompt and "Current ratio: N/A" in prompt
+    assert "0.00" not in prompt
+
+    llm = FakeLLM()
+    _, inst = await _run(
+        InstitutionalAgent, llm=llm, yfinance=FakeYFinance(info={}), fmp=FakeFmp(holders=[])
+    )
+    assert (inst.institutional_pct, inst.net_share_change, inst.direction) == (
+        None,
+        None,
+        "unknown",
+    )
+    assert "Net change across top holders: N/A shares (unknown)" in llm.calls[0]["prompt"]
+
+    llm = FakeLLM()
+    _, broad = await _run(
+        BroadAnalysisAgent, llm=llm, yfinance=FakeYFinance(info={}), fmp=FakeFmp(profile={})
+    )
+    assert broad.market_cap_b is None
+    assert "Market cap: N/A" in llm.calls[0]["prompt"]
+
+
+@pytest.mark.unit
+def test_debt_to_equity_units_and_a_true_zero() -> None:
+    from app.agents.risk import debt_to_equity_ratio
+
+    assert debt_to_equity_ratio({"debtToEquityRatio": 0.0}, {"debtToEquity": 150}) == 0.0
+    assert debt_to_equity_ratio({}, {"debtToEquity": 150}) == 1.5  # yfinance: percent
+    assert debt_to_equity_ratio({}, {}) is None

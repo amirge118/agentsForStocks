@@ -34,6 +34,8 @@ class Contribution:
     # results stored before the review existed
     compliance_status: ComplianceStatus | None = None
     compliance_findings: tuple[ComplianceFinding, ...] = ()
+    # The analyst's result needs a person's check (it fell back, see AnalysisResult)
+    needs_review: bool = False
 
 
 @dataclass(frozen=True)
@@ -77,6 +79,7 @@ def weighted_score(
                 str(result.get("reasoning", "")),
                 _compliance_status(result),
                 _compliance_findings(result),
+                bool(result.get("needs_review")),
             )
         )
 

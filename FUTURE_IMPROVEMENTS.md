@@ -9,8 +9,8 @@ current pipeline is trustworthy and measured. A new idea goes in the section it 
 
 ## 1. Reliability now — the pipeline must not lie or break silently
 - [ ] Protect `main` in GitHub settings: require the CI checks to pass before merging, no direct pushes (a setting, not code) [PRIORITY: HIGH]
-- [ ] No silent HOLD: check that no parse / LLM failure is stored as an ordinary neutral result; mark it as needing review and show it (TradingAgents `rating.py` `REVIEW`) [PRIORITY: HIGH]
-- [ ] Audit the domain scorers (valuation DCF / owner earnings / EV-EBITDA, financials, risk) for "missing field = 0" defaults, like the fundamentals vote had [PRIORITY: HIGH]
+- [x] No silent HOLD: a result built on a fallback (model unavailable or its reply unreadable) carries `needs_review` with the reason, and so does a recommendation that held for lack of analysts or built on an analyst that fell back; shown on the verdict, the breakdown, the panels and the watchlist
+- [x] Audit for "missing field = 0": risk (D/E, current ratio, beta, short ratio), institutional (ownership, flows → `unknown`), broad_analysis (market cap) now say N/A; EV/EBITDA needs reported debt; owner earnings assume maintenance ≈ D&A when capex is missing; the liquidity trend and yearly growth skip a missing figure
 - [x] Tests read the real environment: five tests (`test_llm_router.py`, `test_preflight.py`, `test_api.py::test_agents_show_their_effective_profile`) fail when `GEMINI_API_KEY` / `GROQ_API_KEY` / `LLM_PROVIDER` are set in the shell — isolated: conftest drops every Settings variable from the environment and ignores `.env`
 - [x] CI: `timeout-minutes` on the Playwright install (it hung twice before any test ran) and the browser cached per Playwright version
 - [ ] Persist the FMP call counter in the DB: a restart resets the in-process `DailyCallBudget`, so a day with a restart can pass the 250 free calls [PRIORITY: MED]
@@ -32,7 +32,7 @@ current pipeline is trustworthy and measured. A new idea goes in the section it 
 - [ ] FMP free plan: institutional ownership and earnings-call transcripts return 402, so `institutional` and `growth` always answer neutral 0% (weights 5 and 10 contribute nothing). Either a free source (SEC 13F for holders, 8-K exhibits for transcripts) or lower their weights until one exists — confirm with backtest A [PRIORITY: MED]
 - [ ] FMP budget: ~22 calls per symbol per run (~110/250 for 5 symbols). Share one statements fetch per symbol across agents (they ask for different `limit`s, so the cache misses), or cache annual statements for a day [PRIORITY: MED]
 - [ ] More invariants: risk (bullish with D/E > 3 and current ratio < 1), earnings (beat rate ≥ 75% + positive reaction yet bearish), institutional (distributing yet bullish) — normalise D/E units first (FMP ratio vs Yahoo percent) [PRIORITY: MED]
-- [ ] Show data gaps and contract violations per agent on the symbol page, so a weak result is visible as weak [PRIORITY: MED]
+- [x] Show data gaps, contract violations and `needs_review` per agent on the symbol page, so a weak result is visible as weak
 - [ ] FMP earnings history: the free plan caps `earnings?limit` at 5, so the earnings agent sees half its 8-quarter window — make the limit a setting (`FMP_EARNINGS_LIMIT`) for paid plans [PRIORITY: LOW]
 - [ ] Re-review results stored before the per-agent compliance gate existed (they have no `compliance` field) [PRIORITY: LOW]
 

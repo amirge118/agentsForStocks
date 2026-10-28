@@ -93,6 +93,16 @@ export function RecommendationCard({ symbol }: { symbol: string }) {
             Risk override applied: a high-confidence bearish risk signal capped this call.
           </p>
         )}
+        {(rec.needs_review?.length ?? 0) > 0 && (
+          <div className="rounded-control border border-rule-2 bg-paper-3 px-3 py-2 text-sm text-ink-2">
+            <p className="text-ink">Needs review before you rely on it:</p>
+            <ul className="mt-1 list-disc pl-5">
+              {rec.needs_review!.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <ConsensusBar breakdown={rec.agent_breakdown} />
         <ContributionWaterfall breakdown={rec.agent_breakdown} score={rec.weighted_score} />
         {rec.agents_missing.length > 0 && (

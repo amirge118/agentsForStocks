@@ -72,6 +72,9 @@ class AnalysisResult(BaseModel):
     contract_violations: list[str] = Field(default_factory=list)
     # ... and the compliance review of the reasoning (app/agents/compliance.py)
     compliance: ComplianceView | None = None
+    # Why a person should check this result before trusting it — e.g. the model was
+    # unavailable and a rule-based fallback stood in. Empty: nothing to check
+    needs_review: list[str] = Field(default_factory=list)
 
     @classmethod
     def from_judgement(
