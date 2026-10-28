@@ -9,7 +9,8 @@ Watchlist endpoints — the symbols the daily pipeline analyses:
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, symbol_param
+from app.api.deps import get_container, get_session, symbol_param
+from app.container import Container
 from app.repositories.watchlist import (
     DuplicateSymbolError,
     WatchlistFullError,
@@ -32,8 +33,17 @@ async def list_watchlist(session: AsyncSession = Depends(get_session)) -> list[W
     responses={409: {"description": "Already on the watchlist"}},
 )
 async def add_to_watchlist(
-    body: WatchlistAdd, session: AsyncSession = Depends(get_session)
+    body: WatchlistAdd,
+    session: AsyncSession = Depends(get_session),
+    container: Container = Depends(get_container),
 ) -> WatchlistItemOut:
+    # A typo would otherwise fail every agent, every day. When the check can't be
+    # made (Yahoo unreachable) the symbol is accepted: the format was valid
+    if await container.ticker_exists(body.symbol) is False:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"{body.symbol}: no market data for this ticker — check the symbol",
+        )
     try:
         item = await WatchlistRepository(session).add(body.symbol)
     except DuplicateSymbolError as exc:

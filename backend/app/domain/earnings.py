@@ -1,6 +1,7 @@
 """Earnings surprise history and post-earnings price reaction."""
 
 from dataclasses import dataclass
+from datetime import date
 
 import pandas as pd
 
@@ -88,3 +89,17 @@ def next_earnings_date(earnings_dates: pd.DataFrame, now: pd.Timestamp | None = 
     except TypeError:  # tz-naive index
         future = earnings_dates[earnings_dates.index > current.tz_localize(None)]
     return str(future.index.min().date()) if not future.empty else "Unknown"
+
+
+def scheduled_report(surprises: list[dict], today: date) -> str:
+    """
+    ISO date of the next report from FMP's earnings rows (the ones without an
+    actual EPS yet, dated today or later), or 'Unknown'. Used when Yahoo's
+    calendar is unavailable.
+    """
+    upcoming = sorted(
+        str(s["date"])[:10]
+        for s in surprises
+        if s.get("epsActual") is None and s.get("date") and str(s["date"])[:10] >= today.isoformat()
+    )
+    return upcoming[0] if upcoming else "Unknown"

@@ -59,8 +59,13 @@ async def api(concurrent_session_factory) -> AsyncIterator[httpx.AsyncClient]:
         build_agent=lambda name: container.registry.get(name).agent_cls(ctx),
     )
     container.launcher = PipelineLauncher(orchestrator, container.registry)
-    # Fake providers for the endpoints that fetch data directly (price chart)
+    # Fake providers for the endpoints that fetch data directly (price chart, ticker check)
     container.agent_context = ctx
+
+    async def known(symbol: str) -> bool | None:
+        return {"ZZZZ": False, "OFFLINE": None}.get(symbol, True)
+
+    container.ticker_exists = known
     app.state.container = container
 
     async with concurrent_session_factory() as session:
@@ -198,6 +203,11 @@ async def test_watchlist_crud_drives_symbols_and_runs(api: httpx.AsyncClient) ->
     assert added.json()["symbol"] == "NVDA" and added.json()["position"] == 2
     assert (await api.post("/api/v1/watchlist", json={"symbol": "NVDA"})).status_code == 409
     assert (await api.post("/api/v1/watchlist", json={"symbol": "BAD$"})).status_code == 422
+    unknown = await api.post("/api/v1/watchlist", json={"symbol": "zzzz"})
+    assert unknown.status_code == 422 and "no market data" in unknown.json()["detail"]
+    # The check can't be made: the well-formed symbol is accepted
+    assert (await api.post("/api/v1/watchlist", json={"symbol": "OFFLINE"})).status_code == 201
+    assert (await api.delete("/api/v1/watchlist/OFFLINE")).status_code == 204
 
     reordered = await api.put("/api/v1/watchlist/order", json={"symbols": ["NVDA", "AAPL", "MSFT"]})
     assert reordered.status_code == 200

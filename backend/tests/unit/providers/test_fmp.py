@@ -100,6 +100,7 @@ async def test_an_endpoint_outside_the_plan_is_no_data_not_a_failure(make_http, 
         assert await client.get_earnings_call_transcript("AAPL", 2026, 1) == {}
         assert await client.get_earnings_call_transcript("AAPL", 2025, 4) == {}
     assert caplog.text.count("not in your plan") == 1  # one warning per endpoint
+    assert calls == 1  # and one call: the plan won't change mid-process, the budget is spared
     with pytest.raises(ProviderError, match="403"):  # anything else still fails the call
         await client.get_company_profile("AAPL")
 
@@ -211,3 +212,24 @@ async def test_info_fields_fetch_the_six_endpoints_once(make_http) -> None:
             "cash-flow-statement",
         ]
     )
+
+
+@pytest.mark.unit
+async def test_every_limit_shares_one_request_per_statement(make_http) -> None:
+    seen: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.url.path, request.url.params.get("limit")))
+        n = int(request.url.params["limit"])
+        return httpx.Response(200, json=[{"year": 2026 - i} for i in range(n)])
+
+    budget = DailyCallBudget(limit=100)
+    client = FmpClient(make_http(handler), api_key="k", budget=budget, earnings_limit=9)
+    assert [r["year"] for r in await client.get_balance_sheets("AAPL", limit=1)] == [2026]
+    assert len(await client.get_balance_sheets("AAPL", limit=3)) == 3
+    assert len(await client.get_balance_sheets("AAPL", limit=5)) == 5
+    assert seen == [("/stable/balance-sheet-statement", "5")]  # one call, then the cache
+    assert budget.used == 1
+
+    await client.get_earnings_surprises("AAPL")  # a paid plan's longer window
+    assert seen[-1] == ("/stable/earnings", "9")

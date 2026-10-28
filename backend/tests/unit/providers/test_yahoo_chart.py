@@ -115,3 +115,12 @@ async def test_no_adjusted_closes_is_empty_never_unadjusted(make_http, caplog) -
     assert "no adjusted closes" in caplog.text
     unknown = _client(make_http)
     assert (await unknown.get_adjusted_closes("NOPE", date(2026, 10, 1), date(2026, 11, 1))).empty
+
+
+@pytest.mark.unit
+async def test_symbol_exists_tells_unknown_from_unreachable(make_http) -> None:
+    client = _client(make_http)
+    assert await client.symbol_exists("AAPL") is True
+    assert await client.symbol_exists("NOPE") is False  # Yahoo's 404: no such ticker
+    down = YahooChartClient(make_http(lambda request: httpx.Response(503)))
+    assert await down.symbol_exists("AAPL") is None  # can't tell: don't block the user

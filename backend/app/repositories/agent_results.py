@@ -16,6 +16,11 @@ class AgentResultRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    async def all(self) -> list[AgentResult]:
+        """Every stored result, oldest first (for one-off backfills)."""
+        stmt = select(AgentResult).order_by(AgentResult.run_date, AgentResult.agent_type)
+        return list((await self._session.execute(stmt)).scalars().all())
+
     async def exists(self, agent_type: str, symbol: str, run_date: date) -> bool:
         stmt = select(AgentResult.id).where(
             AgentResult.agent_type == agent_type,

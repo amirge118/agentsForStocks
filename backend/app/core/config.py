@@ -89,6 +89,10 @@ class Settings(BaseSettings):
     alpha_vantage_key: str = ""
     fmp_api_key: str = ""
     fmp_daily_call_limit: int = 250  # FMP free tier
+    # Rows per FMP request: the free plan answers a `limit` above 5 with HTTP 402 and no
+    # data. On a paid plan, raise FMP_EARNINGS_LIMIT to 9 for the full 8-quarter window
+    fmp_statement_rows: int = 5
+    fmp_earnings_limit: int = 5
     # SEC requires a descriptive User-Agent with contact info
     edgar_user_agent: str = "agentsForStocks research@agentsforstocks.com"
     # Same-day reruns and agents sharing a data point hit the cache instead of the API

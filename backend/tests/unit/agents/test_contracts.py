@@ -235,3 +235,79 @@ async def test_risk_cap_holds_when_the_model_answers_hold_too_sure(session_facto
     assert (result.signal, result.confidence) == ("neutral", 55.0)
     assert result.risk_override_applied is True
     assert "Confidence capped" in result.reasoning
+
+
+@pytest.mark.unit
+def test_risk_invariant_bullish_needs_a_sound_balance_sheet() -> None:
+    from app.agents.risk import RiskResult, _bullish_needs_a_sound_balance_sheet
+
+    def risk(signal: str, de: float | None, cr: float | None) -> RiskResult:
+        return RiskResult(
+            signal=signal,
+            confidence=60,
+            reasoning="r",
+            summary="s",
+            debt_to_equity=de,
+            current_ratio=cr,
+            beta=1.0,
+            risk_keywords=[],
+        )
+
+    check = _bullish_needs_a_sound_balance_sheet
+    assert check(None, risk("bullish", 3.5, 0.8)) == (
+        "bullish (low risk) with D/E 3.5 and current ratio 0.80"
+    )
+    assert check(None, risk("bullish", 3.5, 1.2)) is None
+    assert check(None, risk("bearish", 3.5, 0.8)) is None
+    assert check(None, risk("bullish", None, 0.8)) is None  # unknown is no evidence
+
+
+@pytest.mark.unit
+def test_earnings_invariant_signal_follows_the_record() -> None:
+    from app.agents.earnings import EarningsResult, _signal_follows_the_record
+
+    def earnings(signal: str, rate: float, reaction: float, quarters: int = 4) -> EarningsResult:
+        return EarningsResult(
+            signal=signal,
+            confidence=60,
+            reasoning="r",
+            summary="s",
+            quarters_analyzed=quarters,
+            beat_rate=rate,
+            avg_surprise_pct=3.0,
+            avg_1d_return=reaction,
+            next_earnings="Unknown",
+        )
+
+    check = _signal_follows_the_record
+    assert check(None, earnings("bearish", 1.0, 2.0)) == (
+        "bearish with a 100% beat rate and a +2.0% reaction"
+    )
+    assert check(None, earnings("bullish", 0.25, -1.5)) is not None
+    assert check(None, earnings("bearish", 1.0, -2.0)) is None  # beats, but sold off
+    assert check(None, earnings("bearish", 1.0, 2.0, quarters=2)) is None  # too few quarters
+
+
+@pytest.mark.unit
+def test_institutional_invariant_signal_follows_the_flow() -> None:
+    from app.agents.institutional import InstitutionalResult, _signal_follows_the_flow
+
+    def inst(signal: str, direction: str) -> InstitutionalResult:
+        return InstitutionalResult(
+            signal=signal,
+            confidence=60,
+            reasoning="r",
+            summary="s",
+            institutional_pct=0.6,
+            net_share_change=-1.0,
+            direction=direction,
+            top5_concentration=0.3,
+        )
+
+    check = _signal_follows_the_flow
+    assert check(None, inst("bullish", "distributing")) == (
+        "bullish while institutions are distributing"
+    )
+    assert check(None, inst("bearish", "accumulating")) is not None
+    assert check(None, inst("bullish", "accumulating")) is None
+    assert check(None, inst("bullish", "unknown")) is None

@@ -211,9 +211,17 @@ class FakeFmp:
 
 
 class FakeEdgar:
-    def __init__(self, business: str = "", risk: str = "") -> None:
+    def __init__(
+        self,
+        business: str = "",
+        risk: str = "",
+        insider: list[dict] | None = None,
+        release: dict | None = None,
+    ) -> None:
         self.business = business or "Our brand and installed base create switching cost."
         self.risk = risk or "We face litigation and geopolitical risk."
+        self.insider = insider or []
+        self.release = release or {}
 
     async def get_business_section(self, symbol: str) -> str:
         return self.business
@@ -224,6 +232,14 @@ class FakeEdgar:
     async def get_10k_section(self, symbol: str, section: str, filed_by: Any = None) -> str:
         self.filed_by = filed_by
         return self.business if section == "business" else self.risk
+
+    async def get_insider_transactions(self, symbol: str, filed_by: Any = None) -> list[dict]:
+        self.filed_by = filed_by
+        return list(self.insider)
+
+    async def get_earnings_release(self, symbol: str, filed_by: Any = None) -> dict:
+        self.filed_by = filed_by
+        return dict(self.release)
 
 
 class RouterStub:

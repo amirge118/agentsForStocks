@@ -57,3 +57,27 @@ def withheld_reasoning(signal: str, confidence: float) -> str:
         f"Analyst commentary withheld after compliance review. "
         f"Signal: {signal} at {confidence:.0f}% confidence."
     )
+
+
+def review_stored(agent: str, symbol: str, stored: dict) -> dict | None:
+    """
+    The compliance review for a result stored before the gate existed: the stored
+    payload with `compliance` added (and the reasoning replaced on a fail), or None
+    when it was already reviewed.
+    """
+    if stored.get("compliance") is not None:
+        return None
+    base = AnalysisResult(
+        signal=stored.get("signal", "neutral"),
+        confidence=float(stored.get("confidence") or 0.0),
+        reasoning=str(stored.get("reasoning", "")),
+        summary=str(stored.get("summary", "")),
+    )
+    reviewed = apply_compliance(agent, symbol, base)
+    compliance = reviewed.compliance.model_dump(mode="json") if reviewed.compliance else None
+    return {
+        **stored,
+        "reasoning": reviewed.reasoning,
+        "summary": reviewed.summary,
+        "compliance": compliance,
+    }

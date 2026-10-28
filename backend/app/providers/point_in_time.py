@@ -216,6 +216,13 @@ class PointInTimeEdgar:
     async def get_risk_factors(self, symbol: str) -> str:
         return await self._inner.get_10k_section(symbol, "risk_factors", filed_by=self.as_of)
 
+    async def get_insider_transactions(self, symbol: str) -> list[dict]:
+        rows = await self._inner.get_insider_transactions(symbol, filed_by=self.as_of)
+        return known_by(rows, self.as_of, "Start Date")
+
+    async def get_earnings_release(self, symbol: str) -> dict:
+        return await self._inner.get_earnings_release(symbol, filed_by=self.as_of)
+
 
 # Ask for a few more rows than needed: the newest may be filtered out as not yet filed.
 # Never above the free plan's cap, which answers a larger limit with no data at all.
