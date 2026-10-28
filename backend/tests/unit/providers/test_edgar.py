@@ -129,3 +129,134 @@ async def test_10k_filed_by_a_date_picks_the_one_known_then(make_http) -> None:
     assert "2025" in await undated.get_10k_section("AAPL", "business")
     # No filing date: none can be shown to have been filed early enough
     assert await undated.get_10k_section("AAPL", "business", filed_by=date(2025, 6, 1)) == ""
+
+
+def _form4(code: str, day: str, shares: str = "100", price: str = "200.5") -> str:
+    return f"""<?xml version="1.0"?><ownershipDocument>
+<reportingOwner><reportingOwnerId>
+<rptOwnerName>Doe Jane &amp; Co</rptOwnerName>
+</reportingOwnerId></reportingOwner>
+<nonDerivativeTable><nonDerivativeTransaction>
+<transactionDate><value>{day}</value></transactionDate>
+<transactionCoding><transactionFormType>4</transactionFormType><transactionCode>{code}</transactionCode></transactionCoding>
+<transactionAmounts><transactionShares><value>{shares}</value></transactionShares>
+<transactionPricePerShare><value>{price}</value></transactionPricePerShare></transactionAmounts>
+</nonDerivativeTransaction></nonDerivativeTable></ownershipDocument>"""
+
+
+@pytest.mark.unit
+def test_form4_keeps_open_market_purchases_and_sales_only() -> None:
+    from app.providers.edgar import parse_form4
+
+    assert parse_form4(_form4("S", "2026-10-20")) == [
+        {
+            "Start Date": "2026-10-20",
+            "Transaction": "Sale",
+            "Insider": "Doe Jane & Co",
+            "Shares": 100.0,
+            "Value": 20050.0,
+            "source": "SEC Form 4",
+        }
+    ]
+    assert parse_form4(_form4("P", "2026-10-21"))[0]["Transaction"] == "Purchase"
+    # Awards, option exercises and tax withholding are not a view on the price
+    assert parse_form4(_form4("A", "2026-10-21")) == []
+    assert parse_form4(_form4("M", "2026-10-21")) == []
+    assert parse_form4(_form4("S", "2026-10-21", price=""))[0]["Value"] is None
+
+
+@pytest.mark.unit
+async def test_insider_trades_come_from_the_latest_form4_filings(make_http) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.endswith("company_tickers.json"):
+            return httpx.Response(200, json={"0": {"cik_str": 320193, "ticker": "AAPL"}})
+        if "submissions/CIK0000320193" in url:
+            return httpx.Response(
+                200,
+                json={
+                    "filings": {
+                        "recent": {
+                            "form": ["4", "8-K", "4", "4"],
+                            "filingDate": ["2026-10-22", "2026-10-21", "2026-10-19", "2026-06-01"],
+                            "accessionNumber": ["0001-26-3", "0001-26-2", "0001-26-1", "0001-26-0"],
+                            "primaryDocument": ["xslF345X06/f.xml"] * 4,
+                        }
+                    }
+                },
+            )
+        # The raw XML sits beside the XSL-rendered primary document
+        if url.endswith("/data/320193/0001263/f.xml"):
+            return httpx.Response(200, text=_form4("S", "2026-10-20"))
+        if url.endswith("/data/320193/0001261/f.xml"):
+            return httpx.Response(200, text=_form4("P", "2026-10-17"))
+        if url.endswith("/data/320193/0001260/f.xml"):
+            return httpx.Response(200, text=_form4("P", "2026-05-29"))
+        return httpx.Response(404)
+
+    edgar = EdgarClient(make_http(handler), "agentsForStocks test@example.com")
+    trades = await edgar.get_insider_transactions("AAPL")
+    assert [(t["Start Date"], t["Transaction"]) for t in trades] == [
+        ("2026-10-20", "Sale"),
+        ("2026-10-17", "Purchase"),
+        ("2026-05-29", "Purchase"),
+    ]
+    from datetime import date
+
+    # Point in time: only what was filed by then
+    past = await edgar.get_insider_transactions("AAPL", filed_by=date(2026, 10, 20))
+    assert [t["Start Date"] for t in past] == ["2026-10-17", "2026-05-29"]
+    assert await edgar.get_insider_transactions("AAPL", filings=1) == trades[:1]
+
+
+@pytest.mark.unit
+async def test_insider_trades_are_empty_when_sec_fails(make_http) -> None:
+    edgar = EdgarClient(make_http(lambda r: httpx.Response(500)), "agentsForStocks t@example.com")
+    assert await edgar.get_insider_transactions("AAPL") == []
+
+
+@pytest.mark.unit
+async def test_earnings_release_is_exhibit_99_1_of_the_latest_item_2_02_8k(make_http) -> None:
+    from datetime import date
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.endswith("company_tickers.json"):
+            return httpx.Response(200, json={"0": {"cik_str": 320193, "ticker": "AAPL"}})
+        if "submissions/CIK0000320193" in url:
+            return httpx.Response(
+                200,
+                json={
+                    "filings": {
+                        "recent": {
+                            "form": ["8-K", "8-K", "8-K"],
+                            "items": ["5.02", "2.02,9.01", "2.02,9.01"],
+                            "filingDate": ["2026-10-01", "2026-07-30", "2026-04-30"],
+                            "accessionNumber": ["0001-26-9", "0001-26-7", "0001-26-4"],
+                            "primaryDocument": ["a.htm", "b.htm", "c.htm"],
+                        }
+                    }
+                },
+            )
+        if url.endswith("/0001267/index.json"):
+            names = ["b.htm", "a8-kex991q32026.htm", "ex9910.htm"]
+            return httpx.Response(200, json={"directory": {"item": [{"name": n} for n in names]}})
+        if url.endswith("/0001264/index.json"):
+            return httpx.Response(200, json={"directory": {"item": [{"name": "ex99-1.htm"}]}})
+        if url.endswith("/0001267/a8-kex991q32026.htm"):
+            return httpx.Response(200, text="<p>Apple reports <b>third</b> quarter results</p>")
+        if url.endswith("/0001264/ex99-1.htm"):
+            return httpx.Response(200, text="<p>Second quarter</p>")
+        return httpx.Response(404)
+
+    edgar = EdgarClient(make_http(handler), "agentsForStocks test@example.com")
+    assert await edgar.get_earnings_release("AAPL") == {
+        "date": "2026-07-30",
+        "content": "Apple reports third quarter results",
+        "source": "8-K Exhibit 99.1",
+    }
+    earlier = await edgar.get_earnings_release("AAPL", filed_by=date(2026, 7, 29))
+    assert earlier["content"] == "Second quarter"
+    assert await edgar.get_earnings_release("AAPL", filed_by=date(2026, 1, 1)) == {}
+    broken = EdgarClient(make_http(lambda r: httpx.Response(500)), "agentsForStocks t@e.com")
+    assert await broken.get_earnings_release("AAPL") == {}

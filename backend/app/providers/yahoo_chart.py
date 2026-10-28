@@ -66,6 +66,27 @@ class YahooChartClient:
         result = await self._chart(symbol, "5d", "1d")
         return to_quote(result) if result is not None else {}
 
+    async def symbol_exists(self, symbol: str) -> bool | None:
+        """
+        True when Yahoo has prices for the ticker, False when it answers that it has
+        none (HTTP 404, "symbol may be delisted"), None when it can't be asked now.
+        """
+        try:
+            data = await self._http.get_json(
+                _CHART_URL.format(symbol=validate_symbol(symbol)),
+                params={"range": "5d", "interval": "1d"},
+                headers=_HEADERS,
+            )
+        except ProviderError as exc:
+            if exc.status == 404:
+                return False
+            logger.warning(
+                "Could not check the ticker", extra={"symbol": symbol, "error": str(exc)}
+            )
+            return None
+        results = ((data or {}).get("chart") or {}).get("result") or []
+        return bool(results)
+
     async def get_adjusted_closes(self, symbol: str, start: date, end: date) -> pd.Series:
         """
         Split- and dividend-adjusted daily closes for the sessions in [start, end), like

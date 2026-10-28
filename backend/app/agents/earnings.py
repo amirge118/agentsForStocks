@@ -9,11 +9,13 @@ import pandas as pd
 from app.agents.base import Agent, AnalysisResult, neutral_fallback
 from app.agents.formatting import knowledge_block
 from app.agents.registry import register_agent
+from app.core.clock import market_today
 from app.domain.earnings import (
     QUARTERS_ANALYZED,
     next_earnings_date,
     post_earnings_reaction,
     reported,
+    scheduled_report,
     surprise_pct,
     surprise_stats,
 )
@@ -38,11 +40,28 @@ class EarningsData:
     history: pd.DataFrame
 
 
+# Enough reported quarters for a beat rate to mean something
+_MIN_QUARTERS = 4
+
+
+def _signal_follows_the_record(data: object, result: EarningsResult) -> str | None:
+    """The prompt's rule: consistent beats + a positive reaction are not bearish, and back."""
+    if result.quarters_analyzed < _MIN_QUARTERS:
+        return None
+    rate, reaction = result.beat_rate, result.avg_1d_return
+    if result.signal == "bearish" and rate >= _CONSISTENT_BEATER and reaction > 0:
+        return f"bearish with a {rate:.0%} beat rate and a {reaction:+.1f}% reaction"
+    if result.signal == "bullish" and rate <= _FREQUENT_MISSER and reaction < 0:
+        return f"bullish with a {rate:.0%} beat rate and a {reaction:+.1f}% reaction"
+    return None
+
+
 @register_agent(
     "earnings",
     description="Earnings surprise history and market reaction",
     recommendation_weight=5,
     company_only=True,
+    invariants=(_signal_follows_the_record,),
 )
 class EarningsAgent(Agent[EarningsData, EarningsResult]):
     result_model = EarningsResult
@@ -59,6 +78,8 @@ class EarningsAgent(Agent[EarningsData, EarningsResult]):
         stats = surprise_stats(data.surprises)
         reaction = post_earnings_reaction(data.surprises, data.history)
         upcoming = next_earnings_date(data.earnings_dates)
+        if upcoming == "Unknown":  # Yahoo's calendar blocked or empty: FMP's next row
+            upcoming = scheduled_report(data.surprises, market_today())
 
         judgement = await self.judge(
             f"""Symbol: {symbol}

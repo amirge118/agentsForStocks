@@ -366,3 +366,70 @@ def test_debt_to_equity_units_and_a_true_zero() -> None:
     assert debt_to_equity_ratio({"debtToEquityRatio": 0.0}, {"debtToEquity": 150}) == 0.0
     assert debt_to_equity_ratio({}, {"debtToEquity": 150}) == 1.5  # yfinance: percent
     assert debt_to_equity_ratio({}, {}) is None
+
+
+@pytest.mark.unit
+async def test_sentiment_takes_insider_trades_from_sec_when_yahoo_has_none() -> None:
+    from app.agents.sentiment import SentimentAgent
+    from app.core.clock import market_today
+
+    class NoInsiderYF(FakeYFinance):
+        async def get_insider_transactions(self, symbol: str) -> list[dict]:
+            return []
+
+    today = market_today().isoformat()
+    form4 = [{"Start Date": today, "Transaction": "Purchase", "source": "SEC Form 4"}] * 2
+    _, result = await _run(SentimentAgent, yfinance=NoInsiderYF(), edgar=FakeEdgar(insider=form4))
+    assert result.insider.detail.startswith("buys=2 sells=0")
+    assert "insider_trades" not in result.data_gaps
+
+
+@pytest.mark.unit
+async def test_earnings_takes_the_next_report_from_fmp_when_yahoo_has_none() -> None:
+    from app.domain.earnings import scheduled_report
+
+    rows = [
+        {"date": "2026-11-02", "epsActual": None},
+        {"date": "2026-07-30", "epsActual": 1.5},
+        {"date": "2026-01-29", "epsActual": None},  # a past row never filled in
+    ]
+    assert scheduled_report(rows, RUN_DATE) == "2026-11-02"
+    assert scheduled_report(rows[1:], RUN_DATE) == "Unknown"
+
+    class NoCalendarYF(FakeYFinance):
+        async def get_earnings_dates(self, symbol: str) -> pd.DataFrame:
+            return pd.DataFrame()
+
+    from datetime import timedelta
+
+    from app.core.clock import market_today
+
+    soon = (market_today() + timedelta(days=5)).isoformat()
+    _, result = await _run(
+        EarningsAgent,
+        yfinance=NoCalendarYF(),
+        fmp=FakeFmp(surprises=[{"date": soon, "epsActual": None, "epsEstimated": 1.0}]),
+    )
+    assert result.next_earnings == soon
+
+
+@pytest.mark.unit
+async def test_growth_reads_the_sec_earnings_release_without_a_transcript() -> None:
+    from app.agents.growth import GrowthAgent
+
+    release = {
+        "date": "2026-07-30",
+        "content": "Record June quarter.",
+        "source": "8-K Exhibit 99.1",
+    }
+    llm = FakeLLM()
+    _, result = await _run(
+        GrowthAgent, llm=llm, fmp=FakeFmp(transcripts={}), edgar=FakeEdgar(release=release)
+    )
+    assert result.earnings_release_used and not result.transcript_available
+    assert "transcripts" not in result.data_gaps
+    prompt = llm.calls[0]["prompt"]
+    assert "--- Earnings release, 8-K Exhibit 99.1 (2026-07-30) ---\nRecord June quarter." in prompt
+
+    _, with_transcript = await _run(GrowthAgent, edgar=FakeEdgar(release=release))
+    assert with_transcript.transcript_available and not with_transcript.earnings_release_used

@@ -1,4 +1,10 @@
-"""GrowthAgent — growth potential from earnings-call transcripts and analyst estimates (FMP)."""
+"""
+GrowthAgent — growth potential from earnings-call transcripts and analyst estimates (FMP).
+
+Transcripts are not in FMP's free plan: without one, management's own account of
+the latest quarter — the earnings release filed with the SEC (8-K, Exhibit 99.1) —
+takes its place, so the agent isn't left with estimates alone.
+"""
 
 import asyncio
 from dataclasses import dataclass
@@ -16,11 +22,13 @@ _TRANSCRIPT_CHARS = 5_000
 class GrowthResult(AnalysisResult):
     transcript_available: bool
     analyst_coverage: int
+    # The SEC earnings release stood in for a transcript (not in FMP's free plan)
+    earnings_release_used: bool = False
 
 
 @dataclass(frozen=True)
 class GrowthData:
-    transcripts: list[dict]  # most recent first
+    transcripts: list[dict]  # most recent first; an SEC earnings release when there are none
     estimates: list[dict]
     income: list[dict]
 
@@ -50,6 +58,9 @@ class GrowthAgent(Agent[GrowthData, GrowthResult]):
                 fmp.get_earnings_call_transcript(symbol, year - 1, 4),
             )
             transcripts = [t for t in (q4, q3) if t]
+        if not transcripts:
+            release = await self.ctx.edgar.get_earnings_release(symbol)
+            transcripts = [release] if release else []
         return GrowthData(transcripts=transcripts, estimates=estimates, income=income)
 
     async def analyze(self, symbol: str, data: GrowthData, memory: list[str]) -> GrowthResult:
@@ -71,8 +82,9 @@ Recent earnings call transcript(s):
         return GrowthResult.from_judgement(
             "Growth",
             judgement,
-            transcript_available=bool(data.transcripts),
+            transcript_available=any("source" not in t for t in data.transcripts),
             analyst_coverage=len(data.estimates),
+            earnings_release_used=any("source" in t for t in data.transcripts),
         )
 
 
@@ -100,8 +112,11 @@ def _format_transcripts(transcripts: list[dict]) -> str:
     for t in transcripts[:_TRANSCRIPTS_IN_PROMPT]:
         content = (t.get("content") or "")[:_TRANSCRIPT_CHARS]
         if content:
+            day = str(t.get("date") or "")[:10]
             label = (
-                f"Q{t.get('quarter', '?')} {t.get('year', '?')} ({str(t.get('date') or '')[:10]})"
+                f"Earnings release, {t['source']} ({day})"
+                if t.get("source")
+                else f"Q{t.get('quarter', '?')} {t.get('year', '?')} ({day})"
             )
             parts.append(f"--- {label} ---\n{content}")
     return "\n\n".join(parts) or "No earnings call transcripts available."

@@ -7,6 +7,7 @@ modules decoupled and lets tests swap in fakes (see tests/factories.py).
 
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 import anthropic
@@ -66,6 +67,8 @@ class Container:
     orchestrator: PipelineOrchestrator
     launcher: PipelineLauncher
     lock: PipelineLock
+    # Does the ticker exist? True / False, or None when the check can't be made now
+    ticker_exists: Callable[[str], Awaitable[bool | None]]
     session_factory: async_sessionmaker[AsyncSession]
     http: HttpClient
     llm: LLMRouter
@@ -190,14 +193,17 @@ def build_container(
         DailyCallBudget(
             settings.fmp_daily_call_limit, counter=StoredCallCounter(session_factory, "fmp")
         ),
+        statement_rows=settings.fmp_statement_rows,
+        earnings_limit=settings.fmp_earnings_limit,
     )
+    chart = YahooChartClient(http)
     context = AgentContext(
         yfinance=YFinanceClient(
             rate_limiter=rate_limiter,
             cache=cache,
             # When Yahoo refuses yfinance's crumb (cloud hosts): prices from the chart
             # endpoint, fundamentals from FMP
-            fallback=YahooChartClient(http),
+            fallback=chart,
             fundamentals=fmp.get_info_fields if settings.fmp_api_key else None,
         ),
         fmp=fmp,
@@ -228,6 +234,7 @@ def build_container(
         orchestrator=orchestrator,
         launcher=PipelineLauncher(orchestrator, registry, lock),
         lock=lock,
+        ticker_exists=chart.symbol_exists,
         session_factory=session_factory,
         http=http,
         llm=llm,

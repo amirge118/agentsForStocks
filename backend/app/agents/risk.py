@@ -31,11 +31,27 @@ class RiskData:
     info: dict
 
 
+# The prompt's "bullish = strong balance sheet": heavy debt and too little cash for
+# the bills due within a year is not one
+_HEAVY_DEBT_TO_EQUITY = 3.0
+_STRESSED_CURRENT_RATIO = 1.0
+
+
+def _bullish_needs_a_sound_balance_sheet(data: object, result: RiskResult) -> str | None:
+    de, cr = result.debt_to_equity, result.current_ratio
+    if result.signal != "bullish" or de is None or cr is None:
+        return None
+    if de > _HEAVY_DEBT_TO_EQUITY and cr < _STRESSED_CURRENT_RATIO:
+        return f"bullish (low risk) with D/E {de:.1f} and current ratio {cr:.2f}"
+    return None
+
+
 @register_agent(
     "risk",
     description="Downside risk: risk factors, leverage, liquidity, beta",
     recommendation_weight=15,
     company_only=True,
+    invariants=(_bullish_needs_a_sound_balance_sheet,),
 )
 class RiskAgent(Agent[RiskData, RiskResult]):
     result_model = RiskResult

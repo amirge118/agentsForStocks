@@ -31,11 +31,20 @@ class InstitutionalData:
     info: dict
 
 
+def _signal_follows_the_flow(data: object, result: InstitutionalResult) -> str | None:
+    """The prompt judges the net institutional direction: the signal shouldn't oppose it."""
+    opposed = {"distributing": "bullish", "accumulating": "bearish"}
+    if opposed.get(result.direction) == result.signal:
+        return f"{result.signal} while institutions are {result.direction}"
+    return None
+
+
 @register_agent(
     "institutional",
     description="Institutional ownership trend (13F)",
     recommendation_weight=5,
     company_only=True,
+    invariants=(_signal_follows_the_flow,),
 )
 class InstitutionalAgent(Agent[InstitutionalData, InstitutionalResult]):
     result_model = InstitutionalResult

@@ -39,6 +39,8 @@ class SentimentAgent(Agent[SentimentData, SentimentResult]):
             self.ctx.yfinance.get_insider_transactions(symbol),
             self.ctx.yfinance.get_news(symbol),
         )
+        if not trades:  # Yahoo blocked or empty: the same trades, from the SEC's Form 4s
+            trades = await self.ctx.edgar.get_insider_transactions(symbol)
         return SentimentData(insider_trades=trades, headlines=headlines(news))
 
     async def analyze(self, symbol: str, data: SentimentData, memory: list[str]) -> SentimentResult:

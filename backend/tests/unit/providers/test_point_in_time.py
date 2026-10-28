@@ -154,6 +154,12 @@ async def test_edgar_asks_for_the_10k_filed_by_as_of() -> None:
     assert "switching cost" in await edgar.get_business_section("AAPL")
     assert inner.filed_by == AS_OF
     assert "litigation" in await edgar.get_risk_factors("AAPL")
+    inner.insider = [{"Start Date": "2026-06-16"}, {"Start Date": "2026-06-12"}]
+    assert await edgar.get_insider_transactions("AAPL") == [{"Start Date": "2026-06-12"}]
+    assert inner.filed_by == AS_OF
+    inner.release = {"date": "2026-04-30", "content": "Q2"}
+    assert (await edgar.get_earnings_release("AAPL"))["content"] == "Q2"
+    assert inner.filed_by == AS_OF
 
 
 @pytest.mark.unit

@@ -75,14 +75,31 @@ class DailyCallBudget:
 
 
 class FmpClient:
-    def __init__(self, http: HttpClient, api_key: str, budget: DailyCallBudget) -> None:
+    def __init__(
+        self,
+        http: HttpClient,
+        api_key: str,
+        budget: DailyCallBudget,
+        *,
+        statement_rows: int = FREE_PLAN_MAX_LIMIT,
+        earnings_limit: int = FREE_PLAN_MAX_LIMIT,
+    ) -> None:
+        """
+        statement_rows: annual rows fetched per statement endpoint, whatever `limit` an
+        agent asks for — one cached call per symbol and endpoint instead of one per
+        limit. earnings_limit: rows of `earnings` (the free plan stops at 5).
+        """
         self._http = http
         self._api_key = api_key
         self._budget = budget
+        self._statement_rows = statement_rows
+        self._earnings_limit = earnings_limit
         self._not_in_plan: set[str] = set()
 
     async def _get(self, path: str, symbol: str, **params: Any) -> Any:
         """GET /stable/<path>?symbol=...; None when the endpoint isn't in the plan."""
+        if path in self._not_in_plan:  # known since its first 402: don't spend a call on it
+            return None
         try:
             return await self._http.get_json(
                 f"{_BASE_URL}/{path}",
@@ -106,6 +123,13 @@ class FmpClient:
             return []
         return data
 
+    async def _annual(self, path: str, symbol: str, limit: int) -> list[dict]:
+        """The latest `limit` annual rows, from one shared request of `statement_rows`."""
+        rows = await self._get_list(
+            path, symbol, limit=max(limit, self._statement_rows), period="annual"
+        )
+        return rows[:limit]
+
     async def get_company_profile(self, symbol: str) -> dict:
         """companyName, description, sector, industry, ceo, marketCap, isEtf, ipoDate."""
         rows = await self._get_list("profile", symbol)
@@ -113,28 +137,28 @@ class FmpClient:
 
     async def get_income_statements(self, symbol: str, limit: int = 5) -> list[dict]:
         """Annual, most recent first: revenue, grossProfit, operatingIncome, netIncome, ebitda."""
-        return await self._get_list("income-statement", symbol, limit=limit, period="annual")
+        return await self._annual("income-statement", symbol, limit)
 
     async def get_balance_sheets(self, symbol: str, limit: int = 5) -> list[dict]:
         """Annual: totalDebt, cashAndCashEquivalents, totalStockholdersEquity, totalAssets."""
-        return await self._get_list("balance-sheet-statement", symbol, limit=limit, period="annual")
+        return await self._annual("balance-sheet-statement", symbol, limit)
 
     async def get_cash_flow_statements(self, symbol: str, limit: int = 5) -> list[dict]:
         """Annual: freeCashFlow, operatingCashFlow, capitalExpenditure."""
-        return await self._get_list("cash-flow-statement", symbol, limit=limit, period="annual")
+        return await self._annual("cash-flow-statement", symbol, limit)
 
     async def get_key_metrics(self, symbol: str, limit: int = 5) -> list[dict]:
         """Annual: evToEBITDA, currentRatio, enterpriseValue, returnOnEquity, marketCap."""
-        return await self._get_list("key-metrics", symbol, limit=limit, period="annual")
+        return await self._annual("key-metrics", symbol, limit)
 
     async def get_financial_ratios(self, symbol: str, limit: int = 5) -> list[dict]:
         """Annual: grossProfitMargin, netProfitMargin, debtToEquityRatio, priceToEarningsRatio."""
-        return await self._get_list("ratios", symbol, limit=limit, period="annual")
+        return await self._annual("ratios", symbol, limit)
 
     async def get_earnings_surprises(self, symbol: str) -> list[dict]:
         """date, epsActual, epsEstimated, revenueActual, revenueEstimated — most recent first.
         The next (upcoming) report comes first, with epsActual = None."""
-        return await self._get_list("earnings", symbol, limit=FREE_PLAN_MAX_LIMIT)
+        return await self._get_list("earnings", symbol, limit=self._earnings_limit)
 
     async def get_earnings_call_transcript(self, symbol: str, year: int, quarter: int) -> dict:
         """quarter, year, date, content (truncated). {} when unavailable or not in the plan."""
@@ -166,7 +190,7 @@ class FmpClient:
         """
         yfinance-style `info` fundamentals built from FMP (see to_info_fields) — for
         when Yahoo only returns a quote. Six calls, all cached and shared with the
-        agents that ask for the same statements.
+        agents (every statement endpoint is fetched once per symbol).
         """
         profile, ratios, metrics, income, balance, cash_flow = await asyncio.gather(
             self.get_company_profile(symbol),

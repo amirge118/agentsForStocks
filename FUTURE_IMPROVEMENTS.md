@@ -17,7 +17,7 @@ current pipeline is trustworthy and measured. A new idea goes in the section it 
 - [x] Every scheduled job run is recorded (`job_runs`); `/health` reports each job's latest due run (`ok`, `running`, `partial`, `failed`, `missed`) and logs a miss or failure once a day (metric `scheduled.job.problems`)
 - [x] Daily LLM budget (`LLM_DAILY_BUDGET_USD`, default $2): paid calls are refused once the market day's spend (seeded from the ledger) reaches it — the chain moves on or the agent falls back and is marked needs_review; a warning at 80%, an error once spent
 - [x] Failed agent runs of the daily job are retried later the same day (`PIPELINE_RETRY_ATTEMPTS` × `PIPELINE_RETRY_DELAY_MINUTES`, default 2 × 30), with everything downstream of them forced
-- [ ] Check that a ticker exists (a quote) when it is added to the watchlist, not only its format [PRIORITY: MED]
+- [x] A ticker is checked against Yahoo's chart when added to the watchlist: unknown (404) → 422; when Yahoo can't be asked, the well-formed symbol is accepted
 - [x] One pipeline run at a time across processes: a Postgres advisory lock (`PipelineLock`) held by the daily job, its retries and manual runs (a manual run during the daily job gets 409; the daily job waits for a manual run)
 
 ## 2. Go live and verify on real data
@@ -27,13 +27,15 @@ current pipeline is trustworthy and measured. A new idea goes in the section it 
 - [ ] Publish images to GHCR and add a deploy workflow [PRIORITY: MED]
 
 ## 3. Data quality — close the gaps the agents run with today
-- [ ] The cloud environment's proxy refuses yfinance's news, insider-trade and earnings-date calls (HTTP 403 on the CONNECT): sentiment ran with no headlines and earnings without dates. Check whether production reaches them; if not, take news and insider trades from FMP (`/stable/news/stock`, `/stable/insider-trading`) [PRIORITY: HIGH]
-- [ ] FMP free plan: institutional ownership and earnings-call transcripts return 402, so `institutional` and `growth` always answer neutral 0% (weights 5 and 10 contribute nothing). Either a free source (SEC 13F for holders, 8-K exhibits for transcripts) or lower their weights until one exists — confirm with backtest A [PRIORITY: MED]
-- [ ] FMP budget: ~22 calls per symbol per run (~110/250 for 5 symbols). Share one statements fetch per symbol across agents (they ask for different `limit`s, so the cache misses), or cache annual statements for a day [PRIORITY: MED]
-- [ ] More invariants: risk (bullish with D/E > 3 and current ratio < 1), earnings (beat rate ≥ 75% + positive reaction yet bearish), institutional (distributing yet bullish) — normalise D/E units first (FMP ratio vs Yahoo percent) [PRIORITY: MED]
+- [x] Insider trades and earnings dates when Yahoo is blocked: open-market purchases / sales from the SEC's Form 4 filings (`EdgarClient.get_insider_transactions`), the next report date from FMP's `earnings` rows — checked live (AAPL: 24 Form 4 sales, next report 2026-11-02)
+- [ ] News headlines when Yahoo is blocked: FMP's news endpoints are not in the free plan (402) and RSS feeds (Yahoo, Google News, Nasdaq) are refused by this cloud environment's proxy — check from production; if Yahoo is blocked there too, add an RSS fallback [PRIORITY: HIGH]
+- [x] Growth without FMP transcripts: the latest SEC earnings release (8-K Item 2.02, Exhibit 99.1) takes their place — live: AAPL growth went from no commentary to bullish on the Q3 release
+- [ ] Institutional ownership on the FMP free plan (402): SEC 13F filings are per manager, not per issuer, so there is no cheap free source; `institutional` answers neutral 0% (weight 5 contributes nothing). Options: yfinance's holders in production (blocked here), a paid plan, or drop its weight — decide with backtest A [PRIORITY: MED]
+- [x] FMP budget: one request per statement endpoint and symbol whatever `limit` an agent asks (`FMP_STATEMENT_ROWS`), and an endpoint outside the plan is not asked again — 12 calls per symbol, measured live (was ~22)
+- [x] More invariants: risk (bullish with D/E > 3 and current ratio < 1), earnings (beat rate ≥ 75% and a positive reaction yet bearish, and the reverse, over ≥ 4 quarters), institutional (a signal against the net flow); D/E in one unit (`risk.debt_to_equity_ratio`)
 - [x] Show data gaps, contract violations and `needs_review` per agent on the symbol page, so a weak result is visible as weak
-- [ ] FMP earnings history: the free plan caps `earnings?limit` at 5, so the earnings agent sees half its 8-quarter window — make the limit a setting (`FMP_EARNINGS_LIMIT`) for paid plans [PRIORITY: LOW]
-- [ ] Re-review results stored before the per-agent compliance gate existed (they have no `compliance` field) [PRIORITY: LOW]
+- [x] FMP earnings history: `FMP_EARNINGS_LIMIT` (5 on the free plan; 9 on a paid one gives the full 8-quarter window)
+- [x] Re-review results stored before the per-agent compliance gate existed: `python -m scripts.review_compliance [--dry-run]` (idempotent)
 
 ## 4. Measure, then improve what exists (needs settled outcomes)
 Change a prompt, model, weight or skill only on evidence: an eval report or an out-of-sample backtest win.
