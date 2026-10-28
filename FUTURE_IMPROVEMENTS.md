@@ -22,6 +22,7 @@ current pipeline is trustworthy and measured. A new idea goes in the section it 
 
 ## 2. Go live and verify on real data
 - [x] Deployment ready in the repo: `docs/deploy.md` (server, firewall, DNS, keys, checks, upgrades, restore), `infra/deploy/init-env.sh` (a production `.env` with fresh secrets), profile `https` (Caddy + Let's Encrypt, the only service on the internet; every other port on 127.0.0.1), profile `backup` (a daily `pg_dump`, kept 14 days) — CI checks the Caddyfile, that no port binds 0.0.0.0, and that a backup is written and readable
+- [x] Full Docker stack checked end to end (2026-10-28, `docker compose up` exactly as `docs/deploy.md`): preflight READY, a 5-symbol run from the dashboard 70/70 completed. It found two defects, fixed: the free tiers' per-minute limits made 47 of 70 judgements fall back with `LLM_QUOTA_MAX_WAIT_SECONDS=5` (0 with 60, the run takes ~6 minutes), and `/health` called runs due before the first install `missed`
 - [ ] Go live (the person's side): a server, a domain pointed at it, the provider keys; then `docs/deploy.md` steps 2–5 [PRIORITY: HIGH]
 - [ ] Copy the backups off the server (rsync / object storage / provider snapshots) — a dump on the same disk doesn't survive the disk [PRIORITY: MED]
 - [ ] First run with `ANTHROPIC_API_KEY`: preflight confirms a live request on SDK 2.x / API version 2026-10-21, and one `run_pipeline` exercises the chain's last step (Claude Haiku 5.5) and the reasoning model [PRIORITY: HIGH]

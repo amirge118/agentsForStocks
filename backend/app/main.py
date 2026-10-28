@@ -23,6 +23,7 @@ from app.db.session import AsyncSessionLocal, engine
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.observability import metrics
 from app.observability.telemetry import configure_telemetry
+from app.pipeline.job_runs import JobRecorder
 
 configure_logging(settings.log_format, settings.log_level)
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
     if app.state.scheduler is not None:
         app.state.scheduler.start()
+        await JobRecorder(container.session_factory).scheduler_started()
         logger.info("Agent scheduler started in the API process")
     yield
     if app.state.scheduler is not None:

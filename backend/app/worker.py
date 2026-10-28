@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.agents.scheduler import build_scheduler
 from app.container import build_container
 from app.core.config import Settings
+from app.pipeline.job_runs import JobRecorder
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ async def run_worker(
     )
     if scheduler is not None:
         scheduler.start()
+        await JobRecorder(session_factory).scheduler_started()
     logger.info("Scheduler worker started", extra={"scheduling": scheduler is not None})
     try:
         await stop.wait()

@@ -124,3 +124,46 @@ async def test_a_run_before_the_due_time_does_not_count(session_factory) -> None
         )
         await session.commit()
     assert await job_state(session_factory, "daily_pipeline", DAILY, NOW) == "ok"
+
+
+@pytest.mark.unit
+async def test_a_run_due_before_the_first_scheduler_start_is_not_missed(session_factory) -> None:
+    from app.models.job_run import JobRun
+    from app.pipeline.job_runs import SCHEDULER_STARTED
+
+    # A worker that never started: today's run is missed
+    assert await job_state(session_factory, "daily_pipeline", DAILY, NOW) == "missed"
+
+    async def started(at: datetime, run_id: str) -> None:
+        async with session_factory() as session:
+            session.add(
+                JobRun(id=run_id, job_id=SCHEDULER_STARTED, started_at=at, status="completed")
+            )
+            await session.commit()
+
+    # Installed after today's 18:30 (22:30 UTC): nothing was missed yet
+    await started(datetime(2026, 10, 27, 23, 0, tzinfo=UTC), "fresh")
+    assert await job_state(session_factory, "daily_pipeline", DAILY, NOW) == "not due"
+
+
+@pytest.mark.unit
+async def test_a_later_restart_does_not_hide_a_miss(session_factory) -> None:
+    from app.models.job_run import JobRun
+    from app.pipeline.job_runs import SCHEDULER_STARTED
+
+    async with session_factory() as session:
+        for run_id, at in (("first", datetime(2026, 10, 20, tzinfo=UTC)), ("restart", NOW)):
+            session.add(
+                JobRun(id=run_id, job_id=SCHEDULER_STARTED, started_at=at, status="completed")
+            )
+        await session.commit()
+    assert await job_state(session_factory, "daily_pipeline", DAILY, NOW) == "missed"
+
+
+@pytest.mark.unit
+async def test_recorder_notes_a_scheduler_start(session_factory) -> None:
+    from app.pipeline.job_runs import SCHEDULER_STARTED
+
+    await JobRecorder(session_factory).scheduler_started()
+    run = await _latest(session_factory, SCHEDULER_STARTED)
+    assert run is not None and run.status == "completed"
