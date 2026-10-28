@@ -11,8 +11,8 @@ current pipeline is trustworthy and measured. A new idea goes in the section it 
 - [ ] Protect `main` in GitHub settings: require the CI checks to pass before merging, no direct pushes (a setting, not code) [PRIORITY: HIGH]
 - [ ] No silent HOLD: check that no parse / LLM failure is stored as an ordinary neutral result; mark it as needing review and show it (TradingAgents `rating.py` `REVIEW`) [PRIORITY: HIGH]
 - [ ] Audit the domain scorers (valuation DCF / owner earnings / EV-EBITDA, financials, risk) for "missing field = 0" defaults, like the fundamentals vote had [PRIORITY: HIGH]
-- [ ] Tests read the real environment: five tests (`test_llm_router.py`, `test_preflight.py`, `test_api.py::test_agents_show_their_effective_profile`) fail when `GEMINI_API_KEY` / `GROQ_API_KEY` / `LLM_PROVIDER` are set in the shell — isolate the test settings (monkeypatch.delenv in conftest) [PRIORITY: HIGH]
-- [ ] CI: `timeout-minutes` on the "Install Playwright browser" step (it hung twice before any test ran) and cache the browser between runs [PRIORITY: HIGH]
+- [x] Tests read the real environment: five tests (`test_llm_router.py`, `test_preflight.py`, `test_api.py::test_agents_show_their_effective_profile`) fail when `GEMINI_API_KEY` / `GROQ_API_KEY` / `LLM_PROVIDER` are set in the shell — isolated: conftest drops every Settings variable from the environment and ignores `.env`
+- [x] CI: `timeout-minutes` on the Playwright install (it hung twice before any test ran) and the browser cached per Playwright version
 - [ ] Persist the FMP call counter in the DB: a restart resets the in-process `DailyCallBudget`, so a day with a restart can pass the 250 free calls [PRIORITY: MED]
 - [ ] Alert when a scheduled run is missed or fails (the worker is up but the job never finished) [PRIORITY: MED]
 - [ ] Per-day LLM cost budget (like the FMP DailyCallBudget) that stops new calls and alerts when exceeded — needed before the chain can reach Claude unattended [PRIORITY: MED]
