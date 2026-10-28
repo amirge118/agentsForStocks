@@ -20,7 +20,7 @@ async def test_launch_validates_then_runs_in_background() -> None:
     orchestrator = AsyncMock()
     launcher = PipelineLauncher(orchestrator, _registry())
 
-    run = launcher.launch(["aapl", "AAPL", "msft"], force=True)
+    run = await launcher.launch(["aapl", "AAPL", "msft"], force=True)
     assert run.symbols == ["AAPL", "MSFT"]
     assert run.agents == ["a", "b"]
     assert launcher.active == 1
@@ -33,15 +33,15 @@ async def test_launch_validates_then_runs_in_background() -> None:
 
 
 @pytest.mark.unit
-def test_launch_rejects_bad_input_without_starting() -> None:
+async def test_launch_rejects_bad_input_without_starting() -> None:
     orchestrator = AsyncMock()
     launcher = PipelineLauncher(orchestrator, _registry())
     with pytest.raises(ValueError):
-        launcher.launch([])
+        await launcher.launch([])
     with pytest.raises(ValueError):
-        launcher.launch(["BAD;"])
+        await launcher.launch(["BAD;"])
     with pytest.raises(KeyError):
-        launcher.launch(["AAPL"], ["zzz"])
+        await launcher.launch(["AAPL"], ["zzz"])
     orchestrator.run.assert_not_called()
 
 
@@ -50,7 +50,7 @@ async def test_crashed_run_is_logged_and_aclose_cancels(caplog) -> None:
     orchestrator = AsyncMock()
     orchestrator.run.side_effect = RuntimeError("boom")
     launcher = PipelineLauncher(orchestrator, _registry())
-    launcher.launch(["AAPL"])
+    await launcher.launch(["AAPL"])
     await asyncio.sleep(0.01)
     assert "Background pipeline crashed" in caplog.text
 
@@ -58,7 +58,7 @@ async def test_crashed_run_is_logged_and_aclose_cancels(caplog) -> None:
         await asyncio.sleep(10)
 
     orchestrator.run.side_effect = hang
-    launcher.launch(["AAPL"])
+    await launcher.launch(["AAPL"])
     await asyncio.sleep(0)
     with caplog.at_level(logging.ERROR):
         await launcher.aclose()
@@ -75,10 +75,10 @@ async def test_only_one_manual_run_at_a_time() -> None:
 
     orchestrator.run.side_effect = slow
     launcher = PipelineLauncher(orchestrator, _registry())
-    launcher.launch(["AAPL"])
+    await launcher.launch(["AAPL"])
     with pytest.raises(PipelineBusyError):
-        launcher.launch(["MSFT"])
+        await launcher.launch(["MSFT"])
     gate.set()
     await asyncio.sleep(0.01)
-    launcher.launch(["MSFT"])  # allowed again once the first finished
+    await launcher.launch(["MSFT"])  # allowed again once the first finished
     await launcher.aclose()

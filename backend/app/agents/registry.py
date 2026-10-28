@@ -80,6 +80,18 @@ class AgentRegistry:
     def company_only(self) -> set[str]:
         return {s.name for s in self._specs.values() if s.company_only}
 
+    def downstream(self, names: Iterable[str]) -> set[str]:
+        """`names` plus every agent that depends on one of them, directly or not."""
+        found = set(names)
+        changed = True
+        while changed:
+            changed = False
+            for spec in self._specs.values():
+                if spec.name not in found and found.intersection(spec.depends_on):
+                    found.add(spec.name)
+                    changed = True
+        return found
+
     def execution_levels(
         self, names: Iterable[str] | None = None, *, fund: bool = False
     ) -> list[list[str]]:

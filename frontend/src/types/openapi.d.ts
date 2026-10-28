@@ -290,7 +290,10 @@ export interface paths {
         /**
          * Health
          * @description Liveness + dependencies: 200 when the DB answers and the in-process scheduler
-         *     (if this process runs one) is running, else 503.
+         *     (if this process runs one) is running, else 503. With the scheduler on, `jobs`
+         *     says how each job's latest due run went (ok, running, partial, failed, missed);
+         *     a missed or failed run is logged but doesn't make the process unhealthy —
+         *     restarting the API wouldn't bring the run back.
          */
         get: operations["health_health_get"];
         put?: never;

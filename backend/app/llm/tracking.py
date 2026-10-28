@@ -21,6 +21,7 @@ from app.core.context import current_fields, current_usage
 from app.llm.errors import LLMError
 from app.llm.pricing import Price, TokenUsage, cost_usd
 from app.llm.recording import CallStatus, LLMCallRecord, LLMCallRecorder, prompt_version
+from app.llm.spend import DailySpend
 from app.observability import metrics
 
 logger = logging.getLogger(__name__)
@@ -40,8 +41,10 @@ class CallTracker:
         capture_content: bool,
         prices: dict[str, Price] | None = None,
         provider: str | None = None,
+        spend: DailySpend | None = None,
     ) -> None:
         self._recorder = recorder
+        self._spend = spend
         self._provider = provider
         self._model = model
         self._system = system
@@ -123,6 +126,8 @@ class CallTracker:
         )
         _log(record)
         _accumulate(record)
+        if self._spend is not None:
+            self._spend.add(record.cost_usd)
         _measure(record)
         await self._recorder.record(record)
         return record

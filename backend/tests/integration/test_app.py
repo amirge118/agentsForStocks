@@ -32,7 +32,31 @@ async def test_health_ok(client_with_state) -> None:
     async with client_with_state() as client:
         resp = await client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok", "checks": {"database": "ok", "scheduler": "ok"}}
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert body["checks"] == {"database": "ok", "scheduler": "ok"}
+    # No job has run yet: both report missed, which is logged but not "unhealthy"
+    assert body["jobs"] == {"daily_pipeline": "missed", "nightly_maintenance": "missed"}
+
+
+@pytest.mark.integration
+async def test_health_reports_each_jobs_last_due_run_and_logs_a_miss_once(
+    client_with_state, session_factory, caplog
+) -> None:
+    from app import main
+    from app.repositories.job_runs import JobRunRepository
+
+    main._reported.clear()
+    async with session_factory() as session:
+        repo = JobRunRepository(session)
+        run = await repo.start("nightly_maintenance")
+        await repo.finish(run.id, "completed")
+        await session.commit()
+    async with client_with_state() as client:
+        first = (await client.get("/health")).json()["jobs"]
+        await client.get("/health")
+    assert first == {"daily_pipeline": "missed", "nightly_maintenance": "ok"}
+    assert caplog.text.count("Scheduled job daily_pipeline: missed") == 1
 
 
 @pytest.mark.integration

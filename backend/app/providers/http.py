@@ -5,10 +5,11 @@ One httpx.AsyncClient (connection pooling) + per-domain rate limit + retry +
 TTL cache. Provider clients build URLs; this class decides how they are fetched.
 """
 
+import inspect
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -41,7 +42,7 @@ class HttpClient:
         url: str,
         params: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
-        on_request: Callable[[], None] | None = None,
+        on_request: Callable[[], Awaitable[None] | None] | None = None,
     ) -> Any:
         text = await self.get_text(url, params=params, headers=headers, on_request=on_request)
         return json.loads(text)
@@ -51,7 +52,7 @@ class HttpClient:
         url: str,
         params: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
-        on_request: Callable[[], None] | None = None,
+        on_request: Callable[[], Awaitable[None] | None] | None = None,
     ) -> str:
         """
         Cached GET. on_request runs before every real network attempt (never on a
@@ -79,7 +80,7 @@ class HttpClient:
         url: str,
         params: dict[str, Any],
         headers: dict[str, str],
-        on_request: Callable[[], None] | None,
+        on_request: Callable[[], Awaitable[None] | None] | None,
     ) -> str:
         domain = urlsplit(url).netloc
         path = urlsplit(url).path  # never the query string: FMP sends its key there
@@ -89,7 +90,9 @@ class HttpClient:
             nonlocal attempts
             attempts += 1
             if on_request is not None:
-                on_request()
+                counted = on_request()
+                if inspect.isawaitable(counted):
+                    await counted
             await self._rate_limiter.acquire(domain)
             started = time.perf_counter()
             try:

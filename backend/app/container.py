@@ -27,10 +27,12 @@ from app.llm.profiles import ProfileBook
 from app.llm.provider import ALT, ANTHROPIC, LLMProvider
 from app.llm.providers_catalog import alt_spec, configured, load_specs
 from app.llm.quota import ProviderQuota, UsageLoader
-from app.llm.recording import DbLLMCallRecorder, LedgerUsage, LLMCallRecorder
+from app.llm.recording import DbLLMCallRecorder, LedgerSpend, LedgerUsage, LLMCallRecorder
 from app.llm.router import LLMRouter
+from app.llm.spend import DailySpend, SpendLoader
 from app.pipeline.assets import FundDetector
 from app.pipeline.launcher import PipelineLauncher
+from app.pipeline.lock import PipelineLock
 from app.pipeline.orchestrator import PipelineOrchestrator
 from app.pipeline.settlement import OutcomeSettler
 from app.providers.cache import TTLCache
@@ -40,6 +42,7 @@ from app.providers.http import HttpClient
 from app.providers.rate_limit import RateLimiter
 from app.providers.yahoo_chart import YahooChartClient
 from app.providers.yfinance import YFinanceClient
+from app.repositories.provider_calls import StoredCallCounter
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +65,7 @@ class Container:
     runner: AgentRunner
     orchestrator: PipelineOrchestrator
     launcher: PipelineLauncher
+    lock: PipelineLock
     session_factory: async_sessionmaker[AsyncSession]
     http: HttpClient
     llm: LLMRouter
@@ -77,13 +81,18 @@ class Container:
 
 
 def build_llm_router(
-    settings: Settings, recorder: LLMCallRecorder, usage: UsageLoader | None = None
+    settings: Settings,
+    recorder: LLMCallRecorder,
+    usage: UsageLoader | None = None,
+    spent: SpendLoader | None = None,
 ) -> LLMRouter:
     """
     Claude always; each free provider whose API key is set (app/llm/providers_catalog.py);
     the OpenAI-compatible "alt" provider when LLM_ALT_* is configured; and "chain",
-    which tries them in LLM_CHAIN order. `usage` seeds the free-tier quotas from the ledger.
+    which tries them in LLM_CHAIN order. `usage` seeds the free-tier quotas from the ledger,
+    `spent` the day's spend on paid calls (LLM_DAILY_BUDGET_USD, shared by every client).
     """
+    spend = DailySpend(settings.llm_daily_budget_usd, spent)
     providers: dict[str, LLMProvider] = {
         ANTHROPIC: LLMClient(
             anthropic.AsyncAnthropic(
@@ -94,6 +103,7 @@ def build_llm_router(
             default_model=settings.llm_default_model,
             recorder=recorder,
             capture_content=settings.llm_capture_content,
+            spend=spend,
         )
     }
     specs = load_specs(settings.llm_providers, settings.llm_providers_file)
@@ -127,6 +137,7 @@ def build_llm_router(
             recorder=recorder,
             capture_content=settings.llm_capture_content,
             prices={spec.model: spec.price},
+            spend=spend,
             timeout_seconds=spec.timeout_seconds,
         )
     # Claude without a key would only add a failed call to every chain run
@@ -163,14 +174,23 @@ def build_container(
     cache = TTLCache(ttl_seconds=settings.provider_cache_ttl_seconds)
     http = HttpClient(rate_limiter=rate_limiter, cache=cache)
     llm = build_llm_router(
-        settings, DbLLMCallRecorder(session_factory), usage=LedgerUsage(session_factory)
+        settings,
+        DbLLMCallRecorder(session_factory),
+        usage=LedgerUsage(session_factory),
+        spent=LedgerSpend(session_factory),
     )
     knowledge: KnowledgeStore = (
         OpenVikingStore(settings.openviking_url, settings.openviking_api_key or None)
         if settings.openviking_enabled
         else NullKnowledgeStore()
     )
-    fmp = FmpClient(http, settings.fmp_api_key, DailyCallBudget(settings.fmp_daily_call_limit))
+    fmp = FmpClient(
+        http,
+        settings.fmp_api_key,
+        DailyCallBudget(
+            settings.fmp_daily_call_limit, counter=StoredCallCounter(session_factory, "fmp")
+        ),
+    )
     context = AgentContext(
         yfinance=YFinanceClient(
             rate_limiter=rate_limiter,
@@ -198,6 +218,7 @@ def build_container(
         max_concurrent_agents=settings.max_concurrent_agents,
         is_fund=FundDetector(context.yfinance),
     )
+    lock = PipelineLock(session_factory)
     return Container(
         settings=settings,
         registry=registry,
@@ -205,7 +226,8 @@ def build_container(
         knowledge=knowledge,
         runner=runner,
         orchestrator=orchestrator,
-        launcher=PipelineLauncher(orchestrator, registry),
+        launcher=PipelineLauncher(orchestrator, registry, lock),
+        lock=lock,
         session_factory=session_factory,
         http=http,
         llm=llm,

@@ -13,13 +13,12 @@ current pipeline is trustworthy and measured. A new idea goes in the section it 
 - [x] Audit for "missing field = 0": risk (D/E, current ratio, beta, short ratio), institutional (ownership, flows → `unknown`), broad_analysis (market cap) now say N/A; EV/EBITDA needs reported debt; owner earnings assume maintenance ≈ D&A when capex is missing; the liquidity trend and yearly growth skip a missing figure
 - [x] Tests read the real environment: five tests (`test_llm_router.py`, `test_preflight.py`, `test_api.py::test_agents_show_their_effective_profile`) fail when `GEMINI_API_KEY` / `GROQ_API_KEY` / `LLM_PROVIDER` are set in the shell — isolated: conftest drops every Settings variable from the environment and ignores `.env`
 - [x] CI: `timeout-minutes` on the Playwright install (it hung twice before any test ran) and the browser cached per Playwright version
-- [ ] Persist the FMP call counter in the DB: a restart resets the in-process `DailyCallBudget`, so a day with a restart can pass the 250 free calls [PRIORITY: MED]
-- [ ] Alert when a scheduled run is missed or fails (the worker is up but the job never finished) [PRIORITY: MED]
-- [ ] Per-day LLM cost budget (like the FMP DailyCallBudget) that stops new calls and alerts when exceeded — needed before the chain can reach Claude unattended [PRIORITY: MED]
-- [ ] Agent retry: when yfinance or FMP is down, retry the failed (agent, symbol) later in the day instead of leaving the day empty [PRIORITY: MED]
+- [x] FMP call counter in the DB (`provider_calls`, one atomic upsert per call): a restart or a second process no longer resets it; the in-process count stands in while the DB is down
+- [x] Every scheduled job run is recorded (`job_runs`); `/health` reports each job's latest due run (`ok`, `running`, `partial`, `failed`, `missed`) and logs a miss or failure once a day (metric `scheduled.job.problems`)
+- [x] Daily LLM budget (`LLM_DAILY_BUDGET_USD`, default $2): paid calls are refused once the market day's spend (seeded from the ledger) reaches it — the chain moves on or the agent falls back and is marked needs_review; a warning at 80%, an error once spent
+- [x] Failed agent runs of the daily job are retried later the same day (`PIPELINE_RETRY_ATTEMPTS` × `PIPELINE_RETRY_DELAY_MINUTES`, default 2 × 30), with everything downstream of them forced
 - [ ] Check that a ticker exists (a quote) when it is added to the watchlist, not only its format [PRIORITY: MED]
-- [ ] Postgres advisory lock around the daily job, so even two workers can never both run it [PRIORITY: LOW]
-- [ ] Persist the manual-run lock in the DB, so it also holds across several backend workers [PRIORITY: LOW]
+- [x] One pipeline run at a time across processes: a Postgres advisory lock (`PipelineLock`) held by the daily job, its retries and manual runs (a manual run during the daily job gets 409; the daily job waits for a manual run)
 
 ## 2. Go live and verify on real data
 - [ ] Go live: a hosted Postgres (`DATABASE_URL`), the keys (`FMP_API_KEY`, the free-chain `*_API_KEY`s, `ANTHROPIC_API_KEY`, `API_KEYS`, `DASHBOARD_PASSWORD`), one `python -m app.worker` with `SCHEDULER_ENABLED=true` and `RUN_SCHEDULER=false` on the API; confirm with `python -m scripts.preflight` and the first scheduled `daily_pipeline` [PRIORITY: HIGH]
@@ -56,7 +55,7 @@ Change a prompt, model, weight or skill only on evidence: an eval report or an o
 - [ ] Make uvicorn's own access/startup logs use the JSON formatter too (`--log-config`) [PRIORITY: LOW]
 - [ ] Pin GitHub Actions by commit SHA and Docker base images by digest (Dependabot keeps them updated) [PRIORITY: LOW]
 - [ ] Re-read the free-tier limits each quarter: they change often (Gemini cut Pro to ~50/day, Groq dropped Llama from its free tier) [PRIORITY: LOW]
-- [ ] Move the provider cache, the FMP counter and the free-tier quota state to Redis — only once there is more than one process [PRIORITY: LOW]
+- [ ] Move the provider cache and the free-tier quota state to Redis — only once there are several API replicas [PRIORITY: LOW]
 - [ ] Add OpenViking connectivity to /health (only when OPENVIKING_ENABLED) [PRIORITY: LOW]
 - [ ] Re-sync the hand-written shadcn primitives in `src/components/ui` with `npx shadcn add` when the CLI is reachable [PRIORITY: LOW]
 

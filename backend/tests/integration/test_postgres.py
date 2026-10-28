@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.repositories.agent_results import AgentResultRepository
 from app.repositories.llm_calls import LLMCallRepository
+from app.repositories.provider_calls import ProviderCallRepository
 from app.repositories.watchlist import WatchlistRepository
 
 POSTGRES_URL = os.environ.get("TEST_POSTGRES_URL")
@@ -66,11 +67,13 @@ async def test_migrations_create_the_expected_schema(pg_session_factory) -> None
             "llm_calls",
             "watchlist",
             "decision_outcomes",
+            "provider_calls",
+            "job_runs",
             "alembic_version",
         }
         assert expected <= set(tables)
         version = (await session.execute(text("select version_num from alembic_version"))).scalar()
-        assert version == "0006"
+        assert version == "0007"
         columns = await conn.run_sync(lambda c: inspect(c).get_columns("llm_calls"))
         assert "provider" in {col["name"] for col in columns}
 
@@ -162,3 +165,29 @@ async def test_llm_usage_aggregates_on_postgres(pg_session_factory) -> None:
             await session.execute(text("select llm_calls, input_tokens from agent_runs"))
         ).one()
         assert tuple(tokens) == (0, 0)
+
+
+async def test_provider_call_count_is_atomic_on_postgres(pg_session_factory) -> None:
+    async def one() -> int:
+        async with pg_session_factory() as session:
+            total = await ProviderCallRepository(session).increment("fmp", D1)
+            await session.commit()
+            return total
+
+    totals = await asyncio.gather(*(one() for _ in range(10)))
+    assert sorted(totals) == list(range(1, 11))  # no lost update between connections
+
+
+async def test_the_pipeline_lock_holds_across_connections_on_postgres(pg_session_factory) -> None:
+    from app.pipeline.lock import PipelineLock
+
+    # Two instances stand for two processes (the worker and the API)
+    worker, api = PipelineLock(pg_session_factory), PipelineLock(pg_session_factory)
+    held = await worker.acquire()
+    assert held is not None
+    assert await api.acquire() is None
+    assert await api.acquire(wait_seconds=0.05) is None
+    await held.release()
+    again = await api.acquire()
+    assert again is not None
+    await again.release()

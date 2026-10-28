@@ -29,7 +29,12 @@ async def run_worker(
     """Start the scheduler and keep it running until `stop` is set."""
     container = build_container(settings, session_factory)
     scheduler = build_scheduler(
-        settings, container.orchestrator, session_factory, settler=container.settler
+        settings,
+        container.orchestrator,
+        session_factory,
+        settler=container.settler,
+        lock=container.lock,
+        registry=container.registry,
     )
     if scheduler is not None:
         scheduler.start()

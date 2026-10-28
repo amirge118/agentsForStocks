@@ -27,6 +27,7 @@ from app.llm.recording import (
     NullRecorder,
 )
 from app.llm.schema import output_schema
+from app.llm.spend import DailySpend, is_paid
 from app.llm.tracking import CallTracker
 
 logger = logging.getLogger(__name__)
@@ -51,8 +52,10 @@ class LLMClient:
         recorder: LLMCallRecorder | None = None,
         capture_content: bool = True,
         prices: dict[str, Price] | None = None,
+        spend: DailySpend | None = None,
     ) -> None:
         self._client = client
+        self._spend = spend
         self.default_model = default_model
         self._recorder = recorder or NullRecorder()
         self._capture_content = capture_content
@@ -77,6 +80,8 @@ class LLMClient:
         chosen = model or self.default_model
         servers = list(mcp_servers or [])
         validate_servers(servers)  # caller bug, not an LLM failure — let ValueError surface
+        if self._spend is not None and is_paid(self.price(chosen)):
+            await self._spend.check(self.name, chosen)
         call = CallTracker(
             recorder=self._recorder,
             model=chosen,
@@ -86,6 +91,7 @@ class LLMClient:
             capture_content=self._capture_content,
             prices=self._prices,
             provider=self.name,
+            spend=self._spend,
         )
         request: dict[str, Any] = {
             "model": chosen,

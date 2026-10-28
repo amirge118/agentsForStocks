@@ -6,6 +6,8 @@ https://financialmodelingprep.com/stable/<endpoint>?symbol=AAPL
 
 The free tier allows 250 calls/day, so every real (uncached) request is counted
 against a daily budget: a warning at 80%, QuotaExceededError once it is spent.
+The count is kept in the database (provider_calls) when a counter is given, so a
+restart or a second process (API + worker) can't reset it and overrun the plan.
 Endpoints the plan doesn't include answer HTTP 402; they return no data (with
 one warning per endpoint) so the agent runs on with a data gap instead of failing.
 On the free plan that is: earnings-call transcripts and institutional ownership,
@@ -15,7 +17,7 @@ and `earnings` only up to limit=5.
 import asyncio
 import logging
 from datetime import date
-from typing import Any
+from typing import Any, Protocol
 
 from app.core.clock import market_today
 from app.core.symbols import validate_symbol
@@ -32,23 +34,44 @@ _NOT_IN_PLAN = 402
 FREE_PLAN_MAX_LIMIT = 5
 
 
+class CallCounter(Protocol):
+    async def increment(self, day: date) -> int:
+        """Count one call on `day`; return the day's total across every process."""
+        ...
+
+
 class DailyCallBudget:
-    def __init__(self, limit: int, warn_ratio: float = 0.8) -> None:
+    def __init__(
+        self, limit: int, warn_ratio: float = 0.8, counter: CallCounter | None = None
+    ) -> None:
         self.limit = limit
         self._warn_at = int(limit * warn_ratio)
+        self._counter = counter
         self._day: date | None = None
         self.used = 0
 
-    def consume(self) -> None:
+    async def consume(self) -> None:
         today = market_today()
         if today != self._day:
             self._day, self.used = today, 0
         if self.used >= self.limit:
             raise QuotaExceededError(f"FMP daily budget of {self.limit} calls exhausted")
-        self.used += 1
+        before = self.used
+        self.used = await self._count(today)
+        if self.used > self.limit:  # another process spent the last calls
+            raise QuotaExceededError(f"FMP daily budget of {self.limit} calls exhausted")
         metrics.fmp_calls.add(1)
-        if self.used == self._warn_at:
+        if before < self._warn_at <= self.used:
             logger.warning("FMP daily budget at %d/%d calls", self.used, self.limit)
+
+    async def _count(self, day: date) -> int:
+        """The stored total; this process's own count when the database can't answer."""
+        if self._counter is not None:
+            try:
+                return await self._counter.increment(day)
+            except Exception as exc:
+                logger.warning("FMP call count not stored", extra={"error": str(exc)})
+        return self.used + 1
 
 
 class FmpClient:

@@ -90,6 +90,17 @@ class LedgerUsage:
             return await LLMCallRepository(session).provider_totals(provider, since)
 
 
+class LedgerSpend:
+    """What the recorded calls cost since an instant (seeds DailySpend)."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def __call__(self, since: datetime) -> float:
+        async with self._session_factory() as session:
+            return await LLMCallRepository(session).cost_since(since)
+
+
 def to_model(call: LLMCallRecord) -> LLMCall:
     return LLMCall(
         call_id=call.call_id,
