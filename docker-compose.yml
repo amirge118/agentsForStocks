@@ -113,7 +113,6 @@ services:
         exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
     environment:
       DOMAIN: ${DOMAIN:-}
-      ACME_EMAIL: ${ACME_EMAIL:-}
     ports:
       - "80:80"
       - "443:443"

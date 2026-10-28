@@ -34,4 +34,4 @@ chmod 600 .env
 
 echo "Wrote .env (mode 600). Dashboard login: admin / $dashboard_password"
 echo "Still to fill in: FMP_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY (optional),"
-echo "DOMAIN and ACME_EMAIL (for HTTPS). Then: docker compose --profile https --profile backup up -d --build"
+echo "and DOMAIN (for HTTPS). Then: docker compose --profile https --profile backup up -d --build"
