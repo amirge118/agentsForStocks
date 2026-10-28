@@ -95,8 +95,24 @@ jobs:
         run: npm audit --omit=dev --audit-level=moderate
       - name: Unit tests
         run: npm test -- --coverage
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browser
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      # It hung twice before any test ran: fail fast instead of eating the job's 20 minutes
       - name: Install Playwright browser
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 5
         run: npx playwright install --with-deps chromium
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 5
+        run: npx playwright install-deps chromium
       - name: E2E tests (builds and starts the production server)
         run: npm run test:e2e
       - name: Upload Playwright report on failure

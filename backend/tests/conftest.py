@@ -19,7 +19,16 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 )
 from sqlalchemy.pool import NullPool, StaticPool  # noqa: E402
 
+from app.core.config import Settings  # noqa: E402
 from app.models import Base  # noqa: E402
+
+# Tests build Settings from their own arguments, never from the developer's shell or
+# .env: a real GEMINI_API_KEY or LLM_PROVIDER would change the chain a test expects
+_KEPT = {"DATABASE_URL", "OPENVIKING_ENABLED"}
+for _name in list(os.environ):
+    if _name.lower() in Settings.model_fields and _name.upper() not in _KEPT:
+        del os.environ[_name]
+Settings.model_config["env_file"] = None
 
 
 @pytest.fixture
