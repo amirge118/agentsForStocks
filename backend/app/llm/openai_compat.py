@@ -37,6 +37,7 @@ from app.llm.provider import ALT
 from app.llm.quota import ProviderQuota, estimate_tokens
 from app.llm.recording import LLMCallRecorder, NullRecorder
 from app.llm.schema import output_schema
+from app.llm.spend import DailySpend, is_paid
 from app.llm.tracking import CallTracker
 from app.providers.errors import ProviderError, RetryableError
 from app.providers.retry import RETRYABLE_STATUS, RetryPolicy, with_retry
@@ -72,6 +73,7 @@ class OpenAICompatibleClient:
         recorder: LLMCallRecorder | None = None,
         capture_content: bool = True,
         prices: dict[str, Price] | None = None,
+        spend: DailySpend | None = None,
         timeout_seconds: float = 60.0,
         transport: httpx.AsyncBaseTransport | None = None,
         retry_policy: RetryPolicy | None = None,
@@ -87,6 +89,7 @@ class OpenAICompatibleClient:
         self._recorder = recorder or NullRecorder()
         self._capture_content = capture_content
         self._prices = prices
+        self._spend = spend
         self._retry = retry_policy or RetryPolicy(max_attempts=3, timeout_seconds=timeout_seconds)
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         self._http = httpx.AsyncClient(
@@ -110,6 +113,9 @@ class OpenAICompatibleClient:
         if mcp_servers:
             raise ValueError("MCP servers are only supported with the Anthropic provider")
         chosen = model or self.default_model
+        # A free tier (it has a quota) never costs money, whichever of its models answers
+        if self._spend is not None and self.quota is None and is_paid(self.price(chosen)):
+            await self._spend.check(self.name, chosen)
         budget = max_tokens + self._reasoning_tokens
         slot = None
         if self.quota is not None:
@@ -125,6 +131,7 @@ class OpenAICompatibleClient:
             capture_content=self._capture_content,
             prices=self._prices,
             provider=self.name,
+            spend=self._spend,
         )
         body = {
             **self._extra_body,

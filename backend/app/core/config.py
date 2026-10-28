@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     llm_providers_file: str = ""
     # A free provider that would need a longer wait for its rate limit is skipped
     llm_quota_max_wait_seconds: float = 5.0
+    # Paid model calls (Claude, a priced alt provider) stop for the market day once
+    # they have cost this much; agents then fall back and are marked needs_review.
+    # 0 = no cap. Today's free chain costs $0; a day on Claude Haiku ≈ $0.15
+    llm_daily_budget_usd: float = 2.0
 
     # A second, cheaper provider: any OpenAI-compatible chat-completions API with
     # JSON-schema outputs (Gemini, OpenRouter, DeepSeek, a local Ollama, …)
@@ -96,6 +100,10 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = False
     pipeline_schedule: str = "30 18 * * mon-fri"  # full pipeline, after the US close
     maintenance_schedule: str = "15 3 * * *"  # prune the llm_calls ledger
+    # Agent runs that fail in the daily run (a provider down) are retried this many
+    # times, this many minutes apart, with everything downstream of them. 0 = no retry
+    pipeline_retry_attempts: int = 2
+    pipeline_retry_delay_minutes: int = 30
     # Where the scheduler lives: inside the API process (development), or — in production,
     # RUN_SCHEDULER=false on the API — in exactly one `python -m app.worker`.
     run_scheduler: bool = True

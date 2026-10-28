@@ -64,7 +64,7 @@ async def start_pipeline_run(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "Watchlist is empty — add a symbol first"
         )
     try:
-        run = container.launcher.launch(symbols, body.agents, force=body.force)
+        run = await container.launcher.launch(symbols, body.agents, force=body.force)
     except PipelineBusyError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except (ValueError, KeyError) as exc:

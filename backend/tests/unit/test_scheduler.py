@@ -26,7 +26,7 @@ def test_daily_job_runs_weekdays_after_close() -> None:
         "cron[month='*', day='*', day_of_week='mon-fri', hour='18', minute='30']"
     )
     assert job.args == (orchestrator, provider)
-    assert job.kwargs == {"settler": None}
+    assert job.kwargs == {"settler": None, "lock": None, "retry": None}
     assert str(scheduler.timezone) == "America/New_York"
 
 
@@ -168,7 +168,10 @@ async def test_daily_job_settles_outcomes_before_the_agents(session_factory) -> 
     assert calls == ["settle", "run"]
     settings = Settings(scheduler_enabled=True)
     scheduler = build_scheduler(settings, orchestrator, session_factory, settler=settler)
-    assert scheduler.get_job(DAILY_JOB_ID).kwargs == {"settler": settler}
+    job = scheduler.get_job(DAILY_JOB_ID)
+    assert job.kwargs["settler"] is settler
+    # Run through the recorder, so every run lands in job_runs
+    assert job.args[:2] == (DAILY_JOB_ID, run_daily_pipeline)
 
 
 @pytest.mark.unit
@@ -191,3 +194,18 @@ async def test_settlement_failure_does_not_stop_the_pipeline(caplog) -> None:
 
     orchestrator.run.assert_awaited_once_with(["AAPL"])
     assert "Outcome settlement failed" in caplog.text
+
+
+@pytest.mark.unit
+def test_failed_agent_runs_are_retried_unless_turned_off(session_factory) -> None:
+    from app.agents.registry import AgentRegistry
+    from app.pipeline.retry import FailedRunRetry
+
+    registry = AgentRegistry()
+    settings = Settings(scheduler_enabled=True)
+    scheduler = build_scheduler(settings, AsyncMock(), session_factory, registry=registry)
+    assert isinstance(scheduler.get_job(DAILY_JOB_ID).kwargs["retry"], FailedRunRetry)
+
+    off = Settings(scheduler_enabled=True, pipeline_retry_attempts=0)
+    scheduler = build_scheduler(off, AsyncMock(), session_factory, registry=registry)
+    assert scheduler.get_job(DAILY_JOB_ID).kwargs["retry"] is None

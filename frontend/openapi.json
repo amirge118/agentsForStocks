@@ -2573,7 +2573,7 @@
     },
     "/health": {
       "get": {
-        "description": "Liveness + dependencies: 200 when the DB answers and the in-process scheduler\n(if this process runs one) is running, else 503.",
+        "description": "Liveness + dependencies: 200 when the DB answers and the in-process scheduler\n(if this process runs one) is running, else 503. With the scheduler on, `jobs`\nsays how each job's latest due run went (ok, running, partial, failed, missed);\na missed or failed run is logged but doesn't make the process unhealthy \u2014\nrestarting the API wouldn't bring the run back.",
         "operationId": "health_health_get",
         "responses": {
           "200": {

@@ -92,6 +92,13 @@ class LLMCallRepository:
         requests, used = (await self._session.execute(stmt)).one()
         return int(requests), int(used)
 
+    async def cost_since(self, since: datetime) -> float:
+        """What every call recorded since `since` cost (USD; unpriced calls count 0)."""
+        stmt = select(func.coalesce(func.sum(LLMCall.cost_usd), 0.0)).where(
+            LLMCall.created_at >= since
+        )
+        return float((await self._session.execute(stmt)).scalar_one())
+
     async def delete_older_than(self, cutoff: datetime) -> int:
         result = await self._session.execute(delete(LLMCall).where(LLMCall.created_at < cutoff))
         return int(getattr(result, "rowcount", 0) or 0)

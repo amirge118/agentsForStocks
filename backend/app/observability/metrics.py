@@ -58,6 +58,20 @@ provider_requests = _meter.create_counter(
 provider_duration = _meter.create_histogram(
     "provider.request.duration", unit="ms", description="Data provider request time, by domain"
 )
+scheduled_jobs = _meter.create_counter(
+    "scheduled.jobs",
+    unit="{run}",
+    description="Scheduled job runs by job and status (completed, partial, failed)",
+)
+scheduled_job_problems = _meter.create_counter(
+    "scheduled.job.problems",
+    description="A scheduled job found missed or failed by /health (once per expected run)",
+)
+llm_budget_refusals = _meter.create_counter(
+    "llm.budget.refusals",
+    unit="{call}",
+    description="Paid LLM calls refused because the daily budget (LLM_DAILY_BUDGET_USD) is spent",
+)
 fmp_calls = _meter.create_counter(
     "fmp.calls", unit="{call}", description="Calls counted against the FMP daily budget"
 )

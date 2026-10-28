@@ -117,6 +117,51 @@ async def test_budget_counts_only_uncached_calls_and_stops_at_limit(make_http) -
         await client.get_company_profile("NVDA")
 
 
+class _SharedCounter:
+    """The stored count, as another process (the worker) would see it too."""
+
+    def __init__(self, start: int = 0, fail: bool = False) -> None:
+        self.total = start
+        self.fail = fail
+
+    async def increment(self, day) -> int:
+        if self.fail:
+            raise RuntimeError("database down")
+        self.total += 1
+        return self.total
+
+
+@pytest.mark.unit
+async def test_a_restart_does_not_reset_the_stored_count() -> None:
+    counter = _SharedCounter(start=248)  # spent before this process started
+    budget = DailyCallBudget(limit=250, counter=counter)
+    await budget.consume()
+    await budget.consume()
+    assert budget.used == 250
+    with pytest.raises(QuotaExceededError):
+        await budget.consume()
+
+
+@pytest.mark.unit
+async def test_another_process_spending_the_last_call_stops_this_one() -> None:
+    counter = _SharedCounter()
+    budget = DailyCallBudget(limit=3, counter=counter)
+    await budget.consume()
+    counter.total = 3  # the other process used the rest
+    with pytest.raises(QuotaExceededError):
+        await budget.consume()
+
+
+@pytest.mark.unit
+async def test_without_the_database_the_budget_still_counts_in_process(caplog) -> None:
+    budget = DailyCallBudget(limit=2, counter=_SharedCounter(fail=True))
+    await budget.consume()
+    await budget.consume()
+    with pytest.raises(QuotaExceededError):
+        await budget.consume()
+    assert "FMP call count not stored" in caplog.text
+
+
 @pytest.mark.unit
 def test_fmp_fields_take_yfinance_names_and_units() -> None:
     from app.providers.fmp import to_info_fields

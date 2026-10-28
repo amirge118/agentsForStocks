@@ -231,5 +231,5 @@ async def test_llm_and_provider_metrics(fresh: _Telemetry) -> None:
     fresh.telemetry.force_flush()
     assert any(s.name == "yfinance.info" for s in fresh.spans.get_finished_spans())
 
-    DailyCallBudget(10).consume()
+    await DailyCallBudget(10).consume()
     assert sum(p.value for p in _metric_points(fresh.metrics, "fmp.calls")) >= 1
