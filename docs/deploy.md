@@ -21,6 +21,7 @@ Only Caddy listens on the internet (80, 443). Every other port is bound to `127.
 | `GEMINI_API_KEY`, `GROQ_API_KEY` | aistudio.google.com/apikey, console.groq.com/keys (free) | yes: they run the free model chain |
 | `ANTHROPIC_API_KEY` | console.anthropic.com | recommended: the chain's last step, capped at `LLM_DAILY_BUDGET_USD` ($2/day) |
 | `CEREBRAS_API_KEY` | cloud.cerebras.ai (free) | optional: one more free step |
+| `EDGAR_USER_AGENT` | no sign-up: your name and email, e.g. `agentsForStocks you@example.com` | recommended: the SEC asks every client for a contact email |
 
 ## 2. Prepare the server
 
@@ -60,6 +61,7 @@ FMP_API_KEY=...
 GEMINI_API_KEY=...
 GROQ_API_KEY=...
 ANTHROPIC_API_KEY=...        # optional
+EDGAR_USER_AGENT=agentsForStocks you@example.com
 ```
 
 Optional: `WATCHLIST` seeds the list on the first start only (default
