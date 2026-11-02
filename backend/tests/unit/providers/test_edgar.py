@@ -215,6 +215,26 @@ async def test_insider_trades_are_empty_when_sec_fails(make_http) -> None:
     assert await edgar.get_insider_transactions("AAPL") == []
 
 
+def _index_headers(documents: list[tuple[str, str]]) -> str:
+    """A filing's -index-headers.html: its SGML headers, HTML-escaped inside <pre>."""
+    body = "".join(
+        f"&lt;DOCUMENT&gt;\n&lt;TYPE&gt;{kind}\n&lt;SEQUENCE&gt;{i}\n&lt;FILENAME&gt;{name}\n"
+        for i, (kind, name) in enumerate(documents, 1)
+    )
+    return f"<html><body><pre>&lt;SEC-HEADER&gt;\n{body}</pre></body></html>"
+
+
+@pytest.mark.unit
+def test_exhibit_99_1_is_found_by_its_type_not_its_name() -> None:
+    from app.providers.edgar import exhibit_99_1
+
+    docs = [("8-K", "nvda.htm"), ("EX-99.1", "q2fy27pr.htm"), ("EX-99.2", "cfo.htm")]
+    assert exhibit_99_1(_index_headers(docs)) == "q2fy27pr.htm"
+    assert exhibit_99_1(_index_headers([("EX-99.1", "release.pdf")])) is None
+    assert exhibit_99_1(_index_headers([("EX-99.10", "x.htm")])) is None
+    assert exhibit_99_1("") is None
+
+
 @pytest.mark.unit
 async def test_earnings_release_is_exhibit_99_1_of_the_latest_item_2_02_8k(make_http) -> None:
     from datetime import date
@@ -238,12 +258,13 @@ async def test_earnings_release_is_exhibit_99_1_of_the_latest_item_2_02_8k(make_
                     }
                 },
             )
-        if url.endswith("/0001267/index.json"):
-            names = ["b.htm", "a8-kex991q32026.htm", "ex9910.htm"]
-            return httpx.Response(200, json={"directory": {"item": [{"name": n} for n in names]}})
-        if url.endswith("/0001264/index.json"):
-            return httpx.Response(200, json={"directory": {"item": [{"name": "ex99-1.htm"}]}})
-        if url.endswith("/0001267/a8-kex991q32026.htm"):
+        # The index headers name each document's type; file names follow no rule
+        if url.endswith("/0001267/0001-26-7-index-headers.html"):
+            docs = [("8-K", "b.htm"), ("EX-99.2", "q3cfo.htm"), ("EX-99.1", "q3fy26pr.htm")]
+            return httpx.Response(200, text=_index_headers(docs))
+        if url.endswith("/0001264/0001-26-4-index-headers.html"):
+            return httpx.Response(200, text=_index_headers([("EX-99.1", "ex99-1.htm")]))
+        if url.endswith("/0001267/q3fy26pr.htm"):
             return httpx.Response(200, text="<p>Apple reports <b>third</b> quarter results</p>")
         if url.endswith("/0001264/ex99-1.htm"):
             return httpx.Response(200, text="<p>Second quarter</p>")

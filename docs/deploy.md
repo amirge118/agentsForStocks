@@ -76,6 +76,16 @@ docker compose ps        # db, api, worker, frontend, caddy, backup: running; mi
 
 ## 5. Check it
 
+The quickest way: one command brings the stack up, runs the preflight, runs every agent
+on a few symbols and prints what came out. It ends in PASS, WARN (some results need
+review) or FAIL:
+
+```sh
+sh infra/deploy/verify.sh AAPL NVDA JPM XOM JNJ     # or no symbols: the watchlist
+```
+
+Or step by step:
+
 ```sh
 # Keys and connectivity to Claude, FMP, Yahoo and SEC (exit 1 = something is not ready)
 docker compose exec api python -m scripts.preflight

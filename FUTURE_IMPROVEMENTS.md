@@ -30,6 +30,9 @@ current pipeline is trustworthy and measured. A new idea goes in the section it 
 - [ ] Publish images to GHCR and add a deploy workflow [PRIORITY: MED]
 
 ## 3. Data quality — close the gaps the agents run with today
+- [x] `scripts.verify` / `infra/deploy/verify.sh`: preflight + every agent on a few symbols + a report (signals matrix, missing inputs, needs review, violations; PASS / WARN / FAIL; `--json` to compare runs). First run (AAPL NVDA JPM XOM JNJ) found the earnings release missing for NVDA and XOM: its file name follows no rule, so it is now found by its type (EX-99.1) in the filing's index headers — growth went from 3/5 to 5/5 symbols with management commentary
+- [ ] XOM has no 10-K text: SEC's ticker map now points XOM to "ExxonMobil Holdings Corp" (CIK 2115436, a new holding company with no 10-K yet; FMP agrees), so moat / broad_analysis / risk run without it until its first 10-K (~Feb 2027). If it recurs: fall back to the predecessor's CIK [PRIORITY: LOW]
+- [ ] `earnings_dates` is listed as missing for every symbol although the next date is filled from FMP's earnings rows: move that fallback into `fetch()` so the gap reflects what the agent really lacked [PRIORITY: LOW]
 - [x] Insider trades and earnings dates when Yahoo is blocked: open-market purchases / sales from the SEC's Form 4 filings (`EdgarClient.get_insider_transactions`), the next report date from FMP's `earnings` rows — checked live (AAPL: 24 Form 4 sales, next report 2026-11-02)
 - [ ] News headlines when Yahoo is blocked: FMP's news endpoints are not in the free plan (402) and RSS feeds (Yahoo, Google News, Nasdaq) are refused by this cloud environment's proxy — check from production; if Yahoo is blocked there too, add an RSS fallback [PRIORITY: HIGH]
 - [x] Growth without FMP transcripts: the latest SEC earnings release (8-K Item 2.02, Exhibit 99.1) takes their place — live: AAPL growth went from no commentary to bullish on the Q3 release
@@ -42,6 +45,7 @@ current pipeline is trustworthy and measured. A new idea goes in the section it 
 
 ## 4. Measure, then improve what exists (needs settled outcomes)
 Change a prompt, model, weight or skill only on evidence: an eval report or an out-of-sample backtest win.
+- [ ] Quality vs price — watch it in the settled outcomes: on 2026-11-02 four of five symbols were BUY although valuation was bearish on three of them (AAPL 90%, NVDA 75%, JNJ 85%). The quality agents (financial_history 20, moat 15, broad_analysis 10, growth 10 = 55 of the 100 weight points) favour great companies whatever their price, against valuation's 20. Once ~20 sessions have settled, check with `track_report` and backtest A whether the overvalued BUYs underperform; if they do, test a valuation cap like the risk cap [PRIORITY: HIGH]
 - [ ] Run the outcome eval suite live once a few weeks of recommendations have settled — the baseline for every later prompt / model change [PRIORITY: HIGH]
 - [ ] Run backtest A once a few weeks have settled; change weights only on a clear out-of-sample win. Includes the weight-0 agents (fundamentals / technicals / sentiment / market_scanner) [PRIORITY: HIGH]
 - [ ] One live model baseline (needs `ANTHROPIC_API_KEY`): the free chain and free_gemini presets vs claude-haiku-5-5 / claude-sonnet-5-5, `--repeats 3 --judge`; then decide the default provider and models [PRIORITY: HIGH]

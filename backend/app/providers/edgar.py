@@ -38,9 +38,12 @@ FORM4_FILINGS = 10
 # Open-market trades only: awards, option exercises, tax withholding and gifts say
 # nothing about what an insider thinks of the price
 _FORM4_CODES = {"P": "Purchase", "S": "Sale"}
-_INDEX_URL = "https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/index.json"
-# ex991.htm, ex99-1.htm, a8-kex991q3….htm, exhibit99_1.htm — but not ex9910
-_EX_99_1 = re.compile(r"ex(?:hibit)?[-_]?99[-_.]?0?1(?!\d)", re.I)
+# The filing's SGML headers name each document's type (EX-99.1) and file: file names
+# follow no rule (q2fy27pr.htm, livef8k3q26991.htm, a8-kex991q3….htm)
+_HEADERS_URL = (
+    "https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/{dashed}-index-headers.html"
+)
+_DOCUMENT = re.compile(r"&lt;TYPE&gt;\s*([^&\s]+).*?&lt;FILENAME&gt;\s*([^&\s]+)", re.S)
 MAX_RELEASE_CHARS = 8_000
 _FORM4_TRANSACTION = re.compile(r"<nonDerivativeTransaction>(.*?)</nonDerivativeTransaction>", re.S)
 
@@ -157,13 +160,10 @@ class EdgarClient:
                 cik, "8-K", filed_by, 3, item="2.02"
             ):
                 folder = {"cik": int(cik), "accession": accession.replace("-", "")}
-                index = await self._http.get_json(
-                    _INDEX_URL.format(**folder), headers=self._headers
+                headers = await self._http.get_text(
+                    _HEADERS_URL.format(**folder, dashed=accession), headers=self._headers
                 )
-                names = [i.get("name", "") for i in index.get("directory", {}).get("item", [])]
-                exhibit = next(
-                    (n for n in names if n.lower().endswith(".htm") and _EX_99_1.search(n)), None
-                )
+                exhibit = exhibit_99_1(headers)
                 if exhibit is None:
                     continue
                 raw = await self._http.get_text(
@@ -229,6 +229,14 @@ class EdgarClient:
             if len(found) >= limit:
                 break
         return found
+
+
+def exhibit_99_1(index_headers: str) -> str | None:
+    """The HTML file of Exhibit 99.1 (the press release) in a filing's index headers."""
+    for kind, filename in _DOCUMENT.findall(index_headers):
+        if kind.upper() == "EX-99.1" and filename.lower().endswith((".htm", ".html")):
+            return filename
+    return None
 
 
 def _xml_value(block: str, tag: str) -> str | None:
