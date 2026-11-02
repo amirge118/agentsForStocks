@@ -7,6 +7,10 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 in order of work; within a section, top first. New capabilities wait in section 6 until the
 current pipeline is trustworthy and measured. A new idea goes in the section it belongs to.
 
+**2026-11-02 — development paused: stabilise first.** Until the app runs end to end smoothly and
+every WARN in `scripts.verify` is understood, only sections 1–2 (and the data-gap items in 3) are
+worked on. Section 4 (prompt / weight improvements, the agent-journal rounds) waits.
+
 ## 1. Reliability now — the pipeline must not lie or break silently
 - [ ] Protect `main` in GitHub settings: require the CI checks to pass before merging, no direct pushes (a setting, not code) [PRIORITY: HIGH]
 - [x] No silent HOLD: a result built on a fallback (model unavailable or its reply unreadable) carries `needs_review` with the reason, and so does a recommendation that held for lack of analysts or built on an analyst that fell back; shown on the verdict, the breakdown, the panels and the watchlist
@@ -23,6 +27,8 @@ current pipeline is trustworthy and measured. A new idea goes in the section it 
 ## 2. Go live and verify on real data
 - [x] Deployment ready in the repo: `docs/deploy.md` (server, firewall, DNS, keys, checks, upgrades, restore), `infra/deploy/init-env.sh` (a production `.env` with fresh secrets), profile `https` (Caddy + Let's Encrypt, the only service on the internet; every other port on 127.0.0.1), profile `backup` (a daily `pg_dump`, kept 14 days) — CI checks the Caddyfile, that no port binds 0.0.0.0, and that a backup is written and readable
 - [x] Full Docker stack checked end to end (2026-10-28, `docker compose up` exactly as `docs/deploy.md`): preflight READY, a 5-symbol run from the dashboard 70/70 completed. It found two defects, fixed: the free tiers' per-minute limits made 47 of 70 judgements fall back with `LLM_QUOTA_MAX_WAIT_SECONDS=5` (0 with 60, the run takes ~6 minutes), and `/health` called runs due before the first install `missed`
+- [ ] Stabilisation check: `python -m scripts.verify` on the 5-symbol watchlist (AAPL MSFT NVDA GOOGL AMZN) → PASS, or every WARN explained in this file; then the same from the Docker stack (`sh infra/deploy/verify.sh`). Save `--json` reports to compare later runs [PRIORITY: HIGH]
+- [ ] A few days of runs in a row (manual, or `SCHEDULER_ENABLED=true` on a test install) with `/health` green, no `missed` / `failed` job, and each `agent_card` free of failures and fallbacks — only then resume section 4 [PRIORITY: HIGH]
 - [ ] Go live (the person's side): a server, a domain pointed at it, the provider keys; then `docs/deploy.md` steps 2–5 [PRIORITY: HIGH]
 - [ ] Copy the backups off the server (rsync / object storage / provider snapshots) — a dump on the same disk doesn't survive the disk [PRIORITY: MED]
 - [ ] First run with `ANTHROPIC_API_KEY`: preflight confirms a live request on SDK 2.x / API version 2026-10-21, and one `run_pipeline` exercises the chain's last step (Claude Haiku 5.5) and the reasoning model [PRIORITY: HIGH]
@@ -49,7 +55,7 @@ Change a prompt, model, weight or skill only on evidence: an eval report or an o
 - [x] Agent improvement loop: `scripts.agent_card` (runs, data gaps, violations, model calls, track record, eval coverage, where to start), `docs/agent-improvement-loop.md`, `docs/agent-journal.md`
 - [x] First logged round: `recommendation_v2` vs the current prompt — rejected (faithfulness 1/6 vs 2/6 = noise, +16% tokens); both prompts make up a "main risk" when no analyst reports one (`docs/agent-journal.md`)
 - [x] Round 2: `recommendation_v3` (name only a reported risk) — rejected: faithfulness 50% → 50%, and it now attributes the invented risk to the risk analyst; the prompt carries no analyst reasoning at all
-- [ ] Round 3: give the recommendation prompt each analyst's short reasoning (data before prompt), and realistic reasoning in the consensus eval case [PRIORITY: HIGH]
+- [ ] Round 3 (paused until the stabilisation check passes): give the recommendation prompt each analyst's short reasoning (data before prompt), and realistic reasoning in the consensus eval case — planned in `docs/agent-journal.md` [PRIORITY: HIGH]
 - [ ] More labelled `recommendation` eval cases (only 2 today: consensus, risk_override) — e.g. mixed signals, missing analysts, bearish consensus [PRIORITY: MED]
 - [ ] Agent card on the dashboard (`/agents/<name>`), from the same `build_card` [PRIORITY: LOW]
 - [ ] Run the outcome eval suite live once a few weeks of recommendations have settled — the baseline for every later prompt / model change [PRIORITY: HIGH]
