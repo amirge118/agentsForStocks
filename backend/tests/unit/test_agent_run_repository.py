@@ -38,3 +38,6 @@ async def test_list_filters_and_orders_newest_first(db_session) -> None:
     assert [r.run_id for r in await repo.list(pipeline_run_id="p2")] == ["r3"]
     assert len(await repo.list(run_date=date(2026, 10, 23), limit=2)) == 2
     assert await repo.list(run_date=date(2026, 1, 1)) == []
+    assert len(await repo.list(agent="moat", since=date(2026, 10, 23))) == 3
+    assert await repo.list(agent="risk") == []
+    assert await repo.list(since=date(2026, 10, 24)) == []

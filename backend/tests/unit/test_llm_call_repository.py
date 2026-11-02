@@ -149,3 +149,15 @@ async def test_usage_by_provider_labels_calls_from_before_the_column(
         since=utcnow() - timedelta(days=1), group_by="provider"
     )
     assert sorted((r.key, r.calls) for r in rows) == [("(unknown)", 1), ("gemini", 2)]
+
+
+@pytest.mark.unit
+async def test_usage_for_one_agent(session_factory) -> None:
+    recorder = DbLLMCallRecorder(session_factory)
+    await recorder.record(_record("c1", agent="moat", provider="gemini"))
+    await recorder.record(_record("c2", agent="risk", provider="groq"))
+    async with session_factory() as session:
+        rows = await LLMCallRepository(session).usage(
+            since=utcnow() - timedelta(days=1), group_by="provider", agent="moat"
+        )
+    assert [(r.key, r.calls) for r in rows] == [("gemini", 1)]
