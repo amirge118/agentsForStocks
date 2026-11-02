@@ -47,7 +47,9 @@ current pipeline is trustworthy and measured. A new idea goes in the section it 
 Change a prompt, model, weight or skill only on evidence: an eval report or an out-of-sample backtest win.
 - [ ] Quality vs price — watch it in the settled outcomes: on 2026-11-02 four of five symbols were BUY although valuation was bearish on three of them (AAPL 90%, NVDA 75%, JNJ 85%). The quality agents (financial_history 20, moat 15, broad_analysis 10, growth 10 = 55 of the 100 weight points) favour great companies whatever their price, against valuation's 20. Once ~20 sessions have settled, check with `track_report` and backtest A whether the overvalued BUYs underperform; if they do, test a valuation cap like the risk cap [PRIORITY: HIGH]
 - [x] Agent improvement loop: `scripts.agent_card` (runs, data gaps, violations, model calls, track record, eval coverage, where to start), `docs/agent-improvement-loop.md`, `docs/agent-journal.md`
-- [ ] Run the first logged round: `recommendation_v2` vs the current prompt (scenario eval, then the outcome eval) — planned in `docs/agent-journal.md` [PRIORITY: HIGH]
+- [x] First logged round: `recommendation_v2` vs the current prompt — rejected (faithfulness 1/6 vs 2/6 = noise, +16% tokens); both prompts make up a "main risk" when no analyst reports one (`docs/agent-journal.md`)
+- [ ] Round 2: `recommendation_v3` — name the main risk only from what the analysts reported, else say none was reported; `--repeats 5` [PRIORITY: HIGH]
+- [ ] More labelled `recommendation` eval cases (only 2 today: consensus, risk_override) — e.g. mixed signals, missing analysts, bearish consensus [PRIORITY: MED]
 - [ ] Agent card on the dashboard (`/agents/<name>`), from the same `build_card` [PRIORITY: LOW]
 - [ ] Run the outcome eval suite live once a few weeks of recommendations have settled — the baseline for every later prompt / model change [PRIORITY: HIGH]
 - [ ] Run backtest A once a few weeks have settled; change weights only on a clear out-of-sample win. Includes the weight-0 agents (fundamentals / technicals / sentiment / market_scanner) [PRIORITY: HIGH]
