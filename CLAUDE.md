@@ -53,6 +53,10 @@ cd backend && python -m scripts.backtest_weights [--horizon 20] [--since 2026-09
 # Review stored results that predate the per-agent compliance gate (idempotent)
 cd backend && python -m scripts.review_compliance [--dry-run]
 
+# One agent's state and where to start improving it (DB only — no model or FMP calls);
+# the loop: docs/agent-improvement-loop.md, every round logged in docs/agent-journal.md
+cd backend && python -m scripts.agent_card recommendation [--days 30]
+
 # Token usage and cost per agent / model / day / prompt version (from the llm_calls ledger)
 cd backend && python -m scripts.token_report [--days 30] [--by model]
 
@@ -187,6 +191,7 @@ A fund has no 10-K, statements, earnings or moat. `@register_agent(company_only=
 | Track record read side (API, page, card) | `backend/app/api/v1/endpoints/outcomes.py`, `GET /symbols/{symbol}/outcomes`, `frontend/src/components/features/outcomes/`, `stocks/track-record-card.tsx` |
 | Point-in-time providers (runs of a past date: no data from after it) | `backend/app/providers/point_in_time.py`, applied by `AgentRunner(as_of=)` when the orchestrator runs a date before today |
 | Plans for larger features | `docs/plans/` |
+| Improving one agent: the loop, the agent card, the journal | `docs/agent-improvement-loop.md`, `backend/app/ops/agent_card.py` (`scripts.agent_card`), `docs/agent-journal.md` |
 | Pipeline orchestration + scheduler | `backend/app/pipeline/orchestrator.py`, `backend/app/agents/scheduler.py`, `backend/app/worker.py` |
 | Preflight / manual runs | `backend/app/ops/`, `backend/scripts/preflight.py`, `backend/scripts/run_pipeline.py` |
 | Pure financial logic | `backend/app/domain/` |

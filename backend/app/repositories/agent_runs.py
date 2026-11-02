@@ -22,10 +22,16 @@ class AgentRunRepository:
         run_date: date | None = None,
         status: str | None = None,
         pipeline_run_id: str | None = None,
+        agent: str | None = None,
+        since: date | None = None,
         limit: int = 100,
     ) -> list[AgentRun]:
-        """Newest first."""
+        """Newest first. `since` keeps runs dated on or after that market day."""
         stmt = select(AgentRun)
+        if agent is not None:
+            stmt = stmt.where(AgentRun.agent_type == agent)
+        if since is not None:
+            stmt = stmt.where(AgentRun.run_date >= since)
         if symbol is not None:
             stmt = stmt.where(AgentRun.symbol == symbol)
         if run_date is not None:

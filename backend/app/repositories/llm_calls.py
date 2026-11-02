@@ -33,7 +33,9 @@ class LLMCallRepository:
     def add(self, call: LLMCall) -> None:
         self._session.add(call)
 
-    async def usage(self, *, since: datetime, group_by: GroupBy) -> list[UsageRow]:
+    async def usage(
+        self, *, since: datetime, group_by: GroupBy, agent: str | None = None
+    ) -> list[UsageRow]:
         """Token and cost totals per group since `since`, most expensive first."""
         key = {
             "agent": func.coalesce(LLMCall.agent, "(none)"),
@@ -62,6 +64,8 @@ class LLMCallRepository:
             .group_by(key)
             .order_by(cost.desc(), key)
         )
+        if agent is not None:
+            stmt = stmt.where(LLMCall.agent == agent)
         rows = (await self._session.execute(stmt)).all()
         return [
             UsageRow(
