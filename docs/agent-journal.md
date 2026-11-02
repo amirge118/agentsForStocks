@@ -27,21 +27,55 @@
 
 ---
 
-## 2026-11-02 · recommendation · מתוכנן
+## 2026-11-02 · recommendation · מתוכנן (סבב 2)
 
-**מצב:** ההמלצה הסופית (BUY/HOLD/SELL) היא הסוכן המשפיע ביותר. הגרסה `recommendation_v2.md` כתובה, אבל לא נבדקה מעולם. עוד אין החלטות שהתבררו מול השוק, ולכן בשלב הראשון השיפוט הוא לפי eval התרחישים.
+**מצב:** מסבב 1. שני הפרומטים כוללים את ההוראה "for a bullish call, name the main risk too". כשאף אנליסט לא מדווח על סיכון (תרחיש consensus), המודל ממציא סיכון כללי ("macro volatility"), והשופט מסמן אותו כטענה לא נתמכת. זה קרה ב-6 מתוך 6 התשובות בתרחיש הזה, בשתי הגרסאות.
 
-**השערה:** הפרומט `recommendation_v2` מנמק טוב יותר מהנוכחי: יותר יציב ונאמן לנתונים, בלי לפגוע בדיוק על המקרים המתויגים ובלי להפר את תקרת הסיכון.
+**השערה:** אם ההוראה תדרוש לציין את הסיכון העיקרי *מתוך מה שהאנליסטים דיווחו*, ואם לא דווח סיכון לכתוב זאת במפורש, הנאמנות תעלה בלי לפגוע בדיוק. הדרישה ל"הוגן ומאוזן" (Marketing Rule) נשמרת: אמירה כנה ש"לא דווח סיכון ספציפי" עדיפה על סיכון מומצא.
 
-**שינוי:** פרופיל בלבד, `{"recommendation": {"prompt": "recommendation_v2"}}`. אין שינוי בקוד.
+**שינוי:** גרסה חדשה `recommendation_v3.md`: הקובץ הנוכחי, עם שינוי של השורה הזו בלבד, ונבחרת דרך פרופיל.
 
-**צעדים:**
-1. `python -m scripts.agent_card recommendation`: לרשום כאן את הרמזים.
-2. **בסיס:** `python -m evals.run --suite scenarios --agents recommendation --repeats 3 --judge --label recommendation-base --yes`
-3. **אחרי:** אותה פקודה עם `--profiles '{"recommendation": {"prompt": "recommendation_v2"}}' --label recommendation-v2`
-4. `python -m evals.compare evals/reports/<base>.json evals/reports/<v2>.json`
-5. **החלטה** לפי [כללי ההחלטה](agent-improvement-loop.md#6-החלטה). כשיש כמה שבועות של החלטות שהתבררו: `--suite outcomes` על שתי הגרסאות.
-
-**עלות:** המודלים חינמיים, והריצה לא קוראת ל-FMP. כדי לראות הערכת עלות לפני שמריצים, מריצים את אותה פקודה בלי `--yes`.
+**צעדים:** כמו בסבב 1, `base` מול `--profiles '{"recommendation": {"prompt": "recommendation_v3"}}'`. כדאי גם `--repeats 5`, כדי שהבדל של תשובה אחת לא ייראה כשיפור.
 
 **בסיס / אחרי / החלטה:** עוד לא רץ.
+
+---
+
+## 2026-11-02 · recommendation · נדחה (סבב 1: `recommendation_v2`)
+
+**מצב (`agent_card recommendation --days 30`):**
+- 7 ריצות, 0 כישלונות, 0 fallbacks, 0 פערי נתונים, 0 הפרות.
+- מודל: gemini.
+- עוד אין outcomes.
+- יש 2 מקרי eval, שניהם מתויגים.
+- הרמז היחיד: "No settled outcomes yet: judge changes with the scenario eval for now".
+
+**השערה:** `recommendation_v2` מנמק טוב יותר (יציבות ונאמנות) בלי לפגוע בדיוק.
+
+**שינוי:** פרופיל `{"recommendation": {"prompt": "recommendation_v2"}}`, בלי שינוי קוד.
+
+**תוצאות** (`--suite scenarios --agents recommendation --repeats 3 --judge`, gemini חינמי, $0):
+
+| מדד | base | v2 |
+|---|---|---|
+| Label accuracy | 100% | 100% |
+| Stability | 100% | 100% |
+| Faithfulness (judge) | 17% (1/6) | 33% (2/6) |
+| Fallbacks / Violations | 0% / 0% | 0% / 0% |
+| ביטחון ב-consensus | 75–85% | 85–90% |
+| טוקני קלט בממוצע | 477 | 555 (+16%) |
+
+דוחות (לא ב-git): `evals/reports/20261102-162605-recommendation-base.json` ו-`20261102-162727-recommendation-v2.json`.
+
+**מה נמצא:**
+- בתרחיש consensus כל 6 התשובות, בשתי הגרסאות, הוסיפו סיכון שלא הופיע בנתונים, כמו "Main risk remains macroeconomic volatility".
+- המקור הוא ההוראה המשותפת לשני הפרומטים: "for a bullish call, name the main risk too".
+- בתרחיש risk_override התשובות נאמנות יותר, אבל לפעמים מוסיפות ניסוח כמו "Holding is prudent".
+
+**החלטה: נדחה.**
+- ההבדל בנאמנות הוא תשובה אחת מתוך 6, כלומר בגבולות הרעש.
+- v2 עולה 16% יותר טוקנים, ונותן ביטחון גבוה יותר בלי בסיס נוסף.
+- הבעיה האמיתית משותפת לשתי הגרסאות, ולכן היא עוברת לסבב 2 (למעלה).
+- הפרומט הנוכחי נשאר ברירת המחדל.
+
+**מול השוק:** עוד אין החלטות שהתבררו.
