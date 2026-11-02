@@ -33,6 +33,10 @@ cd frontend && npm run dev
 # Apply DB migrations
 cd backend && alembic upgrade head
 
+# Does it all work? Preflight + every agent on a few symbols + a report (PASS / WARN / FAIL)
+sh infra/deploy/verify.sh AAPL NVDA JPM XOM JNJ          # Docker
+cd backend && python -m scripts.verify AAPL NVDA [--force] [--json report.json]
+
 # Before a real run: check keys + connectivity to Claude, FMP, Yahoo, SEC (exit 1 = not ready)
 cd backend && python -m scripts.preflight
 
