@@ -42,6 +42,9 @@ current pipeline is trustworthy and measured. A new idea goes in the section it 
 
 ## 4. Measure, then improve what exists (needs settled outcomes)
 Change a prompt, model, weight or skill only on evidence: an eval report or an out-of-sample backtest win.
+- [x] Agent improvement loop: `scripts.agent_card` (runs, data gaps, violations, model calls, track record, eval coverage, where to start), `docs/agent-improvement-loop.md`, `docs/agent-journal.md`
+- [ ] Run the first logged round: `recommendation_v2` vs the current prompt (scenario eval, then the outcome eval) — planned in `docs/agent-journal.md` [PRIORITY: HIGH]
+- [ ] Agent card on the dashboard (`/agents/<name>`), from the same `build_card` [PRIORITY: LOW]
 - [ ] Run the outcome eval suite live once a few weeks of recommendations have settled — the baseline for every later prompt / model change [PRIORITY: HIGH]
 - [ ] Run backtest A once a few weeks have settled; change weights only on a clear out-of-sample win. Includes the weight-0 agents (fundamentals / technicals / sentiment / market_scanner) [PRIORITY: HIGH]
 - [ ] One live model baseline (needs `ANTHROPIC_API_KEY`): the free chain and free_gemini presets vs claude-haiku-5-5 / claude-sonnet-5-5, `--repeats 3 --judge`; then decide the default provider and models [PRIORITY: HIGH]
