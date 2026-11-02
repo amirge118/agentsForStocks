@@ -1,7 +1,7 @@
 -r requirements.txt
 
 # Testing
-pytest==9.1.1
+pytest==9.2.0
 pytest-asyncio==1.4.1
 pytest-cov==7.1.0
 # Held at 0.20.0: with SQLAlchemy 2.1.6, aiosqlite 0.22.1's new stop() is used to
@@ -14,7 +14,7 @@ aiosqlite==0.20.0
 httpx2==2.16.0
 
 # Linting / formatting / security
-ruff==0.17.2
+ruff==0.17.3
 black==26.10.1
 bandit==1.9.4
 pip-audit==2.10.1
