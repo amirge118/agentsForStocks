@@ -73,6 +73,30 @@ async def test_a_clean_run_passes_and_lists_expected_gaps(session_factory) -> No
 
 
 @pytest.mark.unit
+async def test_a_result_with_no_evidence_is_named_without_failing_the_run(session_factory) -> None:
+    await _stored_run(session_factory)
+    await _store(
+        session_factory,
+        "XOM",
+        "sentiment",
+        signal="neutral",
+        confidence=0.0,
+        data_gaps=["insider_trades", "headlines"],
+    )
+    # Honest zero: nothing was missing, so there's nothing to call out
+    await _store(session_factory, "AAPL", "moat", signal="neutral", confidence=0.0)
+
+    report = await build_report(session_factory, _registry(), _report(), ["AAPL", "XOM"])
+
+    assert report.verdict == "PASS"
+    assert report.no_evidence == ["sentiment/XOM: missing insider_trades, headlines"]
+    text = render(report)
+    assert "No evidence (neutral at 0%: nothing to judge)" in text
+    assert text.endswith("but 1 results had no data to judge, see above")
+    assert json.loads(report.to_json())["no_evidence"] == report.no_evidence
+
+
+@pytest.mark.unit
 async def test_results_that_need_review_warn_and_failures_fail(session_factory) -> None:
     await _stored_run(session_factory)
     await _store(session_factory, "XOM", "moat", needs_review=["model unavailable"])

@@ -8,7 +8,8 @@ WARN  everything ran, but some results need review (a fallback stood in for the 
 FAIL  an agent run failed
 
 Missing inputs are listed but don't change the verdict: some are expected (FMP's
-free plan has no institutional holders; Yahoo news is blocked on some hosts).
+free plan has no institutional holders; Yahoo news is blocked on some hosts). An agent
+left with nothing to judge is named on its own line, and in the verdict's text.
 
 The report reads the stored results of the run date, so a symbol already analysed
 today (skipped: runs are idempotent) is reported from what is stored.
@@ -80,6 +81,16 @@ class VerifyReport:
         return dict(gaps)
 
     @property
+    def no_evidence(self) -> list[str]:
+        """Results that say nothing: neutral at 0% because inputs were empty."""
+        return [
+            f"{agent}/{s.symbol}: missing {', '.join(cell.data_gaps)}"
+            for s in self.symbols
+            for agent, cell in s.agents.items()
+            if cell.data_gaps and cell.signal == "neutral" and cell.confidence == 0
+        ]
+
+    @property
     def violations(self) -> list[str]:
         return [
             f"{agent}/{s.symbol}: {v}"
@@ -101,6 +112,7 @@ class VerifyReport:
         body: dict[str, Any] = asdict(self)
         body["run_date"] = self.run_date.isoformat()
         body["verdict"] = self.verdict
+        body["no_evidence"] = self.no_evidence
         return json.dumps(body, indent=2, ensure_ascii=False)
 
 
@@ -184,6 +196,7 @@ def render(report: VerifyReport) -> str:
             items = ", ".join(f"{name} ({n}/{len(report.symbols)})" for name, n in counter.items())
             lines.append(f"  {agent:<18} {items}")
     for title, items in (
+        ("No evidence (neutral at 0%: nothing to judge)", report.no_evidence),
         ("Needs review (a fallback stood in for the model)", report.needs_review),
         ("Contract violations (an agent broke its own rule)", report.violations),
         ("Failed agent runs", report.failed),
@@ -221,4 +234,7 @@ def _verdict_text(report: VerifyReport) -> str:
             f"everything ran, but {len(report.needs_review)} results need review — usually a "
             "free model's rate limit; run again later, or set ANTHROPIC_API_KEY"
         )
-    return "every agent ran on every symbol, every judgement came from a model"
+    done = "every agent ran on every symbol, every judgement came from a model"
+    if report.no_evidence:
+        return f"{done} — but {len(report.no_evidence)} results had no data to judge, see above"
+    return done

@@ -1,3 +1,4 @@
+# Try it on one symbol:  sh infra/deploy/try.sh AAPL   (fills in .env, stack + report)
 # Full stack:            docker compose up --build
 # On a server:           docker compose --profile https --profile backup up -d --build
 #                        (HTTPS via Caddy + daily database backups — docs/deploy.md)
@@ -40,7 +41,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-agentsforstocks}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

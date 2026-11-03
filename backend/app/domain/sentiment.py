@@ -25,8 +25,10 @@ def score_insider_trades(trades: list[dict], now: datetime | None = None) -> Sen
     cutoff = (now or datetime.now()) - timedelta(days=INSIDER_LOOKBACK_DAYS)
     buys = sells = 0
     for trade in trades:
-        # yfinance column names vary between versions
-        tx_type = str(trade.get("Transaction", trade.get("transaction_type", ""))).lower()
+        # yfinance columns vary between versions; 1.7 leaves Transaction empty and fills Text
+        tx_type = " ".join(
+            str(trade.get(column, "")) for column in ("Transaction", "transaction_type", "Text")
+        ).lower()
         when = trade.get("Start Date", trade.get("filing_date"))
         try:
             if when and datetime.fromisoformat(str(when)[:19]) < cutoff:
