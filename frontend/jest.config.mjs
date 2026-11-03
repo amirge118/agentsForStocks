@@ -1,5 +1,8 @@
 import nextJest from "next/jest.js"
 
+// Formatting tests assert exact dates; the app itself uses the viewer's time zone
+process.env.TZ = "UTC"
+
 const createJestConfig = nextJest({ dir: "./" })
 
 /** @type {import("jest").Config} */
