@@ -214,11 +214,17 @@ class YFinanceClient:
     async def get_news(self, symbol: str, count: int = 20) -> list[dict]:
         ticker = validate_symbol(symbol)
         # yfinance 1.x asks Yahoo for `count` articles (default 10); slice in case it sends more
-        return await self._optional(
+        news = await self._optional(
             ("news", ticker, count),
             lambda: (self._ticker(ticker).get_news(count=count) or [])[:count],
             [],
         )
+        if news or self._fallback is None:
+            return news
+        feed = await self._fallback.get_news(ticker, count)
+        if feed:
+            _note_fallback("news", ticker)
+        return feed
 
 
 def _has_price(info: dict) -> bool:
@@ -227,6 +233,6 @@ def _has_price(info: dict) -> bool:
 
 def _note_fallback(call: str, ticker: str) -> None:
     logger.info(
-        "yfinance had no data, used the Yahoo chart", extra={"call": call, "symbol": ticker}
+        "yfinance had no data, used a public Yahoo endpoint", extra={"call": call, "symbol": ticker}
     )
     metrics.provider_requests.add(1, {"domain": _DOMAIN, "outcome": "fallback"})

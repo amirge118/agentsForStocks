@@ -143,6 +143,25 @@ def test_insider_scoring_reads_the_type_from_text_when_transaction_is_empty() ->
 
 
 @pytest.mark.unit
+def test_insider_scoring_counts_one_decision_per_person_day_and_direction() -> None:
+    now = datetime(2026, 10, 25)
+    # One large sale, in Form 4 price tranches, against three separate purchases
+    sale = {"Transaction": "Sale", "Insider": "COOK TIMOTHY D", "Start Date": "2026-10-02"}
+    tranches = [sale] * 6 + [{**sale, "Insider": "Cook Timothy D "}]
+    purchases = [
+        {"Transaction": "Purchase", "Insider": name, "Start Date": "2026-10-02"}
+        for name in ("A", "B", "C")
+    ]
+    score = score_insider_trades(tranches + purchases, now)
+    assert score.detail.startswith("buys=3 sells=1")
+    assert score.signal == "bullish"
+    # The same person on another day, or in the other direction, is another decision
+    later = {**sale, "Start Date": "2026-10-09"}
+    bought = {**sale, "Transaction": "Purchase"}
+    assert score_insider_trades([sale, later, bought], now).detail.startswith("buys=1 sells=2")
+
+
+@pytest.mark.unit
 def test_headlines_support_both_news_shapes() -> None:
     news = [{"title": "Old shape"}, {"content": {"title": "New shape"}}, {"content": "x"}]
     assert headlines(news) == ["Old shape", "New shape"]

@@ -54,6 +54,7 @@ _RATE_LIMITS = {
     "data.sec.gov": 5.0,
     "yahoo": 2.0,
     "query1.finance.yahoo.com": 2.0,  # the chart fallback (YahooChartClient)
+    "feeds.finance.yahoo.com": 2.0,  # its news feed
 }
 
 

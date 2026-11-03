@@ -18,12 +18,17 @@ class SentimentScore:
 
 
 def score_insider_trades(trades: list[dict], now: datetime | None = None) -> SentimentScore:
-    """Buy rate over the last 90 days: > 60% bullish, < 30% bearish."""
+    """
+    Buy rate over the last 90 days: > 60% bullish, < 30% bearish. One decision per
+    person, day and direction: a Form 4 reports each price tranche as its own row,
+    which would let one large sale outvote several separate purchases.
+    """
     if not trades:
         return SentimentScore("neutral", 50.0, "No insider trade data")
 
     cutoff = (now or datetime.now()) - timedelta(days=INSIDER_LOOKBACK_DAYS)
     buys = sells = 0
+    seen: set[tuple[str, str, str]] = set()
     for trade in trades:
         # yfinance columns vary between versions; 1.7 leaves Transaction empty and fills Text
         tx_type = " ".join(
@@ -35,9 +40,18 @@ def score_insider_trades(trades: list[dict], now: datetime | None = None) -> Sen
                 continue
         except ValueError:
             pass
-        if "buy" in tx_type or "purchase" in tx_type:
+        is_buy = "buy" in tx_type or "purchase" in tx_type
+        if not is_buy and "sell" not in tx_type and "sale" not in tx_type:
+            continue
+        insider = str(trade.get("Insider") or "").strip().lower()
+        if insider:  # Without a name, separate rows can't be told to be one decision
+            event = (insider, str(when)[:10], "buy" if is_buy else "sell")
+            if event in seen:
+                continue
+            seen.add(event)
+        if is_buy:
             buys += 1
-        elif "sell" in tx_type or "sale" in tx_type:
+        else:
             sells += 1
 
     total = buys + sells

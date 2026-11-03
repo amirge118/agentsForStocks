@@ -13,9 +13,15 @@ previous close, 52-week range, name, currency) — not fundamentals (market cap,
 P/E, margins). Requests go
 through HttpClient (retry, rate limit, cache), and results are shaped like
 yfinance's, so callers can't tell which source answered.
+
+News comes from Yahoo's public RSS feed when yfinance's news call fails. The feed
+is read with regexes, never an XML parser, so its entities can't expand (it is
+untrusted input, and defusedxml isn't a dependency).
 """
 
+import html
 import logging
+import re
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -30,6 +36,12 @@ logger = logging.getLogger(__name__)
 _CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 # Yahoo answers non-browser user agents with 429 more readily
 _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; agentsForStocks)"}
+_NEWS_URL = "https://feeds.finance.yahoo.com/rss/2.0/headline"
+_MAX_FEED_CHARS = 1_000_000
+_MAX_TITLE_CHARS = 300
+_FEED_ITEM = re.compile(r"<item\b[^>]*>(.*?)</item>", re.DOTALL)
+_FEED_TITLE = re.compile(r"<title\b[^>]*>(.*?)</title>", re.DOTALL)
+_FEED_CDATA = re.compile(r"<!\[CDATA\[(.*?)\]\]>", re.DOTALL)
 _OHLCV = {"open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume"}
 # chart meta field → the yfinance Ticker.info field it stands in for
 _QUOTE_FIELDS = {
@@ -104,6 +116,22 @@ class YahooChartClient:
         )
         return to_adjusted_closes(result, start, end) if result is not None else _no_closes()
 
+    async def get_news(self, symbol: str, count: int = 20) -> list[dict[str, str]]:
+        """Headlines from Yahoo's RSS feed as [{"title": ...}] (empty when unavailable)."""
+        ticker = validate_symbol(symbol)
+        try:
+            xml = await self._http.get_text(
+                _NEWS_URL,
+                params={"s": ticker, "region": "US", "lang": "en-US"},
+                headers=_HEADERS,
+            )
+        except ProviderError as exc:
+            logger.warning(
+                "Yahoo news feed unavailable", extra={"symbol": ticker, "error": str(exc)}
+            )
+            return []
+        return parse_news_feed(xml, count)
+
     async def _chart(self, symbol: str, period: str, interval: str) -> dict[str, Any] | None:
         return await self._chart_query(symbol, {"range": period, "interval": interval})
 
@@ -118,6 +146,22 @@ class YahooChartClient:
             return None
         results = ((data or {}).get("chart") or {}).get("result") or []
         return results[0] if results and isinstance(results[0], dict) else None
+
+
+def parse_news_feed(xml: str, limit: int) -> list[dict[str, str]]:
+    """The items' titles, in order; an item without a usable title is left out."""
+    articles: list[dict[str, str]] = []
+    for item in _FEED_ITEM.findall(xml[:_MAX_FEED_CHARS]):
+        match = _FEED_TITLE.search(item)
+        if match is None:
+            continue
+        title = html.unescape(_FEED_CDATA.sub(r"\1", match.group(1)))
+        title = " ".join(title.split())[:_MAX_TITLE_CHARS]
+        if title:
+            articles.append({"title": title})
+        if len(articles) == limit:
+            break
+    return articles
 
 
 def to_frame(result: dict[str, Any]) -> pd.DataFrame:
