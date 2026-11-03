@@ -13,7 +13,9 @@ With Docker: sh infra/deploy/verify.sh [same arguments].
 
 import argparse
 import asyncio
+import logging
 import sys
+import warnings
 from pathlib import Path
 
 from app.container import build_container
@@ -58,4 +60,6 @@ async def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":  # pragma: no cover
     configure_logging(settings.log_format, "WARNING")
+    logging.getLogger("app.agents.runner").setLevel(logging.INFO)  # each agent, as it runs
+    warnings.filterwarnings("ignore", message="The inplace keyword")  # yfinance on pandas 3.1
     sys.exit(asyncio.run(main(sys.argv[1:])))

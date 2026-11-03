@@ -171,6 +171,10 @@ docker compose up --build
 This starts PostgreSQL, runs the migrations, and brings up the API
 (`localhost:8000`), the scheduler worker and the dashboard (`localhost:3000`).
 
+To try it on one stock with one command, run `sh infra/deploy/try.sh AAPL`. It fills in
+the secrets `.env` lacks, moves the database to port 5433 if 5432 is taken, brings the
+stack up and runs every agent, showing each one as it runs and then a report.
+
 ### Option 2 — Local development
 
 Python 3.13, Node.js 22 and Docker (for PostgreSQL).

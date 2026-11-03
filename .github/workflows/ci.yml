@@ -144,7 +144,7 @@ jobs:
           docker compose --profile observability --profile knowledge --profile https --profile backup config -q
           docker run --rm -e DOMAIN=ci.example.com -v "$PWD/infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2.11.7 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-          sh -n infra/backup/backup.sh && sh -n infra/deploy/init-env.sh
+          sh -n infra/backup/backup.sh && sh -n infra/deploy/init-env.sh && sh -n infra/deploy/try.sh
           for f in infra/grafana/dashboards/*.json; do jq -e '.panels | length > 0' "$f" > /dev/null; done
       - name: Build images
         run: docker compose build

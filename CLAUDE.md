@@ -11,6 +11,9 @@ Detailed coding standards are in `.claude/rules/` — Claude enforces these auto
 ## Quick Start
 
 ```bash
+# One command on your machine: fills in what .env lacks, stack up, every agent on one symbol, report
+sh infra/deploy/try.sh AAPL [--force]
+
 # Whole stack in Docker (db → migrate → api + worker → frontend); needs .env
 docker compose up --build
 
