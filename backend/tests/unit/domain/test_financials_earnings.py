@@ -128,6 +128,21 @@ def test_insider_scoring() -> None:
 
 
 @pytest.mark.unit
+def test_insider_scoring_reads_the_type_from_text_when_transaction_is_empty() -> None:
+    now = datetime(2026, 10, 25)
+    day = pd.Timestamp("2026-10-20")
+    sale = {"Transaction": "", "Text": "Sale at price 339.62 per share.", "Start Date": day}
+    purchase = {"Transaction": "", "Text": "Purchase at price 300.00", "Start Date": day}
+    award = {"Transaction": "", "Text": "Stock Award(A) at price 0.00", "Start Date": day}
+
+    score = score_insider_trades([sale] * 4 + [award] * 9, now)
+    assert score.signal == "bearish"
+    assert score.detail.startswith("buys=0 sells=4")
+    assert score_insider_trades([purchase] * 4, now).signal == "bullish"
+    assert score_insider_trades([award], now).detail.startswith("No recent insider trades")
+
+
+@pytest.mark.unit
 def test_headlines_support_both_news_shapes() -> None:
     news = [{"title": "Old shape"}, {"content": {"title": "New shape"}}, {"content": "x"}]
     assert headlines(news) == ["Old shape", "New shape"]
