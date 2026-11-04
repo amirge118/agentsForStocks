@@ -83,6 +83,7 @@ async def test_run_persists_result_and_learnings(session_factory, db_session) ->
         "contract_violations": [],
         "compliance": {"status": "pass", "findings": [], "original_reasoning": None},
         "needs_review": [],
+        "reused_from": None,
     }
     assert row.run_id == outcome.run_id
     assert [lr.kind for lr in knowledge.stored] == ["case", "pattern"]

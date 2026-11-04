@@ -97,7 +97,7 @@ describe("repositories", () => {
 describe("agent repository", () => {
   it("lists agents", async () => {
     const profile = { provider: "anthropic", model: null, skills: ["moat_evidence"], use_llm: true }
-    const agents = [{ name: "moat", description: "d", depends_on: [], recommendation_weight: 15, profile }]
+    const agents = [{ name: "moat", description: "d", depends_on: [], recommendation_weight: 15, refresh: { max_age_days: 0, on_new_report: false }, profile }]
     const fetchMock = mockFetch(200, agents)
     await expect(agentRepository.getAll()).resolves.toEqual(agents)
     expect(fetchMock.mock.calls[0][0]).toBe("/api/backend/agents")

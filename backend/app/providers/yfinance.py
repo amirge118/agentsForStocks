@@ -228,6 +228,8 @@ class YFinanceClient:
             return statements.cash_flow_rows(company.cashflow)
         if endpoint == statements.RATIOS:
             return statements.ratio_rows(company.income_stmt, company.balance_sheet)
+        if endpoint == statements.HOLDERS:
+            return statements.holder_rows(company.institutional_holders, market_today())
         return []
 
     async def get_insider_transactions(self, symbol: str) -> list[dict]:

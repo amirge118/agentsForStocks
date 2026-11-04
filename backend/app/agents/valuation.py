@@ -14,6 +14,8 @@ from app.domain.valuation import (
     with_fmp_fallbacks,
 )
 
+IMPLAUSIBLE_MARGIN_OF_SAFETY = 1.0
+
 
 class ValuationResult(AnalysisResult):
     dcf: dict[str, float]
@@ -48,12 +50,21 @@ def _signal_matches_margin_of_safety(data: object, result: "ValuationResult") ->
     return None
 
 
+def _margin_of_safety_is_plausible(data: object, result: "ValuationResult") -> str | None:
+    if result.margin_of_safety > IMPLAUSIBLE_MARGIN_OF_SAFETY:
+        return (
+            f"margin of safety of {result.margin_of_safety:+.0%}: "
+            "a gap this wide is more often a bad input or assumption than a bargain"
+        )
+    return None
+
+
 @register_agent(
     "valuation",
     description="Multi-method intrinsic value and margin of safety",
     recommendation_weight=20,
     company_only=True,
-    invariants=(_signal_matches_margin_of_safety,),
+    invariants=(_signal_matches_margin_of_safety, _margin_of_safety_is_plausible),
 )
 class ValuationAgent(Agent[ValuationData, ValuationResult]):
     result_model = ValuationResult

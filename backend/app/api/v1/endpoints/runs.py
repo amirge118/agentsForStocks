@@ -25,7 +25,7 @@ router = APIRouter(tags=["pipeline"])
 async def list_runs(
     symbol: str | None = Query(default=None),
     run_date: date | None = Query(default=None),
-    status_filter: Literal["completed", "skipped", "failed"] | None = Query(
+    status_filter: Literal["completed", "skipped", "reused", "failed"] | None = Query(
         default=None, alias="status"
     ),
     pipeline_run_id: str | None = Query(default=None),

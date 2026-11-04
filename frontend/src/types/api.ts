@@ -13,7 +13,7 @@ type Schemas = components["schemas"]
 
 export const SignalSchema = z.enum(["bullish", "bearish", "neutral"])
 export const ActionSchema = z.enum(["BUY", "SELL", "HOLD"])
-export const RunStatusSchema = z.enum(["completed", "skipped", "failed"])
+export const RunStatusSchema = z.enum(["completed", "skipped", "reused", "failed"])
 export const ComplianceStatusSchema = z.enum(["pass", "flag", "fail"])
 
 export const ComplianceFindingSchema = z.object({
@@ -76,6 +76,7 @@ export const AgentInfoSchema = z.object({
   depends_on: z.array(z.string()),
   recommendation_weight: z.number(),
   profile: AgentProfileSchema,
+  refresh: z.object({ max_age_days: z.number(), on_new_report: z.boolean() }),
 })
 
 export const AgentResultSchema = z.object({
@@ -255,6 +256,7 @@ export const BaseAgentResultSchema = z.object({
   data_gaps: z.array(z.string()).optional(),
   contract_violations: z.array(z.string()).optional(),
   needs_review: z.array(z.string()).optional(),
+  reused_from: z.string().nullish(),
 })
 
 export const ValuationResultSchema = BaseAgentResultSchema.extend({

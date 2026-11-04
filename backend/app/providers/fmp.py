@@ -27,7 +27,7 @@ from app.core.symbols import validate_symbol
 from app.observability import metrics
 from app.providers.errors import ProviderError, QuotaExceededError
 from app.providers.http import HttpClient
-from app.providers.yahoo_statements import EARNINGS
+from app.providers.yahoo_statements import EARNINGS, HOLDERS
 
 logger = logging.getLogger(__name__)
 
@@ -201,8 +201,8 @@ class FmpClient:
         return await self._get_list("analyst-estimates", symbol, limit=limit, period="annual")
 
     async def get_institutional_holders(self, symbol: str) -> list[dict]:
-        """Top 50 holders by shares: holder, shares, change. Not in the free plan ([])."""
-        rows = await self._get_list("institutional-ownership/extract-analytics/holder", symbol)
+        """Top holders by shares: holder, shares, change. On the free plan, Yahoo's top ten."""
+        rows = await self._or_statements(HOLDERS, symbol, await self._get_list(HOLDERS, symbol))
         return sorted(rows, key=lambda r: r.get("shares") or 0, reverse=True)[:50]
 
     async def get_13f_institutional_ownership(self, symbol: str, limit: int = 4) -> list[dict]:

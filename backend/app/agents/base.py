@@ -76,6 +76,8 @@ class AnalysisResult(BaseModel):
     # Why a person should check this result before trusting it — e.g. the model was
     # unavailable and a rule-based fallback stood in. Empty: nothing to check
     needs_review: list[str] = Field(default_factory=list)
+    # The day this result was really produced, when an agent's refresh policy reused it
+    reused_from: str | None = None
 
     @classmethod
     def from_judgement(

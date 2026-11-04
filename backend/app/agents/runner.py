@@ -17,6 +17,7 @@ Each run gets its own DB session, so agents can run concurrently.
 
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 from typing import Literal
@@ -29,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.agents.base import Agent, AnalysisResult
 from app.agents.compliance import apply_compliance
 from app.agents.contracts import apply_contract, missing_inputs
+from app.agents.refresh import RefreshBook, reusable
 from app.core.clock import market_today, utcnow
 from app.core.context import RunUsage, bind_run
 from app.knowledge.store import KnowledgeStore
@@ -40,7 +42,7 @@ from app.repositories.agent_runs import AgentRunRepository
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
-RunStatus = Literal["completed", "skipped", "failed"]
+RunStatus = Literal["completed", "skipped", "reused", "failed"]
 
 
 @dataclass(frozen=True)
@@ -59,9 +61,17 @@ class AgentRunner:
         self,
         session_factory: async_sessionmaker[AsyncSession],
         knowledge: KnowledgeStore,
+        refresh: RefreshBook | None = None,
+        reported: Callable[[str], Awaitable[date | None]] | None = None,
     ) -> None:
+        """
+        refresh: how long each agent's result stays good (app/agents/refresh.py).
+        reported: the newest day a symbol reported earnings, for `on_new_report`.
+        """
         self._session_factory = session_factory
         self._knowledge = knowledge
+        self._refresh = refresh or RefreshBook()
+        self._reported = reported
 
     async def run(
         self,
@@ -133,6 +143,11 @@ class AgentRunner:
                 if not force and await repo.exists(agent.name, symbol, run_date):
                     logger.info("Agent run skipped — already ran today")
                     return RunOutcome(agent.name, symbol, run_id, "skipped")
+                if not force and recall:
+                    reused = await self._reuse(agent, symbol, run_date, run_id, repo)
+                    if reused is not None:
+                        await session.commit()
+                        return reused
 
                 memory = await self._knowledge.recall(symbol, agent.name) if recall else []
                 phase = time.perf_counter()
@@ -159,6 +174,48 @@ class AgentRunner:
         except Exception as exc:
             logger.error("Agent run failed", extra={"error": str(exc)}, exc_info=True)
             return RunOutcome(agent.name, symbol, run_id, "failed", error=str(exc))
+
+    async def _reuse(
+        self,
+        agent: Agent,
+        symbol: str,
+        run_date: date,
+        run_id: str,
+        repo: AgentResultRepository,
+    ) -> RunOutcome | None:
+        """The last result copied to `run_date` while it is still good, else None: run."""
+        policy = self._refresh.resolve(agent.name)
+        if policy.max_age_days <= 0:
+            return None
+        stored = await repo.latest_before(agent.name, symbol, run_date)
+        if stored is None:
+            return None
+        day, result = stored
+        source = date.fromisoformat(result.get("reused_from") or day.isoformat())
+        if not reusable(policy, result, source, run_date):
+            return None
+        if policy.on_new_report and await self._new_report_since(symbol, source):
+            return None
+        copied = {**result, "reused_from": source.isoformat()}
+        try:
+            validated = agent.result_model.model_validate(copied)
+        except ValueError:  # stored under an older shape of the result
+            return None
+        await repo.upsert(
+            agent_type=agent.name, symbol=symbol, run_date=run_date, run_id=run_id, result=copied
+        )
+        logger.info("Agent run reused a stored result", extra={"reused_from": source.isoformat()})
+        return RunOutcome(agent.name, symbol, run_id, "reused", result=validated)
+
+    async def _new_report_since(self, symbol: str, source: date) -> bool:
+        if self._reported is None:
+            return False
+        try:
+            latest = await self._reported(symbol)
+        except Exception as exc:  # max_age_days still bounds how stale this can get
+            logger.warning("Could not check for a new report", extra={"error": str(exc)})
+            return False
+        return latest is not None and latest >= source
 
     async def _record(
         self,

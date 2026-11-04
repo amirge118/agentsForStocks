@@ -22,12 +22,18 @@ class AgentProfileOut(BaseModel):
     use_llm: bool
 
 
+class AgentRefreshOut(BaseModel):
+    max_age_days: int
+    on_new_report: bool
+
+
 class AgentInfo(BaseModel):
     name: str
     description: str
     depends_on: list[str]
     recommendation_weight: float
     profile: AgentProfileOut
+    refresh: AgentRefreshOut
 
 
 class AgentResultOut(BaseModel):
@@ -135,7 +141,7 @@ class AgentRunOut(BaseModel):
     agent_type: str
     symbol: str
     run_date: date
-    status: Literal["completed", "skipped", "failed"]
+    status: Literal["completed", "skipped", "reused", "failed"]
     error: str | None
     started_at: datetime
     finished_at: datetime

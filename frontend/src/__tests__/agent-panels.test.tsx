@@ -22,7 +22,7 @@ const agents: AgentRepository = {
       name,
       description: `${name} agent`,
       depends_on: [],
-      recommendation_weight: 10,
+      recommendation_weight: 10, refresh: { max_age_days: 0, on_new_report: false },
       profile: { provider: "anthropic", model: null, skills: [], use_llm: true },
     })),
 }

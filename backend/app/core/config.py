@@ -77,6 +77,8 @@ class Settings(BaseSettings):
     # max_tokens, use_llm per prompt. Example: {"news_sentiment": {"provider": "alt"}}
     agent_profiles: str = ""
     agent_profiles_file: str = ""
+    # How often each agent really runs on a symbol (JSON), over app/agents/refresh.py's table
+    agent_refresh: str = ""
     # Ledger (llm_calls): keep the exact prompt and reply text of every call, for review
     # and evals; rows older than the retention window are deleted daily by the worker
     llm_capture_content: bool = True

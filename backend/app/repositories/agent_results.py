@@ -60,6 +60,23 @@ class AgentResultRepository:
         )
         await self._session.execute(stmt)
 
+    async def latest_before(
+        self, agent_type: str, symbol: str, run_date: date
+    ) -> tuple[date, dict[str, Any]] | None:
+        """The agent's newest result for this symbol before `run_date`."""
+        stmt = (
+            select(AgentResult.run_date, AgentResult.result_json)
+            .where(
+                AgentResult.agent_type == agent_type,
+                AgentResult.symbol == symbol,
+                AgentResult.run_date < run_date,
+            )
+            .order_by(AgentResult.run_date.desc())
+            .limit(1)
+        )
+        row = (await self._session.execute(stmt)).first()
+        return (row[0], row[1]) if row is not None else None
+
     async def get_for_date(
         self, symbol: str, run_date: date, agent_types: Iterable[str] | None = None
     ) -> dict[str, dict[str, Any]]:

@@ -8,7 +8,8 @@ so point-in-time runs (app/providers/point_in_time.py) leave them out.
 
 import math
 from collections.abc import Mapping
-from datetime import date
+from datetime import date, timedelta
+from numbers import Real
 from typing import Any
 
 import pandas as pd
@@ -18,6 +19,9 @@ BALANCE = "balance-sheet-statement"
 CASH_FLOW = "cash-flow-statement"
 RATIOS = "ratios"
 EARNINGS = "earnings"
+HOLDERS = "institutional-ownership/extract-analytics/holder"
+
+_STALE_HOLDING = timedelta(days=400)  # a holder that hasn't filed in over a year
 
 _INCOME_ROWS = {
     "revenue": "Total Revenue",
@@ -46,9 +50,10 @@ _CASH_FLOW_ROWS = {
 
 
 def _number(value: Any) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, int | float):
+    if isinstance(value, bool) or not isinstance(value, Real):
         return None
-    return None if math.isnan(value) or math.isinf(value) else float(value)
+    number = float(value)
+    return None if math.isnan(number) or math.isinf(number) else number
 
 
 def _rows(frame: pd.DataFrame | None, names: Mapping[str, str]) -> list[dict[str, Any]]:
@@ -127,3 +132,28 @@ def earnings_rows(frame: pd.DataFrame | None, today: date) -> list[dict[str, Any
         elif day >= today:
             upcoming.append(entry)
     return upcoming[-1:] + reported
+
+
+def holder_rows(frame: pd.DataFrame | None, today: date) -> list[dict[str, Any]]:
+    """
+    Yahoo's largest holders (it lists ten) like FMP's rows: holder, shares, change in shares
+    over the last reported quarter. A holding not reported for over a year is left out.
+    """
+    if frame is None or frame.empty:
+        return []
+    rows = []
+    for _, row in frame.iterrows():
+        shares = _number(row.get("Shares"))
+        reported = pd.Timestamp(row.get("Date Reported"))
+        if shares is None or pd.isna(reported) or today - reported.date() > _STALE_HOLDING:
+            continue
+        entry: dict[str, Any] = {
+            "holder": str(row.get("Holder") or "").strip(),
+            "shares": shares,
+            "date": reported.date().isoformat(),
+        }
+        change = _number(row.get("pctChange"))
+        if change is not None and change > -1:
+            entry["change"] = shares - shares / (1 + change)
+        rows.append(entry)
+    return rows

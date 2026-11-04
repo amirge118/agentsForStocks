@@ -9,6 +9,7 @@ import logging
 import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import date
 
 import anthropic
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.agents.base import Agent, AgentContext
 from app.agents.catalog import load_agents
 from app.agents.outcome_review import SessionOutcomesReader
+from app.agents.refresh import RefreshBook, latest_report
 from app.agents.registry import AgentRegistry
 from app.agents.runner import AgentRunner, SessionResultsReader
 from app.core.config import Settings
@@ -62,6 +64,7 @@ _RATE_LIMITS = {
 @dataclass
 class Container:
     settings: Settings
+    refresh: RefreshBook
     registry: AgentRegistry
     agent_context: AgentContext
     knowledge: KnowledgeStore
@@ -224,7 +227,12 @@ def build_container(
         ),
     )
     registry = load_agents()
-    runner = AgentRunner(session_factory, knowledge)
+    refresh = RefreshBook.from_config(settings.agent_refresh)
+
+    async def reported(symbol: str) -> date | None:
+        return latest_report(await fmp.get_earnings_surprises(symbol))
+
+    runner = AgentRunner(session_factory, knowledge, refresh, reported)
     orchestrator = PipelineOrchestrator(
         runner,
         registry,
@@ -235,6 +243,7 @@ def build_container(
     )
     lock = PipelineLock(session_factory)
     return Container(
+        refresh=refresh,
         settings=settings,
         registry=registry,
         agent_context=context,

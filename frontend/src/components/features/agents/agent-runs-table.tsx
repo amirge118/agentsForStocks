@@ -21,6 +21,7 @@ const STATUS_VARIANT: Record<RunStatus, "gain" | "loss" | "outline"> = {
   completed: "gain",
   failed: "loss",
   skipped: "outline",
+  reused: "outline",
 }
 
 export function AgentRunsTable({ filters = {} }: { filters?: RunFilters }) {

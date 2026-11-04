@@ -24,6 +24,9 @@
           "recommendation_weight": {
             "title": "Recommendation Weight",
             "type": "number"
+          },
+          "refresh": {
+            "$ref": "#/components/schemas/AgentRefreshOut"
           }
         },
         "required": [
@@ -31,7 +34,8 @@
           "description",
           "depends_on",
           "recommendation_weight",
-          "profile"
+          "profile",
+          "refresh"
         ],
         "title": "AgentInfo",
         "type": "object"
@@ -74,6 +78,24 @@
           "use_llm"
         ],
         "title": "AgentProfileOut",
+        "type": "object"
+      },
+      "AgentRefreshOut": {
+        "properties": {
+          "max_age_days": {
+            "title": "Max Age Days",
+            "type": "integer"
+          },
+          "on_new_report": {
+            "title": "On New Report",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "max_age_days",
+          "on_new_report"
+        ],
+        "title": "AgentRefreshOut",
         "type": "object"
       },
       "AgentResultOut": {
@@ -221,6 +243,7 @@
             "enum": [
               "completed",
               "skipped",
+              "reused",
               "failed"
             ],
             "title": "Status",
@@ -1952,6 +1975,7 @@
                   "enum": [
                     "completed",
                     "skipped",
+                    "reused",
                     "failed"
                   ],
                   "type": "string"
