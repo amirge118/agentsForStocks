@@ -142,6 +142,15 @@ describe("AgentRunsTable LLM columns", () => {
     expect(screen.getByText("$0.0023")).toBeInTheDocument()
     expect(screen.getByText("fallback")).toBeInTheDocument()
   })
+
+  it("says when a run reused a stored reply instead of calling the model", async () => {
+    const reused = { ...completedRun, run_id: "r4", llm_calls: 0, input_tokens: 0, output_tokens: 0, llm_reused: 1 }
+    const repo: RunRepository = { getAll: jest.fn(async () => [reused]), create: jest.fn() }
+    renderWithProviders(<AgentRunsTable />, { runs: repo })
+
+    expect(await screen.findByText("Reused")).toBeInTheDocument()
+    expect(screen.getByText("reused")).toBeInTheDocument()
+  })
 })
 
 describe("LLM formatting", () => {

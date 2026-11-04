@@ -151,6 +151,7 @@ async def test_pipeline_logs_carry_its_id_and_report_llm_totals(
         "output_tokens": 0,
         "cost_usd": 0,
         "llm_fallbacks": 0,
+        "llm_reused": 0,
     }
 
 

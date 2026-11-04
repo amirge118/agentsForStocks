@@ -58,6 +58,7 @@ class PipelineReport:
             "output_tokens": sum(u.output_tokens for u in runs),
             "cost_usd": round(sum(u.cost_usd for u in runs), 6),
             "llm_fallbacks": sum(u.llm_fallbacks for u in runs),
+            "llm_reused": sum(u.llm_reused for u in runs),
         }
 
 

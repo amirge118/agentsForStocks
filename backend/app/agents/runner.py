@@ -91,6 +91,7 @@ class AgentRunner:
                 attributes={"agent": agent.name, "symbol": symbol, "run_id": run_id},
             ) as span,
         ):
+            usage.fresh_judgements = force
             logger.info("Agent run started")
             if as_of is not None:
                 agent.ctx = agent.ctx.as_of(as_of, market_today())
@@ -189,6 +190,7 @@ class AgentRunner:
                         output_tokens=usage.output_tokens,
                         cost_usd=_cost(usage),
                         llm_fallbacks=usage.llm_fallbacks,
+                        llm_reused=usage.llm_reused,
                     )
                 )
                 await session.commit()
@@ -259,6 +261,7 @@ def _usage_fields(usage: RunUsage) -> dict[str, object]:
         "output_tokens": usage.output_tokens,
         "cost_usd": _cost(usage),
         "llm_fallbacks": usage.llm_fallbacks,
+        "llm_reused": usage.llm_reused,
     }
 
 

@@ -31,6 +31,9 @@ class RunUsage:
     output_tokens: int = 0
     cost_usd: float = 0.0
     llm_fallbacks: int = 0
+    llm_reused: int = 0
+    # A forced run asks the model again instead of reusing a stored reply
+    fresh_judgements: bool = False
     # False once a call used a model with no known price, so the total is a lower bound
     cost_complete: bool = True
 

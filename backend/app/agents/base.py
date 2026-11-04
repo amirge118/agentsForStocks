@@ -19,7 +19,7 @@ from typing import Any, ClassVar, Generic, Literal, Protocol, Self, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.context import note_fallback
+from app.core.context import current_usage, note_fallback
 from app.domain.outcomes import Lesson, SettledCall
 from app.domain.signals import SignalLabel
 from app.knowledge.store import Learning
@@ -27,6 +27,7 @@ from app.llm.errors import LLMError
 from app.llm.mcp import McpServer
 from app.llm.profiles import AgentProfile, ProfileBook
 from app.llm.provider import ANTHROPIC, CHAIN
+from app.llm.replies import StoredReplies, reply_key
 from app.llm.router import LLMRouter
 from app.llm.skills import compose_system, prompt_label
 from app.providers.edgar import EdgarClient
@@ -158,6 +159,8 @@ class AgentContext:
     profiles: ProfileBook = field(default_factory=ProfileBook)
     # Settled outcomes of past calls and the lessons drawn from them
     outcomes: OutcomesReader = field(default_factory=NoOutcomes)
+    # Stored model replies; None (evals, tests) always calls the model
+    replies: StoredReplies | None = None
 
     def as_of(self, day: date, today: date) -> "AgentContext":
         """
@@ -248,17 +251,37 @@ class Agent(ABC, Generic[DataT, ResultT]):
         # A model hint (e.g. the reasoning model) names a Claude model, so it only
         # applies when the call goes to Claude (in a chain: to its Claude step)
         chosen = profile.model or (model if provider in (ANTHROPIC, CHAIN) else None)
+        system = compose_system(profile.prompt or name, profile.skills)
+        full_prompt = self.with_data_gaps(prompt)
+        limit = profile.max_tokens or max_tokens
+        key = None
+        if self.ctx.replies is not None and not mcp_servers:
+            key = reply_key(
+                system=system,
+                prompt=full_prompt,
+                schema=schema.model_json_schema(),
+                provider=provider,
+                model=chosen,
+                serves=self.ctx.llm.model_scope(provider),
+                max_tokens=limit,
+            )
+            reused = await self._stored_reply(key, schema)
+            if reused is not None:
+                return reused
         try:
-            return await self.ctx.llm.generate(
-                system=compose_system(profile.prompt or name, profile.skills),
-                prompt=self.with_data_gaps(prompt),
+            reply = await self.ctx.llm.generate(
+                system=system,
+                prompt=full_prompt,
                 schema=schema,
                 model=chosen,
-                max_tokens=profile.max_tokens or max_tokens,
+                max_tokens=limit,
                 mcp_servers=mcp_servers,
                 prompt_name=prompt_label(profile.prompt or name, profile.skills),
                 provider=provider,
             )
+            if key is not None and self.ctx.replies is not None:
+                await self.ctx.replies.put(key, name, reply.model_dump_json())
+            return reply
         except LLMError as exc:
             note_fallback()
             logger.warning(
@@ -266,6 +289,21 @@ class Agent(ABC, Generic[DataT, ResultT]):
                 extra={"agent": self.name, "prompt_name": name, "error": str(exc)},
             )
             return fallback
+
+    async def _stored_reply(self, key: str, schema: type[T]) -> T | None:
+        usage = current_usage()
+        if self.ctx.replies is None or (usage is not None and usage.fresh_judgements):
+            return None
+        stored = await self.ctx.replies.get(key)
+        if stored is None:
+            return None
+        try:
+            reply = schema.model_validate_json(stored)
+        except ValueError:  # stored under an older shape of the schema
+            return None
+        if usage is not None:
+            usage.llm_reused += 1
+        return reply
 
     async def judge(
         self,

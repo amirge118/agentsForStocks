@@ -35,6 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.agents.registry import AgentRegistry
 from app.core.clock import MARKET_TZ, utcnow
 from app.core.config import Settings
+from app.llm.replies import StoredReplies
 from app.pipeline.job_runs import JobRecorder, JobState, job_state
 from app.pipeline.lock import PipelineLock
 from app.pipeline.orchestrator import PipelineOrchestrator, PipelineReport
@@ -96,7 +97,7 @@ async def run_daily_pipeline(
 
 
 async def prune_llm_calls(
-    session_factory: async_sessionmaker[AsyncSession], retention_days: int
+    session_factory: async_sessionmaker[AsyncSession], retention_days: int, reuse_max_days: int = 0
 ) -> int:
     """Delete llm_calls rows older than the retention window. Returns the number deleted."""
     cutoff = utcnow() - timedelta(days=retention_days)
@@ -106,6 +107,8 @@ async def prune_llm_calls(
     logger.info(
         "Pruned LLM call ledger", extra={"deleted": deleted, "retention_days": retention_days}
     )
+    if reuse_max_days > 0:
+        await StoredReplies(session_factory, reuse_max_days).prune()
     return deleted
 
 
@@ -161,7 +164,12 @@ def build_scheduler(
     return create_scheduler(
         orchestrator,
         partial(load_watchlist, session_factory),
-        maintenance=partial(prune_llm_calls, session_factory, settings.llm_call_retention_days),
+        maintenance=partial(
+            prune_llm_calls,
+            session_factory,
+            settings.llm_call_retention_days,
+            settings.llm_reuse_max_days,
+        ),
         pipeline_schedule=settings.pipeline_schedule,
         maintenance_schedule=settings.maintenance_schedule,
         settler=settler,

@@ -383,6 +383,8 @@ export interface components {
             llm_calls: number;
             /** Llm Fallbacks */
             llm_fallbacks: number;
+            /** Llm Reused */
+            llm_reused: number;
             /** Output Tokens */
             output_tokens: number;
             /** Pipeline Run Id */

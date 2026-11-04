@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     # they have cost this much; agents then fall back and are marked needs_review.
     # 0 = no cap. Today's free chain costs $0; a day on Claude Haiku ≈ $0.15
     llm_daily_budget_usd: float = 2.0
+    # The same prompt reuses the model's stored reply for this many days instead of calling
+    # it again (app/llm/replies.py); --force always calls. 0 = always call
+    llm_reuse_max_days: int = 30
 
     # A second, cheaper provider: any OpenAI-compatible chat-completions API with
     # JSON-schema outputs (Gemini, OpenRouter, DeepSeek, a local Ollama, …)

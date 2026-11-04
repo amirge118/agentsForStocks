@@ -104,6 +104,7 @@ export const AgentRunSchema = z.object({
   output_tokens: z.number(),
   cost_usd: z.number().nullable(),
   llm_fallbacks: z.number(),
+  llm_reused: z.number(),
 })
 export const UsageGroupSchema = z.enum(["agent", "model", "provider", "day", "prompt_version"])
 export const LLMCallSchema = z.object({

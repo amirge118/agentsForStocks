@@ -66,6 +66,9 @@ Change a prompt, model, weight or skill only on evidence: an eval report or an o
 - [x] Round 2: `recommendation_v3` (name only a reported risk) — rejected: faithfulness 50% → 50%, and it now attributes the invented risk to the risk analyst; the prompt carries no analyst reasoning at all
 - [ ] Round 3 (paused until the stabilisation check passes): give the recommendation prompt each analyst's short reasoning (data before prompt), and realistic reasoning in the consensus eval case — planned in `docs/agent-journal.md` [PRIORITY: HIGH]
 - [ ] More labelled `recommendation` eval cases (only 2 today: consensus, risk_override) — e.g. mixed signals, missing analysts, bearish consensus [PRIORITY: MED]
+- [x] Don't pay twice for the same judgement: the same prompt reuses the model's stored reply for `LLM_REUSE_MAX_DAYS` (default 30, `app/llm/replies.py`); `--force` always asks, fallbacks are never stored, and `/runs` marks a run `reused`
+- [ ] Fetch less when inputs are slow to change: reused replies save model calls, but every agent still fetches its data each day, which spends FMP calls. Reuse the stored answer without fetching when a report can't have changed [PRIORITY: LOW]
+- [ ] A run before the market closes takes that date, so the evening's scheduled run skips and that day's close is never analysed: replace a pre-close result, or date such a run by the last close [PRIORITY: MED]
 - [ ] Agent card on the dashboard (`/agents/<name>`), from the same `build_card` [PRIORITY: LOW]
 - [ ] Run the outcome eval suite live once a few weeks of recommendations have settled — the baseline for every later prompt / model change [PRIORITY: HIGH]
 - [ ] Run backtest A once a few weeks have settled; change weights only on a clear out-of-sample win. Includes the weight-0 agents (fundamentals / technicals / sentiment / market_scanner) [PRIORITY: HIGH]

@@ -146,6 +146,7 @@ class AgentRunOut(BaseModel):
     output_tokens: int
     cost_usd: float | None
     llm_fallbacks: int
+    llm_reused: int
 
 
 class LLMCallOut(BaseModel):

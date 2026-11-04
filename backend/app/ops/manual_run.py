@@ -17,7 +17,8 @@ def render_report(report: PipelineReport) -> str:
         "",
         f"LLM: {u['llm_calls']} calls, {u['input_tokens']:,} input + "
         f"{u['output_tokens']:,} output tokens, ${u['cost_usd']:.4f}, "
-        f"{u['llm_fallbacks']} fallbacks",
+        f"{u['llm_fallbacks']} fallbacks"
+        + (f", {u['llm_reused']} reused" if u.get("llm_reused") else ""),
     ]
     return "\n".join(lines)
 

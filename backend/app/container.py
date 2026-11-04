@@ -29,6 +29,7 @@ from app.llm.provider import ALT, ANTHROPIC, LLMProvider
 from app.llm.providers_catalog import alt_spec, configured, load_specs
 from app.llm.quota import ProviderQuota, UsageLoader
 from app.llm.recording import DbLLMCallRecorder, LedgerSpend, LedgerUsage, LLMCallRecorder
+from app.llm.replies import StoredReplies
 from app.llm.router import LLMRouter
 from app.llm.spend import DailySpend, SpendLoader
 from app.pipeline.assets import FundDetector
@@ -216,6 +217,11 @@ def build_container(
         reasoning_model=settings.llm_reasoning_model,
         profiles=ProfileBook.from_config(settings.agent_profiles, settings.agent_profiles_file),
         outcomes=SessionOutcomesReader(session_factory),
+        replies=(
+            StoredReplies(session_factory, settings.llm_reuse_max_days)
+            if settings.llm_reuse_max_days > 0
+            else None
+        ),
     )
     registry = load_agents()
     runner = AgentRunner(session_factory, knowledge)

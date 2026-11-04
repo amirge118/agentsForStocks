@@ -44,14 +44,14 @@ export const completedRun: AgentRun = {
     run_date: "2026-10-23", status: "completed", error: null,
     started_at: "2026-10-23T22:30:00Z", finished_at: "2026-10-23T22:30:05Z",
     fetch_ms: 1200, analyze_ms: 3400, llm_calls: 1, input_tokens: 1850, output_tokens: 96,
-    cost_usd: 0.00233, llm_fallbacks: 0,
+    cost_usd: 0.00233, llm_fallbacks: 0, llm_reused: 0,
 }
 export const failedRun: AgentRun = {
     run_id: "r2", pipeline_run_id: "p1", agent_type: "moat", symbol: "AAPL",
     run_date: "2026-10-23", status: "failed", error: "provider down",
     started_at: "2026-10-23T22:31:00Z", finished_at: "2026-10-23T22:31:02Z",
     fetch_ms: null, analyze_ms: null, llm_calls: 0, input_tokens: 0, output_tokens: 0,
-    cost_usd: null, llm_fallbacks: 0,
+    cost_usd: null, llm_fallbacks: 0, llm_reused: 0,
 }
 export const runs: AgentRun[] = [completedRun, failedRun]
 
