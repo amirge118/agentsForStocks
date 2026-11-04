@@ -198,15 +198,17 @@ def build_container(
         earnings_limit=settings.fmp_earnings_limit,
     )
     chart = YahooChartClient(http)
+    yahoo = YFinanceClient(
+        rate_limiter=rate_limiter,
+        cache=cache,
+        # When Yahoo refuses yfinance's crumb (cloud hosts): prices from the chart
+        # endpoint, fundamentals from FMP
+        fallback=chart,
+        fundamentals=fmp.get_info_fields if settings.fmp_api_key else None,
+    )
+    fmp.use_statements(yahoo.get_statements)  # symbols FMP's plan doesn't cover
     context = AgentContext(
-        yfinance=YFinanceClient(
-            rate_limiter=rate_limiter,
-            cache=cache,
-            # When Yahoo refuses yfinance's crumb (cloud hosts): prices from the chart
-            # endpoint, fundamentals from FMP
-            fallback=chart,
-            fundamentals=fmp.get_info_fields if settings.fmp_api_key else None,
-        ),
+        yfinance=yahoo,
         fmp=fmp,
         edgar=EdgarClient(http, settings.edgar_user_agent),
         llm=llm,

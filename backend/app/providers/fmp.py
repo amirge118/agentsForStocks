@@ -11,11 +11,14 @@ restart or a second process (API + worker) can't reset it and overrun the plan.
 Endpoints the plan doesn't include answer HTTP 402; they return no data (with
 one warning per endpoint) so the agent runs on with a data gap instead of failing.
 On the free plan that is: earnings-call transcripts and institutional ownership,
-and `earnings` only up to limit=5.
+and `earnings` only up to limit=5. The free plan also covers only some symbols: a 402
+that names the symbol says nothing about other symbols, so only that pair is remembered,
+and statements and earnings then come from `statements` (Yahoo) when one is given.
 """
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import date
 from typing import Any, Protocol
 
@@ -24,6 +27,7 @@ from app.core.symbols import validate_symbol
 from app.observability import metrics
 from app.providers.errors import ProviderError, QuotaExceededError
 from app.providers.http import HttpClient
+from app.providers.yahoo_statements import EARNINGS
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +36,8 @@ _TRANSCRIPT_MAX_CHARS = 15_000
 _NOT_IN_PLAN = 402
 # The free plan rejects `limit` above 5 (HTTP 402) on the statement and earnings endpoints
 FREE_PLAN_MAX_LIMIT = 5
+_SYMBOL_REFUSED = "'symbol'"  # in the reply when the plan refuses this symbol, not the endpoint
+StatementSource = Callable[[str, str], Awaitable[list[dict]]]
 
 
 class CallCounter(Protocol):
@@ -95,21 +101,39 @@ class FmpClient:
         self._statement_rows = statement_rows
         self._earnings_limit = earnings_limit
         self._not_in_plan: set[str] = set()
+        self._symbol_not_in_plan: set[tuple[str, str]] = set()
+        self._statements: StatementSource | None = None
+
+    def use_statements(self, source: StatementSource) -> None:
+        """Where statements and earnings come from when FMP has none: (endpoint, symbol) → rows."""
+        self._statements = source
+
+    async def _or_statements(self, path: str, symbol: str, rows: list[dict]) -> list[dict]:
+        if rows or self._statements is None:
+            return rows
+        return await self._statements(path, symbol)
 
     async def _get(self, path: str, symbol: str, **params: Any) -> Any:
         """GET /stable/<path>?symbol=...; None when the endpoint isn't in the plan."""
-        if path in self._not_in_plan:  # known since its first 402: don't spend a call on it
+        ticker = validate_symbol(symbol)
+        # Known since the first 402: don't spend a call on it
+        if path in self._not_in_plan or (path, ticker) in self._symbol_not_in_plan:
             return None
         try:
             return await self._http.get_json(
                 f"{_BASE_URL}/{path}",
-                params={"symbol": validate_symbol(symbol), **params, "apikey": self._api_key},
+                params={"symbol": ticker, **params, "apikey": self._api_key},
                 on_request=self._budget.consume,  # cache hits are free
             )
         except ProviderError as exc:
             if exc.status != _NOT_IN_PLAN:
                 raise
-            if path not in self._not_in_plan:
+            if _SYMBOL_REFUSED in exc.body:
+                self._symbol_not_in_plan.add((path, ticker))
+                logger.info(
+                    "FMP plan doesn't cover this symbol", extra={"path": path, "symbol": ticker}
+                )
+            else:
                 self._not_in_plan.add(path)
                 logger.warning("FMP endpoint not in your plan — no data", extra={"path": path})
             return None
@@ -128,7 +152,7 @@ class FmpClient:
         rows = await self._get_list(
             path, symbol, limit=max(limit, self._statement_rows), period="annual"
         )
-        return rows[:limit]
+        return (await self._or_statements(path, symbol, rows))[:limit]
 
     async def get_company_profile(self, symbol: str) -> dict:
         """companyName, description, sector, industry, ceo, marketCap, isEtf, ipoDate."""
@@ -158,7 +182,8 @@ class FmpClient:
     async def get_earnings_surprises(self, symbol: str) -> list[dict]:
         """date, epsActual, epsEstimated, revenueActual, revenueEstimated — most recent first.
         The next (upcoming) report comes first, with epsActual = None."""
-        return await self._get_list("earnings", symbol, limit=self._earnings_limit)
+        rows = await self._get_list(EARNINGS, symbol, limit=self._earnings_limit)
+        return (await self._or_statements(EARNINGS, symbol, rows))[: self._earnings_limit]
 
     async def get_earnings_call_transcript(self, symbol: str, year: int, quarter: int) -> dict:
         """quarter, year, date, content (truncated). {} when unavailable or not in the plan."""
