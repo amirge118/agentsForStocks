@@ -67,6 +67,7 @@ export interface RunFilters {
   symbol?: string
   status?: RunStatus
   pipelineRunId?: string
+  hideSkipped?: boolean
   limit?: number
 }
 
@@ -118,6 +119,7 @@ export const runRepository: RunRepository = {
       symbol: filters.symbol,
       status: filters.status,
       pipeline_run_id: filters.pipelineRunId,
+      hide_skipped: filters.hideSkipped,
       limit: filters.limit,
     }),
   create: (request) => post("/pipeline/runs", PipelineRunAcceptedSchema, request),

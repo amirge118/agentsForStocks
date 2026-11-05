@@ -24,6 +24,7 @@ class AgentRunRepository:
         pipeline_run_id: str | None = None,
         agent: str | None = None,
         since: date | None = None,
+        hide_skipped: bool = False,
         limit: int = 100,
     ) -> list[AgentRun]:
         """Newest first. `since` keeps runs dated on or after that market day."""
@@ -38,6 +39,8 @@ class AgentRunRepository:
             stmt = stmt.where(AgentRun.run_date == run_date)
         if status is not None:
             stmt = stmt.where(AgentRun.status == status)
+        if hide_skipped:
+            stmt = stmt.where(AgentRun.status != "skipped")
         if pipeline_run_id is not None:
             stmt = stmt.where(AgentRun.pipeline_run_id == pipeline_run_id)
         stmt = stmt.order_by(AgentRun.started_at.desc()).limit(limit)

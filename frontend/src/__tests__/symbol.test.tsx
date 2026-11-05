@@ -170,7 +170,7 @@ describe("AgentRunsTable", () => {
     failed.unmount()
 
     const empty = renderWithProviders(<AgentRunsTable />, { runs: runRepo(async () => []) })
-    expect(await screen.findByText("No agent runs yet.")).toBeInTheDocument()
+    expect(await screen.findByText("No agent runs here yet.")).toBeInTheDocument()
     empty.unmount()
 
     const getAll = jest.fn(async () => runs)
@@ -178,7 +178,20 @@ describe("AgentRunsTable", () => {
     expect(await screen.findByText("financial history")).toBeInTheDocument()
     expect(screen.getByText("failed")).toHaveClass("text-bad")
     expect(screen.getByText("provider down")).toBeInTheDocument()
-    expect(getAll).toHaveBeenCalledWith({ symbol: "AAPL" })
+    expect(getAll).toHaveBeenCalledWith({ symbol: "AAPL", hideSkipped: true })
+  })
+
+  it("hides skipped runs until asked, keeping the filters it was given", async () => {
+    const getAll = jest.fn(async () => runs)
+    renderWithProviders(<AgentRunsTable filters={{ symbol: "AAPL" }} />, { runs: runRepo(getAll) })
+    expect(screen.getByRole("button", { name: "Ran" })).toHaveAttribute("aria-pressed", "true")
+
+    await userEvent.click(screen.getByRole("button", { name: "Skipped" }))
+    expect(getAll).toHaveBeenLastCalledWith({ symbol: "AAPL", status: "skipped" })
+    expect(screen.getByRole("button", { name: "Skipped" })).toHaveAttribute("aria-pressed", "true")
+
+    await userEvent.click(screen.getByRole("button", { name: "All" }))
+    expect(getAll).toHaveBeenLastCalledWith({ symbol: "AAPL" })
   })
 })
 

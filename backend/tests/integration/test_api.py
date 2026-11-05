@@ -170,6 +170,7 @@ async def test_trigger_pipeline_then_inspect_runs(api: httpx.AsyncClient) -> Non
     ]
     filtered = await api.get("/api/v1/runs", params={"symbol": "msft", "status": "completed"})
     assert len(filtered.json()) == 1
+    assert (await api.get("/api/v1/runs", params={"hide_skipped": True})).status_code == 200
     assert (await api.get("/api/v1/runs", params={"status": "weird"})).status_code == 422
     assert (await api.get("/api/v1/runs", params={"symbol": "x;y"})).status_code == 422
 

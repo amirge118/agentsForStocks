@@ -110,7 +110,7 @@ export function WatchlistTable() {
               <TableHead className="hidden text-right sm:table-cell">Confidence</TableHead>
               <TableHead className="hidden sm:table-cell">As of</TableHead>
               <TableHead className="hidden lg:table-cell">Trend</TableHead>
-              <TableHead className="hidden md:table-cell">Summary</TableHead>
+              <TableHead className="hidden w-full md:table-cell">Summary</TableHead>
               <TableHead className="text-right">
                 <span className="sr-only">Order and remove</span>
               </TableHead>
@@ -133,6 +133,10 @@ export function WatchlistTable() {
                           <ComplianceMarker status={rec.compliance.status} findings={rec.compliance.findings} />
                           <ReviewMarker reasons={rec.needs_review} />
                         </div>
+                        {/* Their own columns are hidden on a phone */}
+                        <div className="mt-1 whitespace-normal font-mono text-xs text-muted sm:hidden">
+                          {`${formatConfidence(rec.confidence)} · ${formatDate(rec.run_date)}`}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right font-mono">
                         <span className={cn("rounded-chip px-1.5 py-0.5", toneClasses(rec.weighted_score))}>
@@ -142,11 +146,11 @@ export function WatchlistTable() {
                       <TableCell className="hidden text-right font-mono sm:table-cell">
                         {formatConfidence(rec.confidence)}
                       </TableCell>
-                      <TableCell className="hidden text-muted sm:table-cell">{formatDate(rec.run_date)}</TableCell>
+                      <TableCell className="hidden text-muted sm:table-cell lg:whitespace-nowrap">{formatDate(rec.run_date)}</TableCell>
                       <TableCell className="hidden lg:table-cell">
                         <ScoreSparkline symbol={symbol} />
                       </TableCell>
-                      <TableCell className="hidden max-w-md truncate text-muted md:table-cell">
+                      <TableCell className="hidden max-w-0 truncate text-muted md:table-cell">
                         {rec.reasoning}
                       </TableCell>
                     </>

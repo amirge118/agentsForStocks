@@ -1102,6 +1102,7 @@ export interface operations {
                 run_date?: string | null;
                 status?: ("completed" | "skipped" | "reused" | "failed") | null;
                 pipeline_run_id?: string | null;
+                hide_skipped?: boolean;
                 limit?: number;
             };
             header?: never;
