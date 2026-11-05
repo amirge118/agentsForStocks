@@ -65,6 +65,7 @@ async def test_migrations_create_the_expected_schema(pg_session_factory) -> None
             "agent_results",
             "agent_runs",
             "llm_calls",
+            "llm_replies",
             "watchlist",
             "decision_outcomes",
             "provider_calls",
@@ -73,7 +74,7 @@ async def test_migrations_create_the_expected_schema(pg_session_factory) -> None
         }
         assert expected <= set(tables)
         version = (await session.execute(text("select version_num from alembic_version"))).scalar()
-        assert version == "0007"
+        assert version == "0008"
         columns = await conn.run_sync(lambda c: inspect(c).get_columns("llm_calls"))
         assert "provider" in {col["name"] for col in columns}
 
