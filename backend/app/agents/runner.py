@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agents.base import Agent, AnalysisResult
 from app.agents.compliance import apply_compliance
-from app.agents.contracts import apply_contract, missing_inputs
+from app.agents.contracts import apply_contract, cap_confidence, missing_inputs
 from app.agents.refresh import RefreshBook, awaits_the_close, reusable
 from app.core.clock import market_today, utcnow
 from app.core.context import RunUsage, bind_run
@@ -164,7 +164,9 @@ class AgentRunner:
                 with tracer.start_as_current_span("agent.analyze"):
                     analysed = await agent.analyze(symbol, data, memory)
                 timings.analyze_ms = _ms(phase)
-                checked = apply_contract(agent.name, symbol, data, analysed, agent.invariants)
+                checked = apply_contract(
+                    agent.name, symbol, data, analysed, agent.invariants, agent.confidence_limits
+                )
                 result = _flag_fallbacks(apply_compliance(agent.name, symbol, checked), usage)
 
                 await repo.upsert(
@@ -206,8 +208,13 @@ class AgentRunner:
             validated = agent.result_model.model_validate(copied)
         except ValueError:  # stored under an older shape of the result
             return None
+        validated = cap_confidence(validated, agent.confidence_limits)
         await repo.upsert(
-            agent_type=agent.name, symbol=symbol, run_date=run_date, run_id=run_id, result=copied
+            agent_type=agent.name,
+            symbol=symbol,
+            run_date=run_date,
+            run_id=run_id,
+            result=validated.model_dump(mode="json"),
         )
         logger.info("Agent run reused a stored result", extra={"reused_from": source.isoformat()})
         return RunOutcome(agent.name, symbol, run_id, "reused", result=validated)

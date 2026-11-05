@@ -193,6 +193,7 @@ class Agent(ABC, Generic[DataT, ResultT]):
     name: ClassVar[str]
     result_model: ClassVar[type[AnalysisResult]]
     invariants: ClassVar[tuple[Any, ...]] = ()
+    confidence_limits: ClassVar[tuple[Any, ...]] = ()
     default_profile: ClassVar[AgentProfile] = AgentProfile()
 
     def __init__(self, ctx: AgentContext) -> None:

@@ -33,6 +33,9 @@ MAX_GROWTH = 0.25  # a 5-year rate a mega-cap can plausibly keep up
 DEFAULT_GROWTH = 0.04  # ≈ nominal GDP, when there is no revenue history
 TERMINAL_GROWTH = 0.025
 _OPERATING_INCOME_CASH_SHARE = 0.75
+# Lending and premiums are the business here: their cash flow isn't owner earnings
+_CASH_FLOW_UNFIT_SECTORS = {"financial services"}
+_CASH_FLOW_UNFIT_INDUSTRIES = ("insurance", "healthcare plans", "banks", "credit services")
 _DEFAULT_EV_EBITDA_MULTIPLE = 12.0
 _SECTOR_EV_EBITDA = {
     "technology": 20.0,
@@ -194,6 +197,14 @@ def ev_ebitda_value(info: dict) -> float | None:
     )
     equity = ebitda * multiple - (info.get("totalDebt") or 0) + (info.get("totalCash") or 0)
     return max(equity, 0.0)
+
+
+def cash_flow_dcf_fits(info: dict) -> bool:
+    """False for lenders and insurers, which a cash-flow DCF doesn't describe well."""
+    industry = (info.get("industry") or "").lower()
+    return (info.get("sector") or "").lower() not in _CASH_FLOW_UNFIT_SECTORS and not any(
+        kind in industry for kind in _CASH_FLOW_UNFIT_INDUSTRIES
+    )
 
 
 def summarize(info: dict, revenues: Sequence[float | None] = ()) -> ValuationSummary:
