@@ -34,11 +34,13 @@ class AgentRegistry:
         depends_on: Iterable[str] = (),
         recommendation_weight: float = 0.0,
         invariants: Iterable[Any] = (),
+        confidence_limits: Iterable[Any] = (),
         profile: Any = None,
         company_only: bool = False,
     ) -> Any:
         """
         invariants: contract rules checked on every result (app/agents/contracts.py).
+        confidence_limits: ceilings for thin evidence, also applied to reused results.
         profile: the agent's default AgentProfile (app/llm/profiles.py).
         company_only: the agent analyses a company (filings, statements, earnings),
             so it does not run for a fund (ETF) — see app/domain/assets.py.
@@ -49,6 +51,7 @@ class AgentRegistry:
                 raise ValueError(f"Agent {name!r} registered twice")
             cls.name = name
             cls.invariants = tuple(invariants)
+            cls.confidence_limits = tuple(confidence_limits)
             if profile is not None:
                 cls.default_profile = profile
             self._specs[name] = AgentSpec(

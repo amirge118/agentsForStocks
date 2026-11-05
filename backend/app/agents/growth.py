@@ -11,12 +11,14 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.agents.base import Agent, AnalysisResult, neutral_fallback
+from app.agents.contracts import when_missing
 from app.agents.formatting import knowledge_block
 from app.agents.registry import register_agent
 from app.domain.financials import yearly_revenue_growth
 
 _TRANSCRIPTS_IN_PROMPT = 2
 _TRANSCRIPT_CHARS = 5_000
+NO_ESTIMATES_MAX_CONFIDENCE = 60.0  # the past and one quarter's account, no forward view
 
 
 class GrowthResult(AnalysisResult):
@@ -38,6 +40,7 @@ class GrowthData:
     description="Growth outlook from earnings calls and forward estimates (FMP)",
     recommendation_weight=10,
     company_only=True,
+    confidence_limits=(when_missing("estimates", NO_ESTIMATES_MAX_CONFIDENCE),),
 )
 class GrowthAgent(Agent[GrowthData, GrowthResult]):
     result_model = GrowthResult

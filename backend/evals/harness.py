@@ -154,7 +154,9 @@ async def _run_agent(case: EvalCase, llm: CapturingLLM, config: EvalConfig) -> A
     data = await agent.fetch(SYMBOL, _run_date())
     agent.data_gaps = missing_inputs(data)
     result = await agent.analyze(SYMBOL, data, [])
-    return apply_contract(case.agent, SYMBOL, data, result, agent.invariants)
+    return apply_contract(
+        case.agent, SYMBOL, data, result, agent.invariants, agent.confidence_limits
+    )
 
 
 async def _replay(case: EvalCase, llm: CapturingLLM, book: ProfileBook) -> tuple[str, float, str]:

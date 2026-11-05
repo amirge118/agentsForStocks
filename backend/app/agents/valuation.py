@@ -5,16 +5,19 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.agents.base import Agent, AnalysisResult, quant_fallback
+from app.agents.contracts import NO_DATA_MAX_CONFIDENCE
 from app.agents.formatting import billions, knowledge_block, pct
 from app.agents.registry import register_agent
 from app.domain.valuation import (
     MARGIN_OF_SAFETY_THRESHOLD,
     ValuationSummary,
+    cash_flow_dcf_fits,
     summarize,
     with_fmp_fallbacks,
 )
 
 IMPLAUSIBLE_MARGIN_OF_SAFETY = 1.0
+UNRELIABLE_MODEL_MAX_CONFIDENCE = 50.0
 
 
 class ValuationResult(AnalysisResult):
@@ -28,6 +31,7 @@ class ValuationResult(AnalysisResult):
     growth_source: str
     discount_rate: float
     implied_growth: float | None
+    cash_flow_dcf_fits: bool = True
 
 
 @dataclass(frozen=True)
@@ -59,12 +63,27 @@ def _margin_of_safety_is_plausible(data: object, result: "ValuationResult") -> s
     return None
 
 
+def _no_intrinsic_value(result: "ValuationResult") -> tuple[float, str] | None:
+    if result.avg_intrinsic_value <= 0:
+        return NO_DATA_MAX_CONFIDENCE, "no intrinsic value to compare with the price"
+    return None
+
+
+def _model_doesnt_hold(result: "ValuationResult") -> tuple[float, str] | None:
+    if result.margin_of_safety > IMPLAUSIBLE_MARGIN_OF_SAFETY:
+        return UNRELIABLE_MODEL_MAX_CONFIDENCE, "an implausibly wide margin of safety"
+    if not result.cash_flow_dcf_fits:
+        return UNRELIABLE_MODEL_MAX_CONFIDENCE, "a cash-flow DCF fits lenders and insurers poorly"
+    return None
+
+
 @register_agent(
     "valuation",
     description="Multi-method intrinsic value and margin of safety",
     recommendation_weight=20,
     company_only=True,
     invariants=(_signal_matches_margin_of_safety, _margin_of_safety_is_plausible),
+    confidence_limits=(_no_intrinsic_value, _model_doesnt_hold),
 )
 class ValuationAgent(Agent[ValuationData, ValuationResult]):
     result_model = ValuationResult
@@ -103,6 +122,7 @@ class ValuationAgent(Agent[ValuationData, ValuationResult]):
             growth_source=v.growth.source,
             discount_rate=v.discount_rate,
             implied_growth=v.implied_growth,
+            cash_flow_dcf_fits=cash_flow_dcf_fits(data.info),
         )
 
 
