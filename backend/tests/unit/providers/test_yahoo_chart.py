@@ -3,7 +3,8 @@ from datetime import date
 import httpx
 import pytest
 
-from app.providers.yahoo_chart import YahooChartClient
+from app.domain.sentiment import headlines
+from app.providers.yahoo_chart import YahooChartClient, parse_news_feed
 
 # The shape Yahoo returned live for AAPL (range=5d), trimmed to three sessions
 CHART = {
@@ -53,6 +54,55 @@ def _client(make_http, seen: list[httpx.Request] | None = None) -> YahooChartCli
         return httpx.Response(404, json=NOT_FOUND)
 
     return YahooChartClient(make_http(handler))
+
+
+FEED = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>Yahoo! Finance: AAPL News</title>
+<item><description>x</description><title>Apple &amp; chips
+    rebound</title><link>https://example.com/a</link></item>
+<item><title><![CDATA[Apple's iPhone: <b>record</b>]]></title></item>
+<item><title>   </title></item>
+<item><description>no title</description></item>
+<item><title>Third story</title></item>
+</channel></rss>"""
+
+
+@pytest.mark.unit
+async def test_news_feed_gives_titles_in_the_shape_headlines_reads(make_http) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, text=FEED)
+
+    news = await YahooChartClient(make_http(handler)).get_news("aapl", count=2)
+
+    assert news == [{"title": "Apple & chips rebound"}, {"title": "Apple's iPhone: <b>record</b>"}]
+    assert seen[0].url.host == "feeds.finance.yahoo.com"
+    assert seen[0].url.params["s"] == "AAPL"
+    assert "Mozilla" in seen[0].headers["User-Agent"]
+    assert headlines(news) == ["Apple & chips rebound", "Apple's iPhone: <b>record</b>"]
+
+
+@pytest.mark.unit
+async def test_news_feed_unavailable_or_not_a_feed_is_empty(make_http) -> None:
+    down = YahooChartClient(make_http(lambda _: httpx.Response(404, text="gone")))
+    assert await down.get_news("AAPL") == []
+    page = YahooChartClient(make_http(lambda _: httpx.Response(200, text="<html>Sorry</html>")))
+    assert await page.get_news("AAPL") == []
+
+
+@pytest.mark.unit
+def test_news_feed_does_not_expand_entities_and_bounds_its_input() -> None:
+    bomb = (
+        '<!DOCTYPE lolz [<!ENTITY a "aaaaaaaaaa"><!ENTITY b "&a;&a;&a;&a;&a;">]>'
+        "<rss><channel><item><title>&b;</title></item></channel></rss>"
+    )
+    assert parse_news_feed(bomb, 5) == [{"title": "&b;"}]
+    long_title = f"<item><title>{'x' * 1000}</title></item>"
+    assert len(parse_news_feed(long_title, 5)[0]["title"]) == 300
+    # An item past the size limit isn't read
+    assert parse_news_feed(" " * 1_000_001 + "<item><title>late</title></item>", 5) == []
 
 
 @pytest.mark.unit

@@ -190,7 +190,7 @@ async def check_knowledge(container: Container, settings: Settings) -> CheckResu
         )
 
     async def probe() -> str:
-        await container.knowledge.recall(_PROBE_SYMBOL, "preflight")
+        await container.knowledge.ping()
         return "reachable"
 
     return await _guard("openviking", probe, required=False)

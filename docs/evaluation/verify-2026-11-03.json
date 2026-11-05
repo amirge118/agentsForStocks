@@ -1,0 +1,589 @@
+{
+  "run_date": "2026-11-03",
+  "counts": {
+    "skipped": 14,
+    "completed": 56
+  },
+  "failed": [],
+  "symbols": [
+    {
+      "symbol": "AAPL",
+      "action": "BUY",
+      "score": 36.55,
+      "confidence": 75.0,
+      "reasoning": "Strong financial history, deep competitive moat, and solid earnings support a positive stance. Main risk stems from elevated valuation levels.",
+      "agents": {
+        "financial_history": {
+          "signal": "bullish",
+          "confidence": 90.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "moat": {
+          "signal": "bullish",
+          "confidence": 92.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "market_scanner": {
+          "signal": "neutral",
+          "confidence": 65.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "outcome_review": {
+          "signal": "neutral",
+          "confidence": 0.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "risk": {
+          "signal": "neutral",
+          "confidence": 75.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "broad_analysis": {
+          "signal": "bullish",
+          "confidence": 90.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "growth": {
+          "signal": "bullish",
+          "confidence": 85.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "institutional": {
+          "signal": "neutral",
+          "confidence": 0.0,
+          "data_gaps": [
+            "holders",
+            "ownership_trend"
+          ],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "earnings": {
+          "signal": "bullish",
+          "confidence": 85.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "valuation": {
+          "signal": "bearish",
+          "confidence": 85.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "technicals": {
+          "signal": "neutral",
+          "confidence": 55.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "sentiment": {
+          "signal": "bearish",
+          "confidence": 65.0,
+          "data_gaps": [
+            "headlines"
+          ],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "fundamentals": {
+          "signal": "bullish",
+          "confidence": 60.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "recommendation": {
+          "signal": "bullish",
+          "confidence": 75.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        }
+      }
+    },
+    {
+      "symbol": "MSFT",
+      "action": "BUY",
+      "score": 66.7,
+      "confidence": 88.0,
+      "reasoning": "Strong financial history, robust growth drivers, and a wide competitive moat support the bullish outlook, though valuation remains a key risk.",
+      "agents": {
+        "fundamentals": {
+          "signal": "bullish",
+          "confidence": 78.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "broad_analysis": {
+          "signal": "bullish",
+          "confidence": 95.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "earnings": {
+          "signal": "bullish",
+          "confidence": 90.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "financial_history": {
+          "signal": "bullish",
+          "confidence": 90.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "growth": {
+          "signal": "bullish",
+          "confidence": 92.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "outcome_review": {
+          "signal": "neutral",
+          "confidence": 0.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "moat": {
+          "signal": "bullish",
+          "confidence": 85.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "market_scanner": {
+          "signal": "neutral",
+          "confidence": 55.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "institutional": {
+          "signal": "neutral",
+          "confidence": 0.0,
+          "data_gaps": [
+            "holders",
+            "ownership_trend"
+          ],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "risk": {
+          "signal": "bullish",
+          "confidence": 85.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "recommendation": {
+          "signal": "bullish",
+          "confidence": 88.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "sentiment": {
+          "signal": "neutral",
+          "confidence": 50.0,
+          "data_gaps": [
+            "headlines"
+          ],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "technicals": {
+          "signal": "neutral",
+          "confidence": 55.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "valuation": {
+          "signal": "neutral",
+          "confidence": 65.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        }
+      }
+    },
+    {
+      "symbol": "NVDA",
+      "action": "BUY",
+      "score": 57.1,
+      "confidence": 85.0,
+      "reasoning": "Strong financial history and unmatched moat drive a positive outlook, though stretched valuation and moderate risk remain key concerns.",
+      "agents": {
+        "institutional": {
+          "signal": "neutral",
+          "confidence": 0.0,
+          "data_gaps": [
+            "holders",
+            "ownership_trend"
+          ],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "recommendation": {
+          "signal": "bullish",
+          "confidence": 85.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "fundamentals": {
+          "signal": "bullish",
+          "confidence": 75.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "financial_history": {
+          "signal": "bullish",
+          "confidence": 98.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "outcome_review": {
+          "signal": "neutral",
+          "confidence": 0.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "technicals": {
+          "signal": "bearish",
+          "confidence": 62.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "growth": {
+          "signal": "bullish",
+          "confidence": 95.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "market_scanner": {
+          "signal": "neutral",
+          "confidence": 55.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "sentiment": {
+          "signal": "neutral",
+          "confidence": 30.0,
+          "data_gaps": [
+            "headlines"
+          ],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "broad_analysis": {
+          "signal": "bullish",
+          "confidence": 95.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "risk": {
+          "signal": "neutral",
+          "confidence": 65.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "earnings": {
+          "signal": "bullish",
+          "confidence": 85.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "valuation": {
+          "signal": "neutral",
+          "confidence": 65.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "moat": {
+          "signal": "bullish",
+          "confidence": 95.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        }
+      }
+    },
+    {
+      "symbol": "GOOGL",
+      "action": "BUY",
+      "score": 63.0,
+      "confidence": 85.0,
+      "reasoning": "Strong financial history, robust growth metrics, and wide economic moat support a buy stance, while monitoring ongoing earnings volatility and regulatory risks.",
+      "agents": {
+        "sentiment": {
+          "signal": "neutral",
+          "confidence": 10.0,
+          "data_gaps": [
+            "headlines"
+          ],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "outcome_review": {
+          "signal": "neutral",
+          "confidence": 0.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "institutional": {
+          "signal": "neutral",
+          "confidence": 0.0,
+          "data_gaps": [
+            "holders",
+            "ownership_trend"
+          ],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "financial_history": {
+          "signal": "bullish",
+          "confidence": 90.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "growth": {
+          "signal": "bullish",
+          "confidence": 95.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "fundamentals": {
+          "signal": "bullish",
+          "confidence": 75.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "technicals": {
+          "signal": "bearish",
+          "confidence": 75.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "market_scanner": {
+          "signal": "bearish",
+          "confidence": 85.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "broad_analysis": {
+          "signal": "bullish",
+          "confidence": 90.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "risk": {
+          "signal": "neutral",
+          "confidence": 75.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "earnings": {
+          "signal": "bearish",
+          "confidence": 75.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "valuation": {
+          "signal": "bullish",
+          "confidence": 80.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "moat": {
+          "signal": "bullish",
+          "confidence": 95.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "recommendation": {
+          "signal": "bullish",
+          "confidence": 85.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        }
+      }
+    },
+    {
+      "symbol": "AMZN",
+      "action": "BUY",
+      "score": 52.0,
+      "confidence": 75.0,
+      "reasoning": "Strong financial history, robust growth, and durable competitive moat support a positive view, though valuation and risk warrant careful monitoring.",
+      "agents": {
+        "broad_analysis": {
+          "signal": "bullish",
+          "confidence": 90.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "outcome_review": {
+          "signal": "neutral",
+          "confidence": 0.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "earnings": {
+          "signal": "bullish",
+          "confidence": 75.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "fundamentals": {
+          "signal": "neutral",
+          "confidence": 75.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "institutional": {
+          "signal": "neutral",
+          "confidence": 0.0,
+          "data_gaps": [
+            "holders",
+            "ownership_trend"
+          ],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "growth": {
+          "signal": "bullish",
+          "confidence": 95.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "financial_history": {
+          "signal": "bullish",
+          "confidence": 85.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "moat": {
+          "signal": "bullish",
+          "confidence": 85.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "market_scanner": {
+          "signal": "neutral",
+          "confidence": 55.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "risk": {
+          "signal": "neutral",
+          "confidence": 65.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "technicals": {
+          "signal": "bearish",
+          "confidence": 65.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "sentiment": {
+          "signal": "neutral",
+          "confidence": 35.0,
+          "data_gaps": [
+            "headlines"
+          ],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "valuation": {
+          "signal": "neutral",
+          "confidence": 65.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        },
+        "recommendation": {
+          "signal": "bullish",
+          "confidence": 75.0,
+          "data_gaps": [],
+          "needs_review": [],
+          "contract_violations": []
+        }
+      }
+    }
+  ],
+  "llm": {
+    "llm_calls": 52,
+    "input_tokens": 25816,
+    "output_tokens": 2872,
+    "cost_usd": 0.0,
+    "llm_fallbacks": 0
+  },
+  "fmp_calls_today": 77,
+  "notes": [
+    "14 agent runs were already done today and were read from the database (add --force to run them again)"
+  ],
+  "verdict": "PASS",
+  "no_evidence": [
+    "institutional/AAPL: missing holders, ownership_trend",
+    "institutional/MSFT: missing holders, ownership_trend",
+    "institutional/NVDA: missing holders, ownership_trend",
+    "institutional/GOOGL: missing holders, ownership_trend",
+    "institutional/AMZN: missing holders, ownership_trend"
+  ]
+}

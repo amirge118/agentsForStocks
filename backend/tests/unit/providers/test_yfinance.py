@@ -125,6 +125,11 @@ class _CrumbBlocked(_FakeTicker):
 class _Chart:
     def __init__(self) -> None:
         self.calls: list[str] = []
+        self.feed: list[dict] = [{"title": "From the feed"}]
+
+    async def get_news(self, symbol: str, count: int) -> list[dict]:
+        self.calls.append(f"news {symbol} {count}")
+        return self.feed
 
     async def get_quote(self, symbol: str) -> dict:
         self.calls.append(f"quote {symbol}")
@@ -163,8 +168,18 @@ async def test_the_chart_fills_in_when_yfinance_has_no_prices() -> None:
     assert list((await yf.get_history("AAPL", period="1y"))["Close"]) == [344.0, 345.0]
     # Data the chart can't give degrades to empty instead of failing the agent
     assert await yf.get_insider_transactions("AAPL") == []
-    assert await yf.get_news("AAPL") == []
     assert chart.calls == ["quote AAPL", "history AAPL 1y"]
+
+
+@pytest.mark.unit
+async def test_the_feed_gives_the_news_when_yfinance_cannot() -> None:
+    chart = _Chart()
+    yf = _with_fallback(_CrumbBlocked, chart)
+    assert await yf.get_news("AAPL", count=5) == [{"title": "From the feed"}]
+    assert chart.calls == ["news AAPL 5"]
+    # Neither has any: an empty list, so the agent runs with a data gap
+    chart.feed = []
+    assert await yf.get_news("AAPL", count=6) == []
 
 
 @pytest.mark.unit

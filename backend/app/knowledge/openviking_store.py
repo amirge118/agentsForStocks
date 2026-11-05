@@ -1,6 +1,6 @@
 """
 OpenViking-backed KnowledgeStore. The OpenViking client is synchronous, so calls
-run in a worker thread. All errors are logged and swallowed.
+run in a worker thread. Errors in recall and store are logged and swallowed; ping raises.
 """
 
 import asyncio
@@ -47,6 +47,11 @@ class OpenVikingStore:
         except Exception as exc:
             logger.warning("OpenViking recall failed", extra={"symbol": symbol, "error": str(exc)})
             return []
+
+    async def ping(self) -> None:
+        await asyncio.to_thread(
+            lambda: self._get_client().find("preflight", target_uri=_URI_PATTERNS)
+        )
 
     async def store(self, symbol: str, agent_type: str, learning: Learning) -> None:
         if not learning.content:

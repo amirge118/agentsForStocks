@@ -1,8 +1,11 @@
+from unittest.mock import MagicMock
+
 import pytest
 from sqlalchemy import text
 
 from app.container import build_container
 from app.core.config import Settings
+from app.knowledge.openviking_store import OpenVikingStore
 from app.llm.chain import FallbackChain, parse_chain
 from app.llm.errors import LLMError
 from app.llm.quota import ProviderQuota, QuotaLimits
@@ -23,8 +26,12 @@ async def migrated(session_factory):
     return session_factory
 
 
-async def _preflight(session_factory, settings: Settings, **ctx) -> dict[str, CheckResult]:
+async def _preflight(
+    session_factory, settings: Settings, knowledge=None, **ctx
+) -> dict[str, CheckResult]:
     container = build_container(settings, session_factory)
+    if knowledge is not None:
+        container.knowledge = knowledge
     container.agent_context = make_context(**ctx)
     container.llm = ctx.get("llm") or FakeLLM()
     try:
@@ -109,6 +116,35 @@ async def test_knowledge_is_optional(migrated) -> None:
     # unreachable OpenViking does not block readiness
     assert ready([r for r in results.values()]) or knowledge.status != "ok"
     assert ready([r for r in results.values() if r.name != "openviking"])
+
+
+def _openviking(client: MagicMock) -> OpenVikingStore:
+    store = OpenVikingStore(url="http://ov", api_key=None)
+    store._client = client
+    return store
+
+
+@pytest.mark.unit
+async def test_knowledge_reachable_when_the_server_answers(migrated) -> None:
+    results = await _preflight(
+        migrated, _settings(openviking_enabled=True), knowledge=_openviking(MagicMock())
+    )
+    assert results["openviking"].status == "ok"
+    assert results["openviking"].detail == "reachable"
+
+
+@pytest.mark.unit
+async def test_knowledge_unreachable_is_reported_and_does_not_block(migrated) -> None:
+    client = MagicMock()
+    client.find.side_effect = ConnectionError("connection refused")
+    results = await _preflight(
+        migrated, _settings(openviking_enabled=True), knowledge=_openviking(client)
+    )
+    assert results["openviking"].status == "failed"
+    assert "connection refused" in results["openviking"].detail
+    assert ready(list(results.values()))
+
+    assert await _openviking(client).recall("AAPL", "moat") == []  # agents still degrade quietly
 
 
 @pytest.mark.unit
