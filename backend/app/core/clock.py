@@ -6,10 +6,11 @@ server's local date. A run at 21:00 ET on a UTC server is still "today" for
 the market, so every component must use market_today() instead of date.today().
 """
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from zoneinfo import ZoneInfo
 
 MARKET_TZ = ZoneInfo("America/New_York")
+MARKET_CLOSE = time(16)
 
 
 def utcnow() -> datetime:
@@ -21,3 +22,8 @@ def market_today(now: datetime | None = None) -> date:
     """Current date in the US market timezone."""
     current = now or utcnow()
     return current.astimezone(MARKET_TZ).date()
+
+
+def market_close(day: date) -> datetime:
+    """The regular close on `day`; early closes and holidays aren't known here."""
+    return datetime.combine(day, MARKET_CLOSE, tzinfo=MARKET_TZ)

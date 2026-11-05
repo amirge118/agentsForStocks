@@ -13,6 +13,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from datetime import date
 from typing import Any, TypeVar
 
@@ -56,7 +57,9 @@ class YFinanceClient:
         self._retry = retry_policy or RetryPolicy()
         self._ticker = ticker_factory
 
-    async def _call(self, key: tuple[Any, ...], fn: Callable[[], T]) -> T:
+    async def _call(
+        self, key: tuple[Any, ...], fn: Callable[[], T], retry: RetryPolicy | None = None
+    ) -> T:
         log_ctx = {"domain": _DOMAIN, "path": f"{key[0]}/{key[1]}"}
         fetched = False
 
@@ -80,7 +83,9 @@ class YFinanceClient:
         async def _load() -> T:
             nonlocal fetched
             fetched = True
-            return await with_retry(_attempt, self._retry, label=f"yfinance.{key[0]}({key[1]})")
+            return await with_retry(
+                _attempt, retry or self._retry, label=f"yfinance.{key[0]}({key[1]})"
+            )
 
         value = await self._cache.get_or_load(("yfinance", *key), _load)
         metrics.provider_requests.add(
@@ -151,8 +156,10 @@ class YFinanceClient:
             df = self._ticker(ticker).history(period=period, interval=interval)
             return df if df is not None else pd.DataFrame()
 
+        # The chart gives the same prices at once: waiting out retries only holds up the page
+        retry = replace(self._retry, max_attempts=1) if self._fallback is not None else None
         try:
-            df = await self._call(("history", ticker, period, interval), _fetch)
+            df = await self._call(("history", ticker, period, interval), _fetch, retry)
         except ProviderError:
             if self._fallback is None:
                 raise

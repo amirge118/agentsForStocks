@@ -1,7 +1,8 @@
 """
 AgentRunner — executes one agent for one symbol with the cross-cutting rules:
 
-  1. idempotency — skip if a result already exists for (agent, symbol, market date)
+  1. idempotency — skip if a result already exists for (agent, symbol, market date),
+                   unless a daily agent's result predates that day's close
   2. recall      — pull relevant memory from the knowledge store
   3. fetch → analyze → contract checks (app/agents/contracts.py: data gaps, no-data
                    confidence cap, per-agent invariants) → compliance review of the
@@ -30,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.agents.base import Agent, AnalysisResult
 from app.agents.compliance import apply_compliance
 from app.agents.contracts import apply_contract, missing_inputs
-from app.agents.refresh import RefreshBook, reusable
+from app.agents.refresh import RefreshBook, awaits_the_close, reusable
 from app.core.clock import market_today, utcnow
 from app.core.context import RunUsage, bind_run
 from app.knowledge.store import KnowledgeStore
@@ -140,9 +141,13 @@ class AgentRunner:
         try:
             async with self._session_factory() as session:
                 repo = AgentResultRepository(session)
-                if not force and await repo.exists(agent.name, symbol, run_date):
-                    logger.info("Agent run skipped — already ran today")
-                    return RunOutcome(agent.name, symbol, run_id, "skipped")
+                stored_at = await repo.stored_at(agent.name, symbol, run_date)
+                if not force and stored_at is not None:
+                    policy = self._refresh.resolve(agent.name)
+                    if not awaits_the_close(policy, stored_at, run_date, utcnow()):
+                        logger.info("Agent run skipped — already ran today")
+                        return RunOutcome(agent.name, symbol, run_id, "skipped")
+                    logger.info("Agent runs again: its result predates today's close")
                 if not force and recall:
                     reused = await self._reuse(agent, symbol, run_date, run_id, repo)
                     if reused is not None:

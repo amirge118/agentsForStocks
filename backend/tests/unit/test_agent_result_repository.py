@@ -15,8 +15,8 @@ async def test_upsert_is_idempotent_per_agent_symbol_date(db_session) -> None:
     await repo.upsert(agent_type="moat", symbol="AAPL", run_date=D1, run_id="b", result={"v": 2})
     await db_session.commit()
 
-    assert await repo.exists("moat", "AAPL", D1)
-    assert not await repo.exists("moat", "AAPL", D2)
+    assert await repo.stored_at("moat", "AAPL", D1) is not None
+    assert await repo.stored_at("moat", "AAPL", D2) is None
     assert await repo.get_for_date("AAPL", D1) == {"moat": {"v": 2}}
 
 

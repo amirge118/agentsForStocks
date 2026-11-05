@@ -303,3 +303,20 @@ async def test_a_failing_fundamentals_source_leaves_the_quote() -> None:
     )
     info = await yf.get_info("AAPL")
     assert info["regularMarketPrice"] == 345.0 and "marketCap" not in info
+
+
+@pytest.mark.unit
+async def test_with_a_chart_a_failed_history_isnt_retried() -> None:
+    calls: list[str] = []
+
+    class _Failing:
+        def __init__(self, symbol: str) -> None:
+            pass
+
+        def history(self, **kwargs: object) -> None:
+            calls.append("history")
+            raise ConnectionError("no route")
+
+    yf = _with_fallback(_Failing, _Chart())
+    assert list((await yf.get_history("AAPL", period="1y"))["Close"]) == [344.0, 345.0]
+    assert calls == ["history"]

@@ -1,12 +1,19 @@
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pandas as pd
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.agents.base import neutral_fallback
 from app.agents.catalog import load_agents
-from app.agents.refresh import DEFAULTS, RefreshBook, RefreshPolicy, latest_report, reusable
+from app.agents.refresh import (
+    DEFAULTS,
+    RefreshBook,
+    RefreshPolicy,
+    awaits_the_close,
+    latest_report,
+    reusable,
+)
 from app.agents.registry import registry
 from app.agents.runner import AgentRunner
 from app.knowledge.store import NullKnowledgeStore
@@ -66,8 +73,8 @@ def test_the_latest_report_ignores_the_coming_one() -> None:
     assert latest_report([]) is None
 
 
-def _agent(llm: FakeLLM, fetched: list[str]):
-    agent = registry.get("fundamentals").agent_cls(make_context(llm=llm))
+def _agent(llm: FakeLLM, fetched: list[str], name: str = "fundamentals"):
+    agent = registry.get(name).agent_cls(make_context(llm=llm))
     original = agent.fetch
 
     async def counting(symbol: str, run_date: date):
@@ -160,6 +167,59 @@ async def test_a_result_that_fell_back_runs_again_the_next_day(session_factory) 
     assert outcome.status == "completed"
     assert len(fetched) == 2
     assert neutral_fallback().confidence == 0
+
+
+MORNING = datetime(2026, 8, 3, 14, 0, tzinfo=UTC)  # 10:00 in New York, close at 20:00 UTC
+EVENING = datetime(2026, 8, 3, 20, 30, tzinfo=UTC)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("policy", "stored_at", "run_date", "now", "expected"),
+    [
+        (RefreshPolicy(), MORNING, DAY, EVENING, True),
+        (RefreshPolicy(), MORNING.replace(tzinfo=None), DAY, EVENING, True),  # SQLite
+        (RefreshPolicy(), MORNING, DAY, MORNING + timedelta(hours=1), False),  # still open
+        (RefreshPolicy(), EVENING, DAY, EVENING + timedelta(hours=1), False),  # after the close
+        (POLICY, MORNING, DAY, EVENING, False),  # reads reports, not the day's prices
+        (RefreshPolicy(), MORNING, DAY, EVENING + timedelta(days=1), False),  # a past date
+    ],
+)
+def test_what_waits_for_the_close(
+    policy: RefreshPolicy, stored_at: datetime, run_date: date, now: datetime, expected: bool
+) -> None:
+    assert awaits_the_close(policy, stored_at, run_date, now) is expected
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(("name", "runs"), [("technicals", 2), ("fundamentals", 1)])
+async def test_after_the_close_only_a_daily_agent_runs_again(
+    session_factory, monkeypatch: pytest.MonkeyPatch, name: str, runs: int
+) -> None:
+    now = {"at": MORNING}
+    monkeypatch.setattr("app.agents.runner.utcnow", lambda: now["at"])
+    fetched: list[str] = []
+    agent = _agent(FakeLLM(), fetched, name)
+    runner = AgentRunner(session_factory, NullKnowledgeStore())
+    await runner.run(agent, "AAPL", DAY)
+    async with session_factory() as session:
+        await session.execute(update(AgentResult).values(updated_at=MORNING))
+        await session.commit()
+
+    assert (await runner.run(agent, "AAPL", DAY)).status == "skipped"  # the market is open
+
+    now["at"] = EVENING
+    assert (await runner.run(agent, "AAPL", DAY)).status == (
+        "completed" if runs == 2 else "skipped"
+    )
+    assert len(fetched) == runs
+    if runs == 2:  # now it holds the close: a later run the same evening doesn't repeat it
+        now["at"] = EVENING + timedelta(hours=1)
+        async with session_factory() as session:
+            await session.execute(update(AgentResult).values(updated_at=EVENING))
+            await session.commit()
+        assert (await runner.run(agent, "AAPL", DAY)).status == "skipped"
+        assert len(fetched) == 2
 
 
 @pytest.mark.unit

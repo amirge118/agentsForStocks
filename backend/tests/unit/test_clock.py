@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.core.clock import market_today, utcnow
+from app.core.clock import market_close, market_today, utcnow
 
 
 @pytest.mark.unit
@@ -15,3 +15,9 @@ def test_market_today_uses_new_york_date_not_utc() -> None:
 @pytest.mark.unit
 def test_utcnow_is_timezone_aware() -> None:
     assert utcnow().tzinfo is not None
+
+
+@pytest.mark.unit
+def test_market_close_follows_daylight_saving() -> None:
+    assert market_close(date(2026, 7, 1)).astimezone(UTC).hour == 20
+    assert market_close(date(2026, 12, 1)).astimezone(UTC).hour == 21
