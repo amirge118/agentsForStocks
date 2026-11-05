@@ -7,15 +7,15 @@ import { pending, renderWithProviders } from "@/test/render"
 
 const agents: AgentInfo[] = [
   {
-    name: "moat", description: "Competitive advantage", depends_on: [], recommendation_weight: 15,
+    name: "moat", description: "Competitive advantage", depends_on: [], recommendation_weight: 15, refresh: { max_age_days: 0, on_new_report: false },
     profile: { provider: "anthropic", model: null, skills: ["moat_evidence"], use_llm: true },
   },
   {
-    name: "technicals", description: "Price trends", depends_on: [], recommendation_weight: 0,
+    name: "technicals", description: "Price trends", depends_on: [], recommendation_weight: 0, refresh: { max_age_days: 0, on_new_report: false },
     profile: { provider: "anthropic", model: null, skills: [], use_llm: false },
   },
   {
-    name: "sentiment", description: "News", depends_on: [], recommendation_weight: 0,
+    name: "sentiment", description: "News", depends_on: [], recommendation_weight: 0, refresh: { max_age_days: 0, on_new_report: false },
     profile: { provider: "alt", model: "flash-lite", skills: [], use_llm: true },
   },
 ]

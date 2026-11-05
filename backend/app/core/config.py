@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     # they have cost this much; agents then fall back and are marked needs_review.
     # 0 = no cap. Today's free chain costs $0; a day on Claude Haiku ≈ $0.15
     llm_daily_budget_usd: float = 2.0
+    # The same prompt reuses the model's stored reply for this many days instead of calling
+    # it again (app/llm/replies.py); --force always calls. 0 = always call
+    llm_reuse_max_days: int = 30
 
     # A second, cheaper provider: any OpenAI-compatible chat-completions API with
     # JSON-schema outputs (Gemini, OpenRouter, DeepSeek, a local Ollama, …)
@@ -74,6 +77,8 @@ class Settings(BaseSettings):
     # max_tokens, use_llm per prompt. Example: {"news_sentiment": {"provider": "alt"}}
     agent_profiles: str = ""
     agent_profiles_file: str = ""
+    # How often each agent really runs on a symbol (JSON), over app/agents/refresh.py's table
+    agent_refresh: str = ""
     # Ledger (llm_calls): keep the exact prompt and reply text of every call, for review
     # and evals; rows older than the retention window are deleted daily by the worker
     llm_capture_content: bool = True

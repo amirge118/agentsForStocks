@@ -10,7 +10,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import type { AgentInfo } from "@/types/api"
 import { useAgents } from "@/lib/hooks/queries"
+
+function describeRefresh({ max_age_days, on_new_report }: AgentInfo["refresh"]): string {
+  if (max_age_days <= 0) return "Every market day"
+  return `Every ${max_age_days} days${on_new_report ? ", or after a new report" : ""}`
+}
 
 /** Every agent in execution order, with its weight and how it calls the model. */
 export function AgentsTable() {
@@ -29,6 +35,7 @@ export function AgentsTable() {
           <TableHead>Agent</TableHead>
           <TableHead className="hidden md:table-cell">What it analyses</TableHead>
           <TableHead className="text-right">Weight</TableHead>
+          <TableHead>Runs</TableHead>
           <TableHead>Model</TableHead>
           <TableHead>Skills</TableHead>
         </TableRow>
@@ -41,6 +48,7 @@ export function AgentsTable() {
             <TableCell className="text-right tabular-nums">
               {agent.recommendation_weight || "info"}
             </TableCell>
+            <TableCell className="text-xs">{describeRefresh(agent.refresh)}</TableCell>
             <TableCell>
               {agent.profile.use_llm ? (
                 <span className="font-mono text-xs">

@@ -79,6 +79,9 @@ function AgentPanel({ row, description }: { row: AgentResult; description?: stri
               <p className="mt-2 text-ink-2">{base.data.reasoning}</p>
             </details>
           )}
+          {base.data.reused_from && (
+            <p className="text-xs text-muted">Stored result from {formatDate(base.data.reused_from)}</p>
+          )}
           {(base.data.data_gaps?.length ?? 0) > 0 && (
             <p className="text-xs text-muted">No data from: {base.data.data_gaps!.join(", ")}</p>
           )}

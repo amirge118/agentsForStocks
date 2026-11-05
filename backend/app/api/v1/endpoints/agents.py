@@ -1,10 +1,12 @@
 """GET /api/v1/agents — what the system analyses and how the recommendation is weighted."""
 
+from dataclasses import asdict
+
 from fastapi import APIRouter, Depends
 
 from app.api.deps import get_container
 from app.container import Container
-from app.schemas.api import AgentInfo, AgentProfileOut
+from app.schemas.api import AgentInfo, AgentProfileOut, AgentRefreshOut
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -30,6 +32,7 @@ async def list_agents(container: Container = Depends(get_container)) -> list[Age
                     skills=list(profile.skills),
                     use_llm=profile.use_llm,
                 ),
+                refresh=AgentRefreshOut(**asdict(container.refresh.resolve(spec.name))),
             )
         )
     return infos

@@ -50,6 +50,13 @@ class LLMRouter:
         client = self._providers.get(name)
         return client.default_model if client is not None else None
 
+    def model_scope(self, provider: str | None = None) -> str:
+        """What serves this provider now: a reply from a different setup isn't reused."""
+        name = provider or self.default_provider
+        if name == CHAIN:
+            return ",".join(self.chain_order())
+        return f"{name}:{self.default_model(name)}"
+
     def price(self, model: str) -> Price | None:
         """A model's price from whichever provider serves it, else the Claude price list."""
         for client in self._providers.values():

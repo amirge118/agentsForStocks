@@ -20,9 +20,11 @@ import pandas as pd
 import yfinance as yf
 from opentelemetry import trace
 
+from app.core.clock import market_today
 from app.core.symbols import validate_symbol
 from app.domain.assets import is_fund
 from app.observability import metrics
+from app.providers import yahoo_statements as statements
 from app.providers.cache import TTLCache
 from app.providers.errors import ProviderError, RetryableError
 from app.providers.rate_limit import RateLimiter
@@ -201,6 +203,34 @@ class YFinanceClient:
             return df if df is not None else pd.DataFrame()
 
         return await self._optional(("earnings_dates", ticker), _fetch, pd.DataFrame())
+
+    async def get_statements(self, endpoint: str, symbol: str) -> list[dict]:
+        """Annual statements or earnings as FMP's rows; [] when Yahoo has none or fails."""
+        ticker = validate_symbol(symbol)
+        if endpoint == statements.EARNINGS:
+            frame = await self.get_earnings_dates(ticker)
+            rows = statements.earnings_rows(frame, market_today())
+        else:
+            rows = await self._optional(
+                ("statements", ticker, endpoint), lambda: self._statements(endpoint, ticker), []
+            )
+        if rows:
+            _note_fallback(endpoint, ticker)
+        return rows
+
+    def _statements(self, endpoint: str, ticker: str) -> list[dict]:
+        company = self._ticker(ticker)
+        if endpoint == statements.INCOME:
+            return statements.income_rows(company.income_stmt)
+        if endpoint == statements.BALANCE:
+            return statements.balance_rows(company.balance_sheet)
+        if endpoint == statements.CASH_FLOW:
+            return statements.cash_flow_rows(company.cashflow)
+        if endpoint == statements.RATIOS:
+            return statements.ratio_rows(company.income_stmt, company.balance_sheet)
+        if endpoint == statements.HOLDERS:
+            return statements.holder_rows(company.institutional_holders, market_today())
+        return []
 
     async def get_insider_transactions(self, symbol: str) -> list[dict]:
         ticker = validate_symbol(symbol)

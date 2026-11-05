@@ -106,7 +106,7 @@ For every feature request, improvement idea, or "nice to have" identified during
 Use `select()` (not `query()`). Use `AsyncSession` injected via `Depends(get_db_session)`. Use `selectinload`/`joinedload` for eager loading. **Test DB uses `sqlite+aiosqlite:///:memory:`** — do NOT assume PostgreSQL in tests. See `backend/tests/conftest.py` for fixture pattern.
 
 ### 4. Agent Idempotency — Non-Negotiable
-Every agent run MUST be idempotent. `AgentRunner` enforces it: it skips an (agent, symbol, market date) that already has a result and writes through `AgentResultRepository.upsert`. Never write results from inside an agent. Every execution (including failures) is also recorded in `agent_runs`. Use `market_today()` from `app/core/clock.py`, never `date.today()`.
+Every agent run MUST be idempotent. `AgentRunner` enforces it: it skips an (agent, symbol, market date) that already has a result and writes through `AgentResultRepository.upsert`. Never write results from inside an agent. Every execution (including failures) is also recorded in `agent_runs`. Use `market_today()` from `app/core/clock.py`, never `date.today()`. A new date doesn't always mean a new run: while an agent's result is still good under its policy in `app/agents/refresh.py` (`AGENT_REFRESH` overrides), the runner copies it to today (`reused`) without fetching data or calling a model. A new agent needs a line in that table.
 
 ### 5. External API Rate Limiting
 All calls to `yfinance`, financial APIs, or any external service MUST go through `app/providers/` (`HttpClient` / `YFinanceClient`), which provide:

@@ -122,6 +122,7 @@ class HttpClient:
                 raise ProviderError(
                     f"HTTP {resp.status_code} from {domain}{urlsplit(url).path}{detail}",
                     status=resp.status_code,
+                    body=resp.text[:200],
                 )
             return resp.text
 

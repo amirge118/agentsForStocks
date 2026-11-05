@@ -316,6 +316,9 @@ class FakeLLM(RouterStub):
     def default_model(self, provider: str | None = None) -> str:
         return "fake-model"
 
+    def model_scope(self, provider: str | None = None) -> str:
+        return "fake-model"
+
     async def aclose(self) -> None:
         return None
 
@@ -397,6 +400,7 @@ def make_context(
     results: Any = None,
     profiles: ProfileBook | None = None,
     outcomes: Any = None,
+    replies: Any = None,
 ) -> AgentContext:
     return AgentContext(
         yfinance=yfinance or FakeYFinance(),
@@ -407,4 +411,5 @@ def make_context(
         reasoning_model="reasoning-model",
         profiles=profiles or ProfileBook(),
         outcomes=outcomes or NoOutcomes(),
+        replies=replies,
     )

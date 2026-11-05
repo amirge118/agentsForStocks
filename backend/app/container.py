@@ -9,6 +9,7 @@ import logging
 import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import date
 
 import anthropic
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.agents.base import Agent, AgentContext
 from app.agents.catalog import load_agents
 from app.agents.outcome_review import SessionOutcomesReader
+from app.agents.refresh import RefreshBook, latest_report
 from app.agents.registry import AgentRegistry
 from app.agents.runner import AgentRunner, SessionResultsReader
 from app.core.config import Settings
@@ -29,6 +31,7 @@ from app.llm.provider import ALT, ANTHROPIC, LLMProvider
 from app.llm.providers_catalog import alt_spec, configured, load_specs
 from app.llm.quota import ProviderQuota, UsageLoader
 from app.llm.recording import DbLLMCallRecorder, LedgerSpend, LedgerUsage, LLMCallRecorder
+from app.llm.replies import StoredReplies
 from app.llm.router import LLMRouter
 from app.llm.spend import DailySpend, SpendLoader
 from app.pipeline.assets import FundDetector
@@ -61,6 +64,7 @@ _RATE_LIMITS = {
 @dataclass
 class Container:
     settings: Settings
+    refresh: RefreshBook
     registry: AgentRegistry
     agent_context: AgentContext
     knowledge: KnowledgeStore
@@ -198,15 +202,17 @@ def build_container(
         earnings_limit=settings.fmp_earnings_limit,
     )
     chart = YahooChartClient(http)
+    yahoo = YFinanceClient(
+        rate_limiter=rate_limiter,
+        cache=cache,
+        # When Yahoo refuses yfinance's crumb (cloud hosts): prices from the chart
+        # endpoint, fundamentals from FMP
+        fallback=chart,
+        fundamentals=fmp.get_info_fields if settings.fmp_api_key else None,
+    )
+    fmp.use_statements(yahoo.get_statements)  # symbols FMP's plan doesn't cover
     context = AgentContext(
-        yfinance=YFinanceClient(
-            rate_limiter=rate_limiter,
-            cache=cache,
-            # When Yahoo refuses yfinance's crumb (cloud hosts): prices from the chart
-            # endpoint, fundamentals from FMP
-            fallback=chart,
-            fundamentals=fmp.get_info_fields if settings.fmp_api_key else None,
-        ),
+        yfinance=yahoo,
         fmp=fmp,
         edgar=EdgarClient(http, settings.edgar_user_agent),
         llm=llm,
@@ -214,9 +220,19 @@ def build_container(
         reasoning_model=settings.llm_reasoning_model,
         profiles=ProfileBook.from_config(settings.agent_profiles, settings.agent_profiles_file),
         outcomes=SessionOutcomesReader(session_factory),
+        replies=(
+            StoredReplies(session_factory, settings.llm_reuse_max_days)
+            if settings.llm_reuse_max_days > 0
+            else None
+        ),
     )
     registry = load_agents()
-    runner = AgentRunner(session_factory, knowledge)
+    refresh = RefreshBook.from_config(settings.agent_refresh)
+
+    async def reported(symbol: str) -> date | None:
+        return latest_report(await fmp.get_earnings_surprises(symbol))
+
+    runner = AgentRunner(session_factory, knowledge, refresh, reported)
     orchestrator = PipelineOrchestrator(
         runner,
         registry,
@@ -227,6 +243,7 @@ def build_container(
     )
     lock = PipelineLock(session_factory)
     return Container(
+        refresh=refresh,
         settings=settings,
         registry=registry,
         agent_context=context,

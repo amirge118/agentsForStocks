@@ -43,5 +43,8 @@ class AgentRun(Base):
         Integer, nullable=False, default=0, server_default="0"
     )
 
+    # Judgements answered by a stored reply: same prompt as before, so no model call
+    llm_reused: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
     def __repr__(self) -> str:
         return f"<AgentRun {self.agent_type}/{self.symbol} {self.run_date} {self.status}>"

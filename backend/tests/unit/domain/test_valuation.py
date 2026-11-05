@@ -164,9 +164,14 @@ def test_summary_signals_by_margin_of_safety() -> None:
 
 
 @pytest.mark.unit
-def test_fcf_fallback_only_when_missing() -> None:
+def test_reported_fcf_replaces_yahoos_computed_figure() -> None:
     assert with_fmp_fallbacks({}, [{"freeCashFlow": 5}], {}) == {"freeCashflow": 5}
-    assert with_fmp_fallbacks({"freeCashflow": 1}, [{"freeCashFlow": 5}], {}) == {"freeCashflow": 1}
+    assert with_fmp_fallbacks({"freeCashflow": 1}, [{"freeCashFlow": 5}], {}) == {"freeCashflow": 5}
+    # A reported loss replaces Yahoo's positive figure too
+    assert with_fmp_fallbacks({"freeCashflow": 1}, [{"freeCashFlow": -5}], {}) == {
+        "freeCashflow": -5
+    }
+    assert with_fmp_fallbacks({"freeCashflow": 1}, [{}], {}) == {"freeCashflow": 1}
     assert with_fmp_fallbacks({}, [], {}) == {}
     # yfinance info with only a quote: the market cap comes from FMP's profile
     quote_only = {"regularMarketPrice": 517.0}

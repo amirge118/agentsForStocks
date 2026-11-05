@@ -207,7 +207,8 @@ def render(report: VerifyReport) -> str:
     u = report.llm
     lines += [
         "",
-        f"LLM: {u.get('llm_calls', 0)} calls, ${u.get('cost_usd', 0):.4f}, "
+        f"LLM: {u.get('llm_calls', 0)} calls ({u.get('llm_reused', 0)} reused), "
+        f"${u.get('cost_usd', 0):.4f}, "
         f"{u.get('llm_fallbacks', 0)} fallbacks · FMP: {report.fmp_calls_today} calls today",
     ]
     lines += report.notes

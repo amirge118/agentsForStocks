@@ -319,6 +319,7 @@ export interface components {
             profile: components["schemas"]["AgentProfileOut"];
             /** Recommendation Weight */
             recommendation_weight: number;
+            refresh: components["schemas"]["AgentRefreshOut"];
         };
         /**
          * AgentProfileOut
@@ -336,6 +337,13 @@ export interface components {
             skills: string[];
             /** Use Llm */
             use_llm: boolean;
+        };
+        /** AgentRefreshOut */
+        AgentRefreshOut: {
+            /** Max Age Days */
+            max_age_days: number;
+            /** On New Report */
+            on_new_report: boolean;
         };
         /** AgentResultOut */
         AgentResultOut: {
@@ -383,6 +391,8 @@ export interface components {
             llm_calls: number;
             /** Llm Fallbacks */
             llm_fallbacks: number;
+            /** Llm Reused */
+            llm_reused: number;
             /** Output Tokens */
             output_tokens: number;
             /** Pipeline Run Id */
@@ -403,7 +413,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "completed" | "skipped" | "failed";
+            status: "completed" | "skipped" | "reused" | "failed";
             /** Symbol */
             symbol: string;
         };
@@ -1090,7 +1100,7 @@ export interface operations {
             query?: {
                 symbol?: string | null;
                 run_date?: string | null;
-                status?: ("completed" | "skipped" | "failed") | null;
+                status?: ("completed" | "skipped" | "reused" | "failed") | null;
                 pipeline_run_id?: string | null;
                 limit?: number;
             };

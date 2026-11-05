@@ -243,14 +243,15 @@ def summarize(info: dict, revenues: Sequence[float | None] = ()) -> ValuationSum
 
 def with_fmp_fallbacks(info: dict, cash_flow_rows: list[dict], profile: dict) -> dict:
     """
-    Fill what yfinance didn't return from FMP: the latest freeCashFlow and the
-    market cap (yfinance's info can come back with only a quote — see
-    providers/yahoo_chart.py — and without a market cap there is no valuation).
+    The reported free cash flow replaces Yahoo's `freeCashflow`, a computed figure that can
+    be far off (2026-11: HIMS $849M against $60M reported, above its operating cash flow).
+    The market cap is filled in when missing: yfinance's info can come back with only a
+    quote (providers/yahoo_chart.py), and without a market cap there is no valuation.
     """
     filled = dict(info)
-    fmp_fcf = cash_flow_rows[0].get("freeCashFlow") if cash_flow_rows else None
-    if not filled.get("freeCashflow") and fmp_fcf:
-        filled["freeCashflow"] = fmp_fcf
+    reported_fcf = cash_flow_rows[0].get("freeCashFlow") if cash_flow_rows else None
+    if reported_fcf is not None:
+        filled["freeCashflow"] = reported_fcf
     if not filled.get("marketCap") and profile.get("marketCap"):
         filled["marketCap"] = profile["marketCap"]
     return filled

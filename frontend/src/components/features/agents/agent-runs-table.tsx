@@ -21,6 +21,7 @@ const STATUS_VARIANT: Record<RunStatus, "gain" | "loss" | "outline"> = {
   completed: "gain",
   failed: "loss",
   skipped: "outline",
+  reused: "outline",
 }
 
 export function AgentRunsTable({ filters = {} }: { filters?: RunFilters }) {
@@ -62,6 +63,15 @@ export function AgentRunsTable({ filters = {} }: { filters?: RunFilters }) {
                   fallback
                 </Badge>
               )}
+              {run.llm_reused > 0 && (
+                <Badge
+                  variant="outline"
+                  className="ml-2"
+                  title="Same prompt as an earlier run, so the stored reply was used without a model call"
+                >
+                  reused
+                </Badge>
+              )}
             </TableCell>
             <TableCell className="hidden text-right font-mono tabular-nums md:table-cell">
               {run.llm_calls > 0 ? (
@@ -69,7 +79,7 @@ export function AgentRunsTable({ filters = {} }: { filters?: RunFilters }) {
                   {formatTokens(run.input_tokens)} / {formatTokens(run.output_tokens)}
                 </Link>
               ) : (
-                <span className="text-muted">None</span>
+                <span className="text-muted">{run.llm_reused > 0 ? "Reused" : "None"}</span>
               )}
             </TableCell>
             <TableCell className="hidden text-right font-mono tabular-nums md:table-cell">
