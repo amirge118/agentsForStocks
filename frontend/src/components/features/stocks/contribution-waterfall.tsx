@@ -1,8 +1,8 @@
 "use client"
 
-import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, Cell, LabelList, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
-import { waterfall } from "@/lib/charts"
+import { symmetricTicks, waterfall } from "@/lib/charts"
 import { formatScore } from "@/lib/format"
 import { useThemeColors } from "@/lib/hooks/use-theme-colors"
 import type { Contribution } from "@/types/api"
@@ -22,7 +22,8 @@ export function ContributionWaterfall({
   const steps = waterfall(breakdown)
   if (steps.length === 0) return null
   const data = steps.map((s) => ({ ...s, range: [s.from, s.to] as [number, number] }))
-  const extent = Math.max(10, ...steps.flatMap((s) => [Math.abs(s.from), Math.abs(s.to)]))
+  const ticks = symmetricTicks(Math.max(10, ...steps.flatMap((s) => [Math.abs(s.from), Math.abs(s.to)])))
+  const edge = Math.max(...ticks)
   const summary = steps.map((s) => `${s.agent} ${formatScore(s.contribution)}`).join(", ")
 
   return (
@@ -35,10 +36,12 @@ export function ContributionWaterfall({
       </figcaption>
       <div role="img" aria-label={`Contributions: ${summary}; total ${formatScore(score)}`} style={{ height: 36 * data.length + 40 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
+          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 48, bottom: 4, left: 8 }}>
             <XAxis
               type="number"
-              domain={[-Math.ceil(extent), Math.ceil(extent)]}
+              domain={[-edge, edge]}
+              ticks={ticks}
+              tickFormatter={(value: number) => (value > 0 ? `+${value}` : String(value))}
               tick={{ fill: colors.muted, fontSize: 12 }}
               stroke={colors.rule}
             />
@@ -60,6 +63,13 @@ export function ContributionWaterfall({
               {data.map((d) => (
                 <Cell key={d.agent} fill={d.contribution >= 0 ? colors.ok : colors.bad} />
               ))}
+              <LabelList
+                dataKey="contribution"
+                position="right"
+                fill={colors["ink-2"]}
+                fontSize={12}
+                formatter={(value: unknown) => formatScore(Number(value))}
+              />
             </Bar>
           </BarChart>
         </ResponsiveContainer>

@@ -30,6 +30,13 @@ export interface WaterfallStep {
  * Steps from 0 to the weighted score, one per analyst that reported, largest
  * effect first. Missing analysts are left out (they add nothing).
  */
+/** Round ticks around 0 that reach `extent`: at most four on each side. */
+export function symmetricTicks(extent: number): number[] {
+  const step = [5, 10, 20, 25, 50].find((size) => extent / size <= 4) ?? 100
+  const sides = Math.ceil(extent / step)
+  return Array.from({ length: sides * 2 + 1 }, (_, i) => (i - sides) * step)
+}
+
 export function waterfall(breakdown: Contribution[]): WaterfallStep[] {
   const reported = breakdown
     .filter((c) => c.signal !== "missing")

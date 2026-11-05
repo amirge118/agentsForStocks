@@ -114,6 +114,11 @@ def score_financial_health(info: dict) -> FactorScore:
     return _passes_to_factor("financial_health", passed, known, detail)
 
 
+def _multiple(info: dict, key: str) -> float | str:
+    value = info.get(key)
+    return round(value, 2) if isinstance(value, int | float) else "N/A"
+
+
 def score_valuation(info: dict) -> FactorScore:
     """Expensive when 2+ of P/E > 25, P/B > 3, P/S > 5 (bearish); none of the known → bullish."""
     expensive, known = _run_checks(
@@ -125,8 +130,8 @@ def score_valuation(info: dict) -> FactorScore:
         ],
     )
     detail = (
-        f"P/E={info.get('trailingPE', 'N/A')} P/B={info.get('priceToBook', 'N/A')} "
-        f"P/S={info.get('priceToSalesTrailing12Months', 'N/A')}"
+        f"P/E={_multiple(info, 'trailingPE')} P/B={_multiple(info, 'priceToBook')} "
+        f"P/S={_multiple(info, 'priceToSalesTrailing12Months')}"
     )
     if known == 0:  # no multiple at all is not "cheap"
         return _no_data("valuation", detail)

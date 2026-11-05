@@ -41,3 +41,15 @@ async def test_list_filters_and_orders_newest_first(db_session) -> None:
     assert len(await repo.list(agent="moat", since=date(2026, 10, 23))) == 3
     assert await repo.list(agent="risk") == []
     assert await repo.list(since=date(2026, 10, 24)) == []
+
+
+@pytest.mark.unit
+async def test_hide_skipped_keeps_every_other_status(db_session) -> None:
+    repo = AgentRunRepository(db_session)
+    for i, status in enumerate(("completed", "skipped", "reused", "failed")):
+        repo.add(_run(i, "AAPL", status))
+    await db_session.flush()
+
+    runs = await repo.list(hide_skipped=True)
+
+    assert {run.status for run in runs} == {"completed", "reused", "failed"}

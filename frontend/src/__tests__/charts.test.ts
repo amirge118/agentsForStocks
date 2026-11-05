@@ -7,6 +7,7 @@ import {
   rangeChange,
   runningScore,
   scorePoints,
+  symmetricTicks,
   waterfall,
 } from "@/lib/charts"
 import { latestPerAgent } from "@/lib/hooks/queries"
@@ -63,5 +64,14 @@ describe("runningScore", () => {
       { agent: "institutional", contribution: null, total: 12 },
       { agent: "risk", contribution: -6, total: 6 },
     ])
+  })
+})
+
+describe("symmetricTicks", () => {
+  it("gives round ticks around 0 that reach the extent", () => {
+    expect(symmetricTicks(10)).toEqual([-10, -5, 0, 5, 10])
+    expect(symmetricTicks(31)).toEqual([-40, -30, -20, -10, 0, 10, 20, 30, 40])
+    expect(symmetricTicks(70.5)).toEqual([-80, -60, -40, -20, 0, 20, 40, 60, 80])
+    expect(symmetricTicks(250)).toEqual([-300, -200, -100, 0, 100, 200, 300])
   })
 })

@@ -2,8 +2,10 @@
 
 import { Empty, LoadError, Loading } from "@/components/features/common/query-states"
 import Link from "next/link"
+import { useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -24,7 +26,39 @@ const STATUS_VARIANT: Record<RunStatus, "gain" | "loss" | "outline"> = {
   reused: "outline",
 }
 
+/** Skipped runs did no work, and a daily run that finds everything done writes 14 per symbol. */
+const VIEWS = [
+  { label: "Ran", filters: { hideSkipped: true } },
+  { label: "Failed", filters: { status: "failed" } },
+  { label: "Stored result", filters: { status: "reused" } },
+  { label: "Skipped", filters: { status: "skipped" } },
+  { label: "All", filters: {} },
+] as const satisfies readonly { label: string; filters: RunFilters }[]
+
 export function AgentRunsTable({ filters = {} }: { filters?: RunFilters }) {
+  const [view, setView] = useState<(typeof VIEWS)[number]>(VIEWS[0])
+
+  return (
+    <>
+      <div role="group" aria-label="Which runs to show" className="flex flex-wrap gap-1 border-b border-rule px-4 py-2">
+        {VIEWS.map((option) => (
+          <Button
+            key={option.label}
+            variant={option === view ? "outline" : "ghost"}
+            size="sm"
+            aria-pressed={option === view}
+            onClick={() => setView(option)}
+          >
+            {option.label}
+          </Button>
+        ))}
+      </div>
+      <RunRows filters={{ ...filters, ...view.filters }} />
+    </>
+  )
+}
+
+function RunRows({ filters }: { filters: RunFilters }) {
   const { data, isPending, isError, error } = useRuns(filters)
 
   if (isPending) {
@@ -34,7 +68,7 @@ export function AgentRunsTable({ filters = {} }: { filters?: RunFilters }) {
     return <LoadError what="runs" error={error} />
   }
   if (data.length === 0) {
-    return <Empty>No agent runs yet.</Empty>
+    return <Empty>No agent runs here yet.</Empty>
   }
 
   return (
@@ -79,7 +113,7 @@ export function AgentRunsTable({ filters = {} }: { filters?: RunFilters }) {
                   {formatTokens(run.input_tokens)} / {formatTokens(run.output_tokens)}
                 </Link>
               ) : (
-                <span className="text-muted">{run.llm_reused > 0 ? "Reused" : "None"}</span>
+                <span className="text-muted">{run.status === "reused" || run.llm_reused > 0 ? "Reused" : "None"}</span>
               )}
             </TableCell>
             <TableCell className="hidden text-right font-mono tabular-nums md:table-cell">

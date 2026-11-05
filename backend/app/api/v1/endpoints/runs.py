@@ -29,6 +29,7 @@ async def list_runs(
         default=None, alias="status"
     ),
     pipeline_run_id: str | None = Query(default=None),
+    hide_skipped: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=1000),
     session: AsyncSession = Depends(get_session),
 ) -> list[AgentRunOut]:
@@ -42,6 +43,7 @@ async def list_runs(
         run_date=run_date,
         status=status_filter,
         pipeline_run_id=pipeline_run_id,
+        hide_skipped=hide_skipped,
         limit=limit,
     )
     return [AgentRunOut.model_validate(run) for run in runs]
