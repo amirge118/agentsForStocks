@@ -1,7 +1,7 @@
 """AgentResultRepository — reads and idempotent writes for the agent_results table."""
 
 from collections.abc import Iterable
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -21,13 +21,14 @@ class AgentResultRepository:
         stmt = select(AgentResult).order_by(AgentResult.run_date, AgentResult.agent_type)
         return list((await self._session.execute(stmt)).scalars().all())
 
-    async def exists(self, agent_type: str, symbol: str, run_date: date) -> bool:
-        stmt = select(AgentResult.id).where(
+    async def stored_at(self, agent_type: str, symbol: str, run_date: date) -> datetime | None:
+        """When the result for this date was written; None when there is none."""
+        stmt = select(AgentResult.updated_at).where(
             AgentResult.agent_type == agent_type,
             AgentResult.symbol == symbol,
             AgentResult.run_date == run_date,
         )
-        return (await self._session.execute(stmt)).scalar_one_or_none() is not None
+        return (await self._session.execute(stmt)).scalar_one_or_none()
 
     async def upsert(
         self,

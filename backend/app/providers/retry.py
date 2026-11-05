@@ -49,7 +49,7 @@ async def with_retry(
                 label,
                 attempt,
                 policy.max_attempts,
-                exc or "timeout",
+                str(exc) or "timeout",
             )
         if attempt < policy.max_attempts:
             await asyncio.sleep(policy.backoff(attempt))

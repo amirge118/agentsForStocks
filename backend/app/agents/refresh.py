@@ -9,14 +9,19 @@ A result stops being good when any of these holds:
   - a person should check it (needs_review), or it had nothing to judge (neutral at 0%
     with empty inputs): tomorrow's data may be better
 
+A daily agent's result stored before that day's close is replaced by the first run after
+the close, so a morning run doesn't keep the day's close from being analysed.
+
 `--force` always runs. Override per agent with AGENT_REFRESH, e.g.
 AGENT_REFRESH={"moat": {"max_age_days": 30}, "technicals": {"max_age_days": 7}}
 """
 
 import json
 from dataclasses import dataclass, fields, replace
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any
+
+from app.core.clock import market_close, market_today
 
 
 @dataclass(frozen=True)
@@ -80,6 +85,16 @@ def reusable(policy: RefreshPolicy, result: dict[str, Any], source: date, today:
     if policy.max_age_days <= 0 or (today - source).days > policy.max_age_days:
         return False
     return not result.get("needs_review") and not has_no_evidence(result)
+
+
+def awaits_the_close(
+    policy: RefreshPolicy, stored_at: datetime, run_date: date, now: datetime
+) -> bool:
+    """A result of today from before the close, for an agent that reads the day's prices."""
+    if policy.max_age_days > 0 or run_date != market_today(now):
+        return False
+    stored = stored_at if stored_at.tzinfo is not None else stored_at.replace(tzinfo=UTC)
+    return stored < market_close(run_date) <= now
 
 
 def latest_report(rows: list[dict[str, Any]]) -> date | None:

@@ -71,7 +71,9 @@ Change a prompt, model, weight or skill only on evidence: an eval report or an o
 - [ ] More labelled `recommendation` eval cases (only 2 today: consensus, risk_override) — e.g. mixed signals, missing analysts, bearish consensus [PRIORITY: MED]
 - [x] Don't pay twice for the same judgement: the same prompt reuses the model's stored reply for `LLM_REUSE_MAX_DAYS` (default 30, `app/llm/replies.py`); `--force` always asks, fallbacks are never stored, and `/runs` marks a run `reused`
 - [x] Agents don't run while their result is still good: `app/agents/refresh.py` sets per agent how long (`AGENT_REFRESH` overrides, shown on `/agents`); the stored result is copied to today with no data fetched and no model call, marked `reused` on `/runs` and with its real date on the symbol page
-- [ ] A run before the market closes takes that date, so the evening's scheduled run skips and that day's close is never analysed: replace a pre-close result, or date such a run by the last close [PRIORITY: MED]
+- [x] A run before the market closes no longer costs that day's close: the first run after the close replaces a daily agent's earlier result (`awaits_the_close`)
+- [ ] `market_close` assumes 16:00 ET: on an early close or a holiday a run after the real close may repeat the daily agents once; use a market calendar if it matters [PRIORITY: LOW]
+- [ ] Confidence on partial data: `growth` (8 of 9 bullish at 83%, `estimates` missing on those 8) and `institutional` (7 of 9 bullish, `ownership_trend` missing on all, ten holders, one quarter) look overconfident. Measure with the evals and the first settled outcomes, then cap per missing input in `contracts.py` [PRIORITY: HIGH]
 - [ ] Agent card on the dashboard (`/agents/<name>`), from the same `build_card` [PRIORITY: LOW]
 - [ ] Run the outcome eval suite live once a few weeks of recommendations have settled — the baseline for every later prompt / model change [PRIORITY: HIGH]
 - [ ] Run backtest A once a few weeks have settled; change weights only on a clear out-of-sample win. Includes the weight-0 agents (fundamentals / technicals / sentiment / market_scanner) [PRIORITY: HIGH]
