@@ -9,14 +9,14 @@ uvicorn[standard]==0.54.0
 httpx==0.28.1
 
 # Database
-sqlalchemy[asyncio]==2.1.6
+sqlalchemy[asyncio]==2.1.8
 asyncpg==0.32.0
 alembic==1.20.1
 
 # AI & data
-anthropic==2.3.0
-yfinance==1.7.0
-pandas==3.1.0
+anthropic==2.6.0
+yfinance==1.8.0
+pandas==3.1.1
 
 # Observability — OpenTelemetry traces, metrics and logs over OTLP (off unless OTEL_ENABLED=true)
 opentelemetry-sdk==1.45.2
