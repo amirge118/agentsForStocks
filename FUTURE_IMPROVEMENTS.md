@@ -63,7 +63,7 @@ Change a prompt, model, weight or skill only on evidence: an eval report or an o
 - [x] Agent improvement loop: `scripts.agent_card` (runs, data gaps, violations, model calls, track record, eval coverage, where to start), `docs/agent-improvement-loop.md`, `docs/agent-journal.md`
 - [x] First logged round: `recommendation_v2` vs the current prompt — rejected (faithfulness 1/6 vs 2/6 = noise, +16% tokens); both prompts make up a "main risk" when no analyst reports one (`docs/agent-journal.md`)
 - [x] Round 2: `recommendation_v3` (name only a reported risk) — rejected: faithfulness 50% → 50%, and it now attributes the invented risk to the risk analyst; the prompt carries no analyst reasoning at all
-- [ ] Portfolio weights: an optional share of the portfolio per watchlist symbol (never an amount), shown as exposure by action, sector and co-moving symbols; never in a prompt, a log or the repository — `docs/plans/improvement-2026-11.md` step 2 [PRIORITY: MED]
+- [ ] Portfolio page: a ledger of transactions with cash (USD, average cost); a summary (total assets, P/L, today and this week), this week's movers, positions with the agents' view, sector weights with optional targets, time-weighted return vs SPY, risk; amounts never in a prompt, a log or the repository — `docs/plans/portfolio.md` (replaces the weights-only idea of `docs/plans/improvement-2026-11.md` step 2) [PRIORITY: HIGH]
 - [x] Round 3 (done 2026-11-15: faithfulness 50% → 90%, accuracy and stability unchanged, +33% input tokens; `docs/agent-journal.md`): give the recommendation prompt each analyst's short reasoning (data before prompt), and realistic reasoning in the consensus eval case — planned in `docs/agent-journal.md` [PRIORITY: HIGH]
 - [ ] More labelled `recommendation` eval cases (only 2 today: consensus, risk_override) — e.g. mixed signals, missing analysts, bearish consensus [PRIORITY: MED]
 - [x] Don't pay twice for the same judgement: the same prompt reuses the model's stored reply for `LLM_REUSE_MAX_DAYS` (default 30, `app/llm/replies.py`); `--force` always asks, fallbacks are never stored, and `/runs` marks a run `reused`
@@ -88,6 +88,8 @@ Change a prompt, model, weight or skill only on evidence: an eval report or an o
 - [ ] Track record over time: hit rate per month per agent on `/track-record`, to see whether a change helped — needs a few months of settled calls [PRIORITY: LOW]
 
 ## 5. Operations hygiene
+- [ ] `TTLCache` never drops an expired entry (it stays until the key is written again) and has no size cap: a long-running API serving a page that refreshes grows without bound. Drop expired entries and cap the size — `docs/plans/portfolio.md` step 1 [PRIORITY: MED]
+- [ ] Every provider result is cached for 6 hours (`provider_cache_ttl_seconds`): right for the agents, wrong for a live price. A TTL per kind (quotes 60 s while the market is open) — `docs/plans/portfolio.md` step 1 [PRIORITY: MED]
 - [ ] A run delayed past `misfire_grace_time` (1 hour, `app/agents/scheduler.py`) is lost: on a laptop that sleeps, make it a setting and allow ~6 hours (still the same New York market date). On 2026-11-09 and 11-11 the machine woke 1.5–2 hours late, so both nights would have run. Not critical: the next run sees the missed day's prices [PRIORITY: LOW]
 - [ ] Grafana alerts: failed runs, fallbacks, daily LLM cost above a threshold, FMP budget at 80%, a free tier past 90% of its daily limit [PRIORITY: MED]
 - [ ] Give Grafana a read-only Postgres role instead of the app's credentials [PRIORITY: LOW]
