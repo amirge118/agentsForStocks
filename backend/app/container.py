@@ -76,6 +76,10 @@ class Container:
     ticker_exists: Callable[[str], Awaitable[bool | None]]
     # Latest prices of several symbols in one request (symbols, how long it stays good)
     quotes: Callable[[Sequence[str], float | None], Awaitable[dict[str, Quote]]]
+    # Daily closes of several symbols for [start, end), in one request
+    daily_closes: Callable[
+        [Sequence[str], date, date], Awaitable[dict[str, tuple[tuple[date, float], ...]]]
+    ]
     session_factory: async_sessionmaker[AsyncSession]
     http: HttpClient
     llm: LLMRouter
@@ -256,6 +260,7 @@ def build_container(
         lock=lock,
         ticker_exists=chart.symbol_exists,
         quotes=yahoo.get_quotes,
+        daily_closes=yahoo.get_daily_closes,
         session_factory=session_factory,
         http=http,
         llm=llm,

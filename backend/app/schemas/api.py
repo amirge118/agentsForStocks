@@ -414,3 +414,32 @@ class PortfolioOut(BaseModel):
     fees: float
     unpriced: list[str] = Field(description="Held, but no price: left out of the totals")
     positions: list[PositionOut]
+
+
+class PerformancePointOut(BaseModel):
+    day: date
+    value: float = Field(description="Cash and holdings at that session's closes")
+    flow: float = Field(description="Money put in that session (taken out: negative)")
+    index: float = Field(description="Growth of 1 since the start, time-weighted")
+    benchmark: float | None = Field(description="The benchmark's growth of 1, same sessions")
+
+
+class MoverOut(BaseModel):
+    symbol: str
+    change: float = Field(description="This week, for the shares held now")
+    change_pct: float
+
+
+class PerformanceOut(BaseModel):
+    benchmark: str
+    since: date | None = Field(description="The first session valued; None: no entries yet")
+    total_return_pct: float | None = Field(description="Time-weighted, since `since`")
+    benchmark_return_pct: float | None
+    week_start: date | None = Field(
+        description="The close the week is measured from; None: the ledger began this week"
+    )
+    week_change: float | None = Field(description="Value change this week, money put in left out")
+    week_change_pct: float | None = Field(description="Time-weighted, this week")
+    gainers: list[MoverOut]
+    losers: list[MoverOut]
+    series: list[PerformancePointOut]

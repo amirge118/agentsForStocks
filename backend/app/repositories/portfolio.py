@@ -26,8 +26,11 @@ class PortfolioRepository:
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
+    async def entries(self) -> list[Entry]:
+        return [to_entry(row) for row in await self.rows()]
+
     async def ledger(self) -> Ledger:
-        return replay(to_entry(row) for row in await self.rows())
+        return replay(await self.entries())
 
     async def add(self, entry: Entry, note: str | None = None) -> PortfolioTransaction:
         rows = await self.rows()

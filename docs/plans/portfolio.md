@@ -114,6 +114,10 @@ public. PR screenshots use the E2E mocks.
    and list; the watchlist moves to `/watchlist`. Done 2026-11-15; editing an entry from the page waits
    (delete and record it again).
 3. **Performance.** The week, this week's movers, time-weighted return, the chart against SPY.
+   Done 2026-11-15: `GET /api/v1/portfolio/performance` (`app/domain/performance.py`). Flows
+   count at the session's close (transfers in at that close, not at their old cost); the first
+   missing stretch of closes is fetched in one `yf.download` and stored, later views read the
+   table. The week's movers value the move for the shares held now.
 4. **Sectors, risk and the agents' view.** Sector weights and targets (`sector_targets`), the risk
    figures, the action exposure, the "moves together" groups from daily returns.
 5. **A server,** once this has worked locally for a few weeks: `docs/deploy.md` with the daily

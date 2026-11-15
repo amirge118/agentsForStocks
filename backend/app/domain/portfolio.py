@@ -140,9 +140,14 @@ def replay(entries: Iterable[Entry]) -> Ledger:
     """The ledger after every entry, in date order; LedgerError at the first broken rule."""
     ledger = Ledger()
     for entry in ordered(entries):
-        validate(entry)
-        _apply(ledger, entry)
+        apply(ledger, entry)
     return ledger
+
+
+def apply(ledger: Ledger, entry: Entry) -> None:
+    """One step of a replay: the caller applies entries in `ordered` order."""
+    validate(entry)
+    _apply(ledger, entry)
 
 
 def _apply(ledger: Ledger, e: Entry) -> None:

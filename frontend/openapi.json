@@ -872,6 +872,30 @@
         "title": "LLMUsageRow",
         "type": "object"
       },
+      "MoverOut": {
+        "properties": {
+          "change": {
+            "description": "This week, for the shares held now",
+            "title": "Change",
+            "type": "number"
+          },
+          "change_pct": {
+            "title": "Change Pct",
+            "type": "number"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "change",
+          "change_pct"
+        ],
+        "title": "MoverOut",
+        "type": "object"
+      },
       "OutcomeCallOut": {
         "properties": {
           "alpha": {
@@ -930,6 +954,167 @@
           "benchmark"
         ],
         "title": "OutcomeCallOut",
+        "type": "object"
+      },
+      "PerformanceOut": {
+        "properties": {
+          "benchmark": {
+            "title": "Benchmark",
+            "type": "string"
+          },
+          "benchmark_return_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Benchmark Return Pct"
+          },
+          "gainers": {
+            "items": {
+              "$ref": "#/components/schemas/MoverOut"
+            },
+            "title": "Gainers",
+            "type": "array"
+          },
+          "losers": {
+            "items": {
+              "$ref": "#/components/schemas/MoverOut"
+            },
+            "title": "Losers",
+            "type": "array"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/PerformancePointOut"
+            },
+            "title": "Series",
+            "type": "array"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first session valued; None: no entries yet",
+            "title": "Since"
+          },
+          "total_return_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Time-weighted, since `since`",
+            "title": "Total Return Pct"
+          },
+          "week_change": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Value change this week, money put in left out",
+            "title": "Week Change"
+          },
+          "week_change_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Time-weighted, this week",
+            "title": "Week Change Pct"
+          },
+          "week_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The close the week is measured from; None: the ledger began this week",
+            "title": "Week Start"
+          }
+        },
+        "required": [
+          "benchmark",
+          "since",
+          "total_return_pct",
+          "benchmark_return_pct",
+          "week_start",
+          "week_change",
+          "week_change_pct",
+          "gainers",
+          "losers",
+          "series"
+        ],
+        "title": "PerformanceOut",
+        "type": "object"
+      },
+      "PerformancePointOut": {
+        "properties": {
+          "benchmark": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The benchmark's growth of 1, same sessions",
+            "title": "Benchmark"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "flow": {
+            "description": "Money put in that session (taken out: negative)",
+            "title": "Flow",
+            "type": "number"
+          },
+          "index": {
+            "description": "Growth of 1 since the start, time-weighted",
+            "title": "Index",
+            "type": "number"
+          },
+          "value": {
+            "description": "Cash and holdings at that session's closes",
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "day",
+          "value",
+          "flow",
+          "index",
+          "benchmark"
+        ],
+        "title": "PerformancePointOut",
         "type": "object"
       },
       "PipelineRunAccepted": {
@@ -2399,6 +2584,32 @@
           }
         ],
         "summary": "Get Portfolio",
+        "tags": [
+          "portfolio"
+        ]
+      }
+    },
+    "/api/v1/portfolio/performance": {
+      "get": {
+        "operationId": "get_performance_api_v1_portfolio_performance_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Performance",
         "tags": [
           "portfolio"
         ]

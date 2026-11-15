@@ -32,6 +32,7 @@ export const queryKeys = {
   trackRecord: (horizon: Horizon) => ["outcomes", "track-record", horizon] as const,
   portfolio: ["portfolio"] as const,
   transactions: ["portfolio", "transactions"] as const,
+  performance: ["portfolio", "performance"] as const,
 }
 
 /** The newest stored result of each agent (rows arrive newest first). */
@@ -204,6 +205,16 @@ export function usePortfolio() {
   return useQuery({
     queryKey: queryKeys.portfolio,
     queryFn: () => portfolio.get(),
+    refetchInterval: 60_000,
+  })
+}
+
+/** Value over time, the week and its movers; the last point moves with the live prices. */
+export function usePerformance() {
+  const { portfolio } = useRepositories()
+  return useQuery({
+    queryKey: queryKeys.performance,
+    queryFn: () => portfolio.getPerformance(),
     refetchInterval: 60_000,
   })
 }
