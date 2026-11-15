@@ -67,11 +67,28 @@ def _expect(*signals: str) -> frozenset[str]:
     return frozenset(signals)
 
 
+# What each analyst says of a healthy, fairly priced company: a recommendation that names
+# a risk can only quote one of these (the risk analyst reports a real, low one)
+_REASONING = {
+    "financial_history": "Ten years of rising revenue and margins; cash flow covers dividends.",
+    "valuation": "DCF base 18% above market cap; the market implies 6% growth vs 9% history.",
+    "moat": "Switching costs and a large installed base; share stable for five years.",
+    "risk": "Low leverage (net debt 0.4x EBITDA); main risk: China supply chain concentration.",
+    "broad_analysis": "Diversified segments; services growing faster than hardware.",
+    "growth": "Analysts expect 8% revenue growth; guidance raised last quarter.",
+    "institutional": "Top holders added 3% to their positions last quarter.",
+    "earnings": "Beat estimates in seven of the last eight quarters.",
+}
+
+
 def _analysts(signal: str, confidence: float, **overrides: dict) -> dict[str, dict]:
     from app.agents.catalog import load_agents
 
     weighted = load_agents().weights()
-    base = {n: {"signal": signal, "confidence": confidence, "reasoning": "ok"} for n in weighted}
+    base = {
+        n: {"signal": signal, "confidence": confidence, "reasoning": _REASONING.get(n, "ok")}
+        for n in weighted
+    }
     base.update(overrides)
     return base
 
@@ -133,7 +150,11 @@ def scenario_suite() -> list[EvalCase]:
             analysts=_analysts(
                 "bullish",
                 75.0,
-                risk={"signal": "bearish", "confidence": 85.0, "reasoning": "covenant breach"},
+                risk={
+                    "signal": "bearish",
+                    "confidence": 85.0,
+                    "reasoning": "Covenant breach risk: net debt 5.2x EBITDA, tested next quarter.",
+                },
             ),
             expected=_expect("neutral"),
             max_confidence=55,

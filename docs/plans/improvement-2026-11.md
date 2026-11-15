@@ -18,7 +18,8 @@ weight or more. Done 2026-11-15.
 
 **1b. Round 3 of the recommendation.** The prompt gets each analyst's short reasoning, not only its
 signal (planned in `docs/agent-journal.md`). Ships only with an eval report: current vs new
-configuration, `evals.run` + `evals.compare`, on the free chain.
+configuration, `evals.run` + `evals.compare`, on the free chain. Done 2026-11-15: faithfulness
+50% → 90% (`docs/agent-journal.md`).
 
 Not now: weights, the confidence ceilings, the valuation growth cap. They wait for step 3.
 

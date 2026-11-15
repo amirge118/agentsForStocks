@@ -32,6 +32,16 @@ moat               | bullish  |  70% |   15 | +10.50
 risk               | bullish  |  70% |   15 | +10.50
 valuation          | bullish  |  70% |   20 | +14.00
 
+What each analyst found:
+- broad_analysis: broad_analysis looks fine
+- earnings: earnings looks fine
+- financial_history: financial_history looks fine
+- growth: growth looks fine
+- institutional: institutional looks fine
+- moat: moat looks fine
+- risk: risk looks fine
+- valuation: valuation looks fine
+
 Missing analysts: none
 
 Track record of this system's recommendations for AAPL (20 trading days later, vs SPY):
