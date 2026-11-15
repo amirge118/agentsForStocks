@@ -5,11 +5,18 @@
  */
 import type { ReactNode } from "react"
 
-import { formatPercent } from "@/lib/format"
+import { formatDate, formatPercent } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import {
+  BroadAnalysisResultSchema,
   EarningsResultSchema,
+  FinancialHistoryResultSchema,
   FundamentalsResultSchema,
+  GrowthResultSchema,
+  InstitutionalResultSchema,
+  MarketScanResultSchema,
+  MoatResultSchema,
+  OutcomeReviewResultSchema,
   RiskResultSchema,
   SentimentResultSchema,
   TechnicalsResultSchema,
@@ -170,6 +177,206 @@ function Sentiment({ result }: { result: unknown }) {
   )
 }
 
+/** 0.157 → "15.7%": a share, not a change, so no sign */
+const share = (fraction: number | null) => (fraction == null ? "N/A" : `${(fraction * 100).toFixed(1)}%`)
+const signTone = (n: number): "ok" | "bad" => (n >= 0 ? "ok" : "bad")
+
+function FinancialHistory({ result }: { result: unknown }) {
+  const parsed = FinancialHistoryResultSchema.safeParse(result)
+  if (!parsed.success) return null
+  const f = parsed.data
+  const rows = [
+    ["Revenue", f.revenue_cagr, "Sales"],
+    ["Net income", f.net_income_cagr, "Profit after every cost and tax"],
+    ["Free cash flow", f.fcf_cagr, "Cash left after running and investing in the business"],
+  ] as const
+  return (
+    <dl className="grid grid-cols-3 gap-3">
+      {rows.map(([label, value, what]) => (
+        <Metric
+          key={label}
+          label={label}
+          hint={`${what}: average growth a year over the reported years.`}
+          value={`${formatPercent(value * 100)}/yr`}
+          tone={signTone(value)}
+        />
+      ))}
+    </dl>
+  )
+}
+
+function Moat({ result }: { result: unknown }) {
+  const parsed = MoatResultSchema.safeParse(result)
+  if (!parsed.success) return null
+  const m = parsed.data
+  const swing = Math.sqrt(Math.max(0, m.gross_margin_variance)) * 100
+  return (
+    <>
+      <dl className="grid grid-cols-3 gap-3">
+        <Metric
+          label="Gross margin"
+          hint="Share of each sale left after the direct cost of making it, averaged over five years. High and steady points to pricing power."
+          value={share(m.avg_gross_margin)}
+        />
+        <Metric
+          label="Margin swing"
+          hint="How much the gross margin moved from year to year (standard deviation). Small means the company holds its prices."
+          value={`±${swing.toFixed(1)} pts`}
+        />
+        <Metric
+          label="Intangibles"
+          hint="Brands, patents and goodwill as a share of total assets."
+          value={share(m.intangibles_pct)}
+        />
+      </dl>
+      {m.moat_keywords.length > 0 && <Chips label="Moat sources named in the filings" items={m.moat_keywords} />}
+    </>
+  )
+}
+
+function Institutional({ result }: { result: unknown }) {
+  const parsed = InstitutionalResultSchema.safeParse(result)
+  if (!parsed.success) return null
+  const i = parsed.data
+  const change = i.net_share_change
+  return (
+    <dl className="grid grid-cols-3 gap-3">
+      <Metric
+        label="Held by funds"
+        hint="Share of all shares owned by institutions (funds, banks, insurers)."
+        value={share(i.institutional_pct)}
+      />
+      <Metric
+        label="Top 5 hold"
+        hint="Of the listed institutional holdings, the share owned by the five largest holders."
+        value={share(i.top5_concentration)}
+      />
+      <Metric
+        label="Last quarter"
+        hint="Whether the largest holders bought (accumulating) or sold (distributing) shares in their last filings."
+        value={change == null ? "N/A" : `${change >= 0 ? "+" : "−"}${compact(Math.abs(change))} sh`}
+        tone={change == null || change === 0 ? undefined : signTone(change)}
+      />
+    </dl>
+  )
+}
+
+function Growth({ result }: { result: unknown }) {
+  const parsed = GrowthResultSchema.safeParse(result)
+  if (!parsed.success) return null
+  const g = parsed.data
+  const source = g.transcript_available
+    ? "Earnings call"
+    : g.earnings_release_used
+      ? "Earnings release"
+      : "None"
+  return (
+    <dl className="grid grid-cols-2 gap-3">
+      <Metric
+        label="Analysts covering"
+        hint="How many analysts publish revenue and earnings estimates for the company. Few means the forecast is thin."
+        value={g.analyst_coverage}
+      />
+      <Metric
+        label="Management's words"
+        hint="What the agent read from management about the outlook: the earnings call transcript, or the earnings release filed with the SEC."
+        value={<span className="font-sans">{source}</span>}
+      />
+    </dl>
+  )
+}
+
+function BroadAnalysis({ result }: { result: unknown }) {
+  const parsed = BroadAnalysisResultSchema.safeParse(result)
+  if (!parsed.success) return null
+  const b = parsed.data
+  return (
+    <dl className="grid grid-cols-2 gap-3">
+      <Metric label="Industry" hint={`Sector: ${b.sector}.`} value={<span className="font-sans">{b.industry}</span>} />
+      <Metric
+        label="Market cap"
+        hint="What the market values the whole company at."
+        value={b.market_cap_b == null ? "N/A" : billions(b.market_cap_b * 1e9)}
+      />
+    </dl>
+  )
+}
+
+function MarketScanner({ result }: { result: unknown }) {
+  const parsed = MarketScanResultSchema.safeParse(result)
+  if (!parsed.success) return null
+  const s = parsed.data
+  const vsAverage = s.metrics.price_vs_sma20_pct
+  return (
+    <>
+      <dl className="grid grid-cols-2 gap-3">
+        <Metric
+          label="Short-term risk"
+          hint="The scanner's read of how risky the stock looks right now, from its price and volume."
+          value={<span className="font-sans capitalize">{s.risk_level}</span>}
+          tone={s.risk_level === "low" ? "ok" : s.risk_level === "high" ? "bad" : undefined}
+        />
+        {typeof vsAverage === "number" && (
+          <Metric
+            label="vs 20-day average"
+            hint="Today's price against its average over the last 20 trading days."
+            value={formatPercent(vsAverage)}
+            tone={signTone(vsAverage)}
+          />
+        )}
+      </dl>
+      {s.observations.length > 0 && <Notes items={s.observations} />}
+    </>
+  )
+}
+
+function OutcomeReview({ result }: { result: unknown }) {
+  const parsed = OutcomeReviewResultSchema.safeParse(result)
+  if (!parsed.success) return null
+  const lessons = parsed.data.lessons
+  if (lessons.length === 0) {
+    return <p className="text-xs text-muted">No past call on this stock has settled yet, so there is nothing to learn from.</p>
+  }
+  return (
+    <ul className="space-y-2 text-xs">
+      {lessons.map((l) => (
+        <li key={`${l.decision_date}-${l.horizon_days}`} className="space-y-0.5">
+          <p className="text-muted">
+            {formatDate(l.decision_date)} call, {l.signal}, {l.horizon_days} sessions:{" "}
+            <span className={cn("font-mono", l.alpha >= 0 ? "text-ok" : "text-bad")}>{formatPercent(l.alpha * 100)}</span> vs{" "}
+            {l.benchmark}
+          </p>
+          <p className="text-ink-2">{l.text}</p>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function Chips({ label, items }: { label: string; items: string[] }) {
+  return (
+    <ul aria-label={label} className="flex flex-wrap gap-1.5">
+      {items.map((item) => (
+        <li key={item} className="rounded-chip bg-paper-3 px-1.5 py-0.5 text-xs text-ink-2">
+          {item}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function Notes({ items }: { items: string[] }) {
+  return (
+    <ul className="list-disc space-y-0.5 pl-4 text-xs text-ink-2 marker:text-muted">
+      {items.map((item) => (
+        <li key={item}>{item}</li>
+      ))}
+    </ul>
+  )
+}
+
+const compact = (n: number) => n.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 })
+
 const VARIANTS: Record<string, (props: { result: unknown }) => ReactNode> = {
   valuation: Valuation,
   technicals: Technicals,
@@ -177,6 +384,13 @@ const VARIANTS: Record<string, (props: { result: unknown }) => ReactNode> = {
   earnings: Earnings,
   risk: Risk,
   sentiment: Sentiment,
+  financial_history: FinancialHistory,
+  moat: Moat,
+  institutional: Institutional,
+  growth: Growth,
+  broad_analysis: BroadAnalysis,
+  market_scanner: MarketScanner,
+  outcome_review: OutcomeReview,
 }
 
 export function AgentDetail({ agent, result }: { agent: string; result: unknown }) {

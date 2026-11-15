@@ -312,6 +312,61 @@ export const SentimentResultSchema = BaseAgentResultSchema.extend({
   news: SentimentComponentSchema,
 })
 
+// Yearly growth as fractions (0.137 = 13.7% a year)
+export const FinancialHistoryResultSchema = BaseAgentResultSchema.extend({
+  revenue_cagr: z.number(),
+  net_income_cagr: z.number(),
+  fcf_cagr: z.number(),
+})
+
+export const MoatResultSchema = BaseAgentResultSchema.extend({
+  avg_gross_margin: z.number(),
+  gross_margin_variance: z.number(),
+  intangibles_pct: z.number(),
+  moat_keywords: z.array(z.string()),
+})
+
+export const InstitutionalResultSchema = BaseAgentResultSchema.extend({
+  // null: not reported — shown as "N/A", never as 0
+  institutional_pct: z.number().nullable(),
+  net_share_change: z.number().nullable(),
+  direction: z.string(),
+  top5_concentration: z.number().nullable(),
+})
+
+export const GrowthResultSchema = BaseAgentResultSchema.extend({
+  analyst_coverage: z.number(),
+  transcript_available: z.boolean(),
+  earnings_release_used: z.boolean().optional(),
+})
+
+export const BroadAnalysisResultSchema = BaseAgentResultSchema.extend({
+  company_name: z.string(),
+  sector: z.string(),
+  industry: z.string(),
+  market_cap_b: z.number().nullable(),
+})
+
+export const MarketScanResultSchema = BaseAgentResultSchema.extend({
+  observations: z.array(z.string()),
+  risk_level: z.string(),
+  metrics: z.record(z.string(), z.number().nullable()),
+})
+
+export const OutcomeReviewResultSchema = BaseAgentResultSchema.extend({
+  lessons: z.array(
+    z.object({
+      decision_date: z.string(),
+      signal: z.string(),
+      horizon_days: z.number(),
+      benchmark: z.string(),
+      alpha: z.number(),
+      hit: z.boolean(),
+      text: z.string(),
+    }),
+  ),
+})
+
 export type Signal = z.infer<typeof SignalSchema>
 export type Action = z.infer<typeof ActionSchema>
 export type RunStatus = z.infer<typeof RunStatusSchema>
