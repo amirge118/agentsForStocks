@@ -79,9 +79,14 @@ class _Prices:
         self._fallback = fallback
 
     def on(self, symbol: str, day: date) -> Decimal | None:
+        close = self.close_on(symbol, day)
+        return close if close is not None else self._fallback.get(symbol)
+
+    def close_on(self, symbol: str, day: date) -> Decimal | None:
+        """The close on `day` or the last one before it; None without one."""
         days = self._days.get(symbol, [])
         i = bisect_right(days, day)
-        return self._closes[symbol][days[i - 1]] if i else self._fallback.get(symbol)
+        return self._closes[symbol][days[i - 1]] if i else None
 
 
 def week_start(sessions: Iterable[date], today: date) -> date | None:
@@ -113,7 +118,7 @@ def performance(
     last = series[-1]
     flows = sum((v.flow for v in series if base is None or v.day > base.day), ZERO)
     base_value, base_index = (base.value, base.index) if base else (ZERO, ONE)
-    movers = _movers(ledger, prices, start, last.day)
+    movers = _movers(ledger, entries, prices, start, last.day)
     return Performance(
         series=series,
         week_start=base.day if base else None,
@@ -187,12 +192,26 @@ def _with_benchmark(
     return out
 
 
-def _movers(ledger: Ledger, prices: _Prices, start: date | None, last: date) -> list[Mover]:
-    """Each holding's move since the week began (with no close that far back: its entry price)."""
+def _movers(
+    ledger: Ledger, entries: list[Entry], prices: _Prices, start: date | None, last: date
+) -> list[Mover]:
+    """
+    Each holding's move this week: from the close the week starts at, or for a holding with
+    no close that far back, from the market price on the day it came in (a buy's price, or
+    that day's close). A transfer's price is the old cost, not the market: it never counts.
+    """
+    came_in = {}
+    for e in entries:
+        if e.kind in WITH_SHARES and e.symbol:
+            came_in.setdefault(e.symbol, e)
     movers = []
     for symbol, position in ledger.held.items():
-        base = prices.on(symbol, start) if start else None
-        base = base or prices.on(symbol, date.min)  # date.min: only the price it came in at
+        base = prices.close_on(symbol, start) if start else None
+        first = came_in.get(symbol)
+        if base is None and first is not None:
+            base = prices.close_on(symbol, first.trade_date)
+            if base is None and first.kind == "BUY":
+                base = first.price
         now = prices.on(symbol, last)
         if base and now:
             movers.append(Mover(symbol, position.shares * (now - base), (now / base - ONE) * 100))

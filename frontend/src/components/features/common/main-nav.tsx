@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
+import { isAgentsPath } from "@/components/features/common/agents-tabs"
 import { cn } from "@/lib/utils"
 
 const LINKS = [
@@ -12,14 +13,7 @@ const LINKS = [
     label: "Watchlist",
     match: (path: string) => path.startsWith("/watchlist") || path.startsWith("/symbols"),
   },
-  { href: "/runs", label: "Runs", match: (path: string) => path.startsWith("/runs") },
-  { href: "/agents", label: "Agents", match: (path: string) => path.startsWith("/agents") },
-  {
-    href: "/track-record",
-    label: "Track record",
-    match: (path: string) => path.startsWith("/track-record"),
-  },
-  { href: "/usage", label: "Tokens & cost", match: (path: string) => path.startsWith("/usage") },
+  { href: "/agents", label: "Agents", match: isAgentsPath },
 ] as const
 
 /** Top bar: the wordmark and the destinations, the current one marked. */

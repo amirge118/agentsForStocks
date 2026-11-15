@@ -13,34 +13,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export default function PortfolioPage() {
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-xl">Portfolio</h1>
-        <p className="text-sm text-muted">
-          What you hold at today&apos;s prices, next to what the agents say. Prices refresh every minute;
-          recommendations once a day, after the close.
-        </p>
-      </div>
+      <h1 className="sr-only">Portfolio</h1>
       <AgentErrorBoundary label="The portfolio summary">
         <PortfolioSummary />
       </AgentErrorBoundary>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] [&>*]:min-w-0">
         <Card>
-          <CardHeader>
-            <CardTitle>Return against the market</CardTitle>
-            <CardDescription>How the money did since the first entry, next to the market index.</CardDescription>
+          <CardHeader className="p-4 pb-2">
+            <CardTitle>Return vs the market</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0">
             <AgentErrorBoundary label="The performance chart">
               <PerformanceChart />
             </AgentErrorBoundary>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle>This week&apos;s movers</CardTitle>
-            <CardDescription>The biggest moves among the holdings, with the agents&apos; current call.</CardDescription>
+          <CardHeader className="p-4 pb-2">
+            <CardTitle>Movers</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0">
             <AgentErrorBoundary label="This week's movers">
               <WeeklyMovers />
             </AgentErrorBoundary>
@@ -48,9 +40,8 @@ export default function PortfolioPage() {
         </Card>
       </div>
       <Card>
-        <CardHeader>
+        <CardHeader className="p-4 pb-3">
           <CardTitle>Holdings</CardTitle>
-          <CardDescription>Largest first. P/L is against what the shares cost, fees included.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <AgentErrorBoundary label="The holdings">

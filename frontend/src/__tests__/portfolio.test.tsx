@@ -1,14 +1,14 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 
 import { AgentsOnPortfolio } from "@/components/features/portfolio/agents-on-portfolio"
-import { HoldingsTable } from "@/components/features/portfolio/holdings-table"
+import { HoldingsTable, sortRows, todayPct } from "@/components/features/portfolio/holdings-table"
 import { PerformanceChart } from "@/components/features/portfolio/performance-chart"
 import { PortfolioSummary } from "@/components/features/portfolio/portfolio-summary"
 import { RiskSummary } from "@/components/features/portfolio/risk-summary"
 import { parseTargets, SectorWeights } from "@/components/features/portfolio/sector-weights"
 import { TransactionForm } from "@/components/features/portfolio/transaction-form"
 import { cashEffect, TransactionsTable } from "@/components/features/portfolio/transactions-table"
-import { WeeklyMovers } from "@/components/features/portfolio/weekly-movers"
+import { sessionMovers, WeeklyMovers } from "@/components/features/portfolio/weekly-movers"
 import { ApiError } from "@/lib/api/client"
 import type { PortfolioRepository, SymbolRepository } from "@/lib/api/repositories"
 import { exposure, msftPosition, overview, performance, portfolio, transactions } from "@/test/fixtures"
@@ -74,8 +74,10 @@ describe("HoldingsTable", () => {
     const row = (await screen.findByRole("link", { name: "MSFT" })).closest("tr")!
     expect(within(row).getByText("$5,200.00")).toBeInTheDocument()
     expect(within(row).getByText("52.0%")).toBeInTheDocument()
-    expect(within(row).getByText("+$100.00")).toHaveClass("font-mono")
+    expect(within(row).getByText("+1.96%")).toHaveClass("text-ok") // today: 100 on 5,100
+    expect(within(row).getByText("+$100.00")).toBeInTheDocument()
     expect(within(row).getByText("+3.98%")).toBeInTheDocument()
+    expect(within(row).getByText("+$199.00")).toBeInTheDocument()
     // In the Agents column, and under the symbol for a phone (CSS shows one of them)
     expect(await within(row).findAllByText("BUY")).toHaveLength(2)
     const rows = screen.getAllByRole("row")
@@ -94,6 +96,39 @@ describe("HoldingsTable", () => {
     expect(within(newco).getByText("Not analysed yet")).toBeInTheDocument()
     const msft = screen.getByRole("link", { name: "MSFT" }).closest("tr")!
     expect(within(msft).getByText("Last close Nov 13, 2026")).toHaveClass("text-bad")
+  })
+
+  it("sorts by any column, both ways, with cash kept last", async () => {
+    const goog = { ...msftPosition, symbol: "GOOG", value: 2000, weight: 20, unrealised_pct: -7.5, day_change: -40 }
+    renderWithProviders(<HoldingsTable />, {
+      portfolio: portfolioRepo({ get: async () => ({ ...portfolio, positions: [msftPosition, goog] }) }),
+      symbols,
+    })
+    const order = () => screen.getAllByRole("row").slice(1).map((r) => r.querySelector("a")?.textContent ?? "Cash")
+    await screen.findByRole("link", { name: "GOOG" })
+    expect(order()).toEqual(["MSFT", "GOOG", "Cash"]) // largest value first
+    expect(screen.getByRole("columnheader", { name: /Value/ })).toHaveAttribute("aria-sort", "descending")
+
+    fireEvent.click(screen.getByRole("button", { name: /Symbol/ }))
+    expect(order()).toEqual(["GOOG", "MSFT", "Cash"]) // A to Z first
+    fireEvent.click(screen.getByRole("button", { name: /P\/L/ }))
+    expect(order()).toEqual(["MSFT", "GOOG", "Cash"])
+    fireEvent.click(screen.getByRole("button", { name: /P\/L/ }))
+    expect(order()).toEqual(["GOOG", "MSFT", "Cash"])
+    expect(screen.getByRole("columnheader", { name: /P\/L/ })).toHaveAttribute("aria-sort", "ascending")
+  })
+
+  it("puts a holding without the sorted figure last, either way", () => {
+    const row = (symbol: string, value: number | null) => ({
+      position: { ...msftPosition, symbol, value },
+      call: null,
+      todayPct: null,
+    })
+    const rows = [row("A", 1), row("B", null), row("C", 3)]
+    expect(sortRows(rows, { key: "value", desc: true }).map((r) => r.position.symbol)).toEqual(["C", "A", "B"])
+    expect(sortRows(rows, { key: "value", desc: false }).map((r) => r.position.symbol)).toEqual(["A", "C", "B"])
+    expect(sortRows(rows, { key: "agents", desc: true }).map((r) => r.position.symbol)).toEqual(["A", "B", "C"])
+    expect(todayPct({ ...msftPosition, value: null })).toBeNull()
   })
 
   it("explains how to start when nothing is held", async () => {
@@ -120,7 +155,7 @@ describe("PerformanceChart", () => {
   it("waits for a second session before drawing", async () => {
     const one = { ...performance, series: performance.series.slice(0, 1) }
     renderWithProviders(<PerformanceChart />, { portfolio: portfolioRepo({ getPerformance: async () => one }) })
-    expect(await screen.findByText(/second trading session/)).toBeInTheDocument()
+    expect(await screen.findByText(/two trading sessions \(from Nov 2, 2026\)/)).toBeInTheDocument()
   })
 
   it("shows the error when the performance can't load", async () => {
@@ -138,14 +173,29 @@ describe("WeeklyMovers", () => {
     expect(within(gainers).getByRole("link", { name: "MSFT" })).toBeInTheDocument()
     expect(within(gainers).getByText("+$99.00")).toBeInTheDocument()
     expect(await within(gainers).findByText("BUY")).toBeInTheDocument()
-    expect(screen.getByText("Nothing down this week.")).toBeInTheDocument()
-    expect(screen.getByText(/Since each came in this week/)).toBeInTheDocument()
+    expect(within(screen.getByRole("region", { name: "Losers" })).getByText("None.")).toBeInTheDocument()
+    expect(screen.getByText("This week, since each came in")).toBeInTheDocument()
   })
 
   it("names the close the week is measured from", async () => {
     const since = { ...performance, week_start: "2026-11-06" }
     renderWithProviders(<WeeklyMovers />, { portfolio: portfolioRepo({ getPerformance: async () => since }), symbols })
-    expect(await screen.findByText(/Since the close of Nov 6, 2026/)).toBeInTheDocument()
+    expect(await screen.findByText("This week, since the close of Nov 6, 2026")).toBeInTheDocument()
+  })
+
+  it("shows the last session's moves until the portfolio has a session of its own", async () => {
+    const fresh = { ...performance, series: [], gainers: [], losers: [] }
+    renderWithProviders(<WeeklyMovers />, { portfolio: portfolioRepo({ getPerformance: async () => fresh }), symbols })
+    expect(await screen.findByText(/Last session \(Nov 13, 2026\)/)).toBeInTheDocument()
+    const gainers = screen.getByRole("region", { name: "Gainers" })
+    expect(within(gainers).getByText("+1.96%")).toBeInTheDocument()
+    expect(within(gainers).getByText("+$100.00")).toBeInTheDocument()
+  })
+
+  it("works out a session's moves from the day's change", () => {
+    expect(sessionMovers([msftPosition])).toEqual([{ symbol: "MSFT", change: 100, change_pct: (100 / 5100) * 100 }])
+    expect(sessionMovers([{ ...msftPosition, day_change: null }])).toEqual([])
+    expect(sessionMovers([{ ...msftPosition, day_change: 0 }])).toEqual([])
   })
 })
 
