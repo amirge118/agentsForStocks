@@ -12,8 +12,8 @@ and the quote fields of `info` from Yahoo's public chart endpoint.
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable
-from dataclasses import replace
+from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any, TypeVar
 
@@ -40,6 +40,17 @@ T = TypeVar("T")
 _DOMAIN = "yahoo"
 
 
+@dataclass(frozen=True)
+class Quote:
+    """The latest price of a symbol and the daily closes around it (oldest first)."""
+
+    symbol: str
+    price: float
+    previous_close: float | None
+    as_of: date  # the session of `price`: today while the market is open
+    closes: tuple[tuple[date, float], ...]
+
+
 class YFinanceClient:
     def __init__(
         self,
@@ -49,7 +60,9 @@ class YFinanceClient:
         ticker_factory: Callable[[str], Any] = yf.Ticker,
         fallback: YahooChartClient | None = None,
         fundamentals: Callable[[str], Awaitable[dict]] | None = None,
+        downloader: Callable[..., pd.DataFrame] = yf.download,
     ) -> None:
+        self._download = downloader
         self._fallback = fallback
         self._fundamentals = fundamentals
         self._rate_limiter = rate_limiter
@@ -58,7 +71,11 @@ class YFinanceClient:
         self._ticker = ticker_factory
 
     async def _call(
-        self, key: tuple[Any, ...], fn: Callable[[], T], retry: RetryPolicy | None = None
+        self,
+        key: tuple[Any, ...],
+        fn: Callable[[], T],
+        retry: RetryPolicy | None = None,
+        ttl: float | None = None,
     ) -> T:
         log_ctx = {"domain": _DOMAIN, "path": f"{key[0]}/{key[1]}"}
         fetched = False
@@ -87,7 +104,7 @@ class YFinanceClient:
                 _attempt, retry or self._retry, label=f"yfinance.{key[0]}({key[1]})"
             )
 
-        value = await self._cache.get_or_load(("yfinance", *key), _load)
+        value = await self._cache.get_or_load(("yfinance", *key), _load, ttl)
         metrics.provider_requests.add(
             1, {"domain": _DOMAIN, "outcome": "fetched" if fetched else "cache_hit"}
         )
@@ -202,6 +219,37 @@ class YFinanceClient:
             _note_fallback("closes", ticker)
         return fallback
 
+    async def get_quotes(
+        self, symbols: Sequence[str], ttl: float | None = None
+    ) -> dict[str, Quote]:
+        """
+        The latest price and the last few daily closes of every symbol, in one request.
+        Closes are split- but not dividend-adjusted (a portfolio records dividends as
+        cash). A symbol Yahoo has no prices for is left out; {} when the request fails.
+        `ttl`: how long the answer is good (a minute while the market is open).
+        """
+        tickers = sorted({validate_symbol(s) for s in symbols})
+        if not tickers:
+            return {}
+
+        def _fetch() -> pd.DataFrame:
+            frame = self._download(
+                tickers,
+                period="7d",
+                interval="1d",
+                auto_adjust=False,
+                progress=False,
+                threads=False,
+            )
+            return frame if frame is not None else pd.DataFrame()
+
+        try:
+            frame = await self._call(("quotes", ",".join(tickers)), _fetch, ttl=ttl)
+        except ProviderError as exc:
+            logger.warning("Quotes unavailable", extra={"error": str(exc)})
+            return {}
+        return {q.symbol: q for t in tickers if (q := _quote(frame, t)) is not None}
+
     async def get_earnings_dates(self, symbol: str) -> pd.DataFrame:
         ticker = validate_symbol(symbol)
 
@@ -262,6 +310,27 @@ class YFinanceClient:
         if feed:
             _note_fallback("news", ticker)
         return feed
+
+
+def _quote(frame: pd.DataFrame, ticker: str) -> Quote | None:
+    if frame.empty or "Close" not in frame.columns.get_level_values(0):
+        return None
+    closes = frame["Close"]
+    if isinstance(closes, pd.Series):  # a flat frame: one symbol
+        closes = closes.to_frame(ticker)
+    if ticker not in closes.columns:
+        return None
+    series = closes[ticker].dropna()
+    if series.empty:
+        return None
+    bars = tuple((pd.Timestamp(day).date(), float(close)) for day, close in series.items())
+    return Quote(
+        symbol=ticker,
+        price=bars[-1][1],
+        previous_close=bars[-2][1] if len(bars) > 1 else None,
+        as_of=bars[-1][0],
+        closes=bars,
+    )
 
 
 def _has_price(info: dict) -> bool:

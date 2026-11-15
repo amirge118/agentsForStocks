@@ -77,10 +77,10 @@ key, so ten panels asking at once make one call; per-domain rate limits, retries
 budget kept in the database. What the page needs on top, partly taken from `stocky`
 (`backend/app/core/cache.py`, `services/price_service.py`):
 
-- **A TTL per kind.** Today every provider result lives 6 hours (`provider_cache_ttl_seconds`):
-  right for the agents, wrong for a live price. Quotes: 60 seconds while the market is open, until
-  the next open while it is closed (the price doesn't move). Statements and company data: 6 hours,
-  as now. Daily closes: never expire.
+- **A TTL per kind.** Every provider result lived 6 hours (`provider_cache_ttl_seconds`): right
+  for the agents, wrong for a live price. Quotes: 60 seconds while the market is open, 30 minutes
+  while it is closed (holidays aren't known, so not "until the next open"). Statements and company
+  data: 6 hours, as before. Daily closes: never expire. Done in 1b.
 - **Daily closes stored in the database.** A `daily_closes` table (symbol, day, close). The chart,
   the week's change and the time-weighted return read it; only missing days are fetched. A past
   close never changes, so after the first load a day costs one request per symbol at most. Use

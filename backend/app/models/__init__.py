@@ -3,6 +3,7 @@
 from app.models.agent_result import AgentResult
 from app.models.agent_run import AgentRun
 from app.models.base import Base
+from app.models.daily_close import DailyClose
 from app.models.decision_outcome import DecisionOutcome
 from app.models.job_run import JobRun
 from app.models.llm_call import LLMCall
@@ -15,6 +16,7 @@ __all__ = [
     "AgentResult",
     "AgentRun",
     "Base",
+    "DailyClose",
     "DecisionOutcome",
     "JobRun",
     "LLMCall",

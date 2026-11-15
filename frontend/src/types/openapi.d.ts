@@ -751,6 +751,10 @@ export interface components {
              * @description Cost of the shares held, fees included
              */
             cost_basis: number;
+            /** Day Change */
+            day_change: number;
+            /** Day Change Pct */
+            day_change_pct: number | null;
             /**
              * Deposited
              * @description Deposits minus withdrawals
@@ -760,6 +764,11 @@ export interface components {
             dividends: number;
             /** Fees */
             fees: number;
+            /**
+             * Holdings Value
+             * @description The holdings with a price
+             */
+            holdings_value: number;
             /** Positions */
             positions: components["schemas"]["PositionOut"][];
             /**
@@ -768,10 +777,22 @@ export interface components {
              */
             realised_pnl: number;
             /**
+             * Total Value
+             * @description Holdings with a price, plus cash
+             */
+            total_value: number;
+            /**
              * Transferred In
              * @description Cost of the shares that came in without cash
              */
             transferred_in: number;
+            /**
+             * Unpriced
+             * @description Held, but no price: left out of the totals
+             */
+            unpriced: string[];
+            /** Unrealised Pnl */
+            unrealised_pnl: number;
         };
         /** PositionOut */
         PositionOut: {
@@ -782,8 +803,25 @@ export interface components {
              * @description What the shares held cost, fees included
              */
             cost_basis: number;
+            /**
+             * Day Change
+             * @description For the shares held since the previous close
+             */
+            day_change: number | null;
             /** Dividends */
             dividends: number;
+            /** Price */
+            price: number | null;
+            /**
+             * Price As Of
+             * @description The session of the price
+             */
+            price_as_of: string | null;
+            /**
+             * Price Stale
+             * @description The last stored close: no live quote came back
+             */
+            price_stale: boolean;
             /**
              * Realised Pnl
              * @description Booked by sales of this symbol
@@ -793,6 +831,17 @@ export interface components {
             shares: number;
             /** Symbol */
             symbol: string;
+            /** Unrealised Pct */
+            unrealised_pct: number | null;
+            /** Unrealised Pnl */
+            unrealised_pnl: number | null;
+            /** Value */
+            value: number | null;
+            /**
+             * Weight
+             * @description Percent of the whole portfolio, cash included
+             */
+            weight: number | null;
         };
         /** PriceBarOut */
         PriceBarOut: {

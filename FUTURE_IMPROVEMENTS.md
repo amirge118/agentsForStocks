@@ -88,8 +88,9 @@ Change a prompt, model, weight or skill only on evidence: an eval report or an o
 - [ ] Track record over time: hit rate per month per agent on `/track-record`, to see whether a change helped — needs a few months of settled calls [PRIORITY: LOW]
 
 ## 5. Operations hygiene
-- [ ] `TTLCache` never drops an expired entry (it stays until the key is written again) and has no size cap: a long-running API serving a page that refreshes grows without bound. Drop expired entries and cap the size — `docs/plans/portfolio.md` step 1 [PRIORITY: MED]
-- [ ] Every provider result is cached for 6 hours (`provider_cache_ttl_seconds`): right for the agents, wrong for a live price. A TTL per kind (quotes 60 s while the market is open) — `docs/plans/portfolio.md` step 1 [PRIORITY: MED]
+- [x] `TTLCache` never dropped an expired entry and had no size cap: now it drops expired entries, then the soonest to expire, past `max_entries` (5,000)
+- [x] Every provider result was cached for 6 hours: a call can now ask for its own TTL; portfolio quotes live 60 s while the market is open, 30 min while it is closed
+- [ ] `yf.download` prints a failed symbol to stdout instead of logging it ("1 Failed download"): harmless, but noise in the API's output. Silence it, or log it through `logging` [PRIORITY: LOW]
 - [ ] A run delayed past `misfire_grace_time` (1 hour, `app/agents/scheduler.py`) is lost: on a laptop that sleeps, make it a setting and allow ~6 hours (still the same New York market date). On 2026-11-09 and 11-11 the machine woke 1.5–2 hours late, so both nights would have run. Not critical: the next run sees the missed day's prices [PRIORITY: LOW]
 - [ ] Grafana alerts: failed runs, fallbacks, daily LLM cost above a threshold, FMP budget at 80%, a free tier past 90% of its daily limit [PRIORITY: MED]
 - [ ] Give Grafana a read-only Postgres role instead of the app's credentials [PRIORITY: LOW]

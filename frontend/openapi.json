@@ -1026,6 +1026,21 @@
             "title": "Cost Basis",
             "type": "number"
           },
+          "day_change": {
+            "title": "Day Change",
+            "type": "number"
+          },
+          "day_change_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Change Pct"
+          },
           "deposited": {
             "description": "Deposits minus withdrawals",
             "title": "Deposited",
@@ -1037,6 +1052,11 @@
           },
           "fees": {
             "title": "Fees",
+            "type": "number"
+          },
+          "holdings_value": {
+            "description": "The holdings with a price",
+            "title": "Holdings Value",
             "type": "number"
           },
           "positions": {
@@ -1051,20 +1071,43 @@
             "title": "Realised Pnl",
             "type": "number"
           },
+          "total_value": {
+            "description": "Holdings with a price, plus cash",
+            "title": "Total Value",
+            "type": "number"
+          },
           "transferred_in": {
             "description": "Cost of the shares that came in without cash",
             "title": "Transferred In",
+            "type": "number"
+          },
+          "unpriced": {
+            "description": "Held, but no price: left out of the totals",
+            "items": {
+              "type": "string"
+            },
+            "title": "Unpriced",
+            "type": "array"
+          },
+          "unrealised_pnl": {
+            "title": "Unrealised Pnl",
             "type": "number"
           }
         },
         "required": [
           "cash",
+          "holdings_value",
+          "total_value",
+          "unrealised_pnl",
+          "day_change",
+          "day_change_pct",
           "cost_basis",
           "deposited",
           "transferred_in",
           "realised_pnl",
           "dividends",
           "fees",
+          "unpriced",
           "positions"
         ],
         "title": "PortfolioOut",
@@ -1081,9 +1124,50 @@
             "title": "Cost Basis",
             "type": "number"
           },
+          "day_change": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For the shares held since the previous close",
+            "title": "Day Change"
+          },
           "dividends": {
             "title": "Dividends",
             "type": "number"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "price_as_of": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The session of the price",
+            "title": "Price As Of"
+          },
+          "price_stale": {
+            "description": "The last stored close: no live quote came back",
+            "title": "Price Stale",
+            "type": "boolean"
           },
           "realised_pnl": {
             "description": "Booked by sales of this symbol",
@@ -1097,6 +1181,51 @@
           "symbol": {
             "title": "Symbol",
             "type": "string"
+          },
+          "unrealised_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealised Pct"
+          },
+          "unrealised_pnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealised Pnl"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Percent of the whole portfolio, cash included",
+            "title": "Weight"
           }
         },
         "required": [
@@ -1105,7 +1234,15 @@
           "avg_cost",
           "cost_basis",
           "realised_pnl",
-          "dividends"
+          "dividends",
+          "price",
+          "price_as_of",
+          "price_stale",
+          "value",
+          "unrealised_pnl",
+          "unrealised_pct",
+          "day_change",
+          "weight"
         ],
         "title": "PositionOut",
         "type": "object"
