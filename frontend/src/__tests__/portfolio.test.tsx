@@ -2,7 +2,6 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 
 import { AgentsOnPortfolio } from "@/components/features/portfolio/agents-on-portfolio"
 import { HoldingsTable, sortRows, todayPct } from "@/components/features/portfolio/holdings-table"
-import { PerformanceChart } from "@/components/features/portfolio/performance-chart"
 import { PortfolioSummary } from "@/components/features/portfolio/portfolio-summary"
 import { RiskSummary } from "@/components/features/portfolio/risk-summary"
 import { parseTargets, SectorWeights } from "@/components/features/portfolio/sector-weights"
@@ -140,32 +139,6 @@ describe("HoldingsTable", () => {
   })
 })
 
-describe("PerformanceChart", () => {
-  it("compares the time-weighted return with the benchmark, and switches range", async () => {
-    renderWithProviders(<PerformanceChart />, { portfolio: portfolioRepo() })
-    const chart = await screen.findByRole("figure", { name: "Return against the market" })
-    expect(within(chart).getByText("+1.99%")).toHaveClass("text-ok")
-    expect(within(chart).getByText("+0.80%")).toBeInTheDocument()
-    expect(within(chart).getByText(/pts ahead of SPY/)).toBeInTheDocument()
-    const month = within(chart).getByRole("button", { name: "1M" })
-    fireEvent.click(month)
-    expect(month).toHaveAttribute("aria-pressed", "true")
-  })
-
-  it("waits for a second session before drawing", async () => {
-    const one = { ...performance, series: performance.series.slice(0, 1) }
-    renderWithProviders(<PerformanceChart />, { portfolio: portfolioRepo({ getPerformance: async () => one }) })
-    expect(await screen.findByText(/two trading sessions \(from Nov 2, 2026\)/)).toBeInTheDocument()
-  })
-
-  it("shows the error when the performance can't load", async () => {
-    renderWithProviders(<PerformanceChart />, {
-      portfolio: portfolioRepo({ getPerformance: () => Promise.reject(new Error("down")) }),
-    })
-    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load the performance: down")
-  })
-})
-
 describe("WeeklyMovers", () => {
   it("lists the week's gainers and losers with the agents' call", async () => {
     renderWithProviders(<WeeklyMovers />, { portfolio: portfolioRepo(), symbols })
@@ -174,22 +147,29 @@ describe("WeeklyMovers", () => {
     expect(within(gainers).getByText("+$99.00")).toBeInTheDocument()
     expect(await within(gainers).findByText("BUY")).toBeInTheDocument()
     expect(within(screen.getByRole("region", { name: "Losers" })).getByText("None.")).toBeInTheDocument()
-    expect(screen.getByText("This week, since each came in")).toBeInTheDocument()
+    expect(screen.getByText("This week · since each came in")).toBeInTheDocument()
   })
 
   it("names the close the week is measured from", async () => {
     const since = { ...performance, week_start: "2026-11-06" }
     renderWithProviders(<WeeklyMovers />, { portfolio: portfolioRepo({ getPerformance: async () => since }), symbols })
-    expect(await screen.findByText("This week, since the close of Nov 6, 2026")).toBeInTheDocument()
+    expect(await screen.findByText("This week · since the close of Nov 6, 2026")).toBeInTheDocument()
   })
 
   it("shows the last session's moves until the portfolio has a session of its own", async () => {
     const fresh = { ...performance, series: [], gainers: [], losers: [] }
     renderWithProviders(<WeeklyMovers />, { portfolio: portfolioRepo({ getPerformance: async () => fresh }), symbols })
-    expect(await screen.findByText(/Last session \(Nov 13, 2026\)/)).toBeInTheDocument()
+    expect(await screen.findByText("Last session · Nov 13, 2026")).toBeInTheDocument()
     const gainers = screen.getByRole("region", { name: "Gainers" })
     expect(within(gainers).getByText("+1.96%")).toBeInTheDocument()
     expect(within(gainers).getByText("+$100.00")).toBeInTheDocument()
+  })
+
+  it("isn't shown while nothing is held", async () => {
+    const none = { ...portfolio, positions: [] }
+    renderWithProviders(<WeeklyMovers />, { portfolio: portfolioRepo({ get: async () => none }), symbols })
+    await waitFor(() => expect(screen.queryByLabelText("Loading movers")).not.toBeInTheDocument())
+    expect(screen.queryByRole("region", { name: "Movers" })).not.toBeInTheDocument()
   })
 
   it("works out a session's moves from the day's change", () => {
