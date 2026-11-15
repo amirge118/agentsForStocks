@@ -7,6 +7,7 @@ from app.models.decision_outcome import DecisionOutcome
 from app.models.job_run import JobRun
 from app.models.llm_call import LLMCall
 from app.models.llm_reply import LLMReply
+from app.models.portfolio_transaction import PortfolioTransaction
 from app.models.provider_call import ProviderCall
 from app.models.watchlist import WatchlistItem
 
@@ -18,6 +19,7 @@ __all__ = [
     "JobRun",
     "LLMCall",
     "LLMReply",
+    "PortfolioTransaction",
     "ProviderCall",
     "WatchlistItem",
 ]

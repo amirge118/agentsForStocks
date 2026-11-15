@@ -1015,6 +1015,101 @@
         "title": "PipelineRunRequest",
         "type": "object"
       },
+      "PortfolioOut": {
+        "properties": {
+          "cash": {
+            "title": "Cash",
+            "type": "number"
+          },
+          "cost_basis": {
+            "description": "Cost of the shares held, fees included",
+            "title": "Cost Basis",
+            "type": "number"
+          },
+          "deposited": {
+            "description": "Deposits minus withdrawals",
+            "title": "Deposited",
+            "type": "number"
+          },
+          "dividends": {
+            "title": "Dividends",
+            "type": "number"
+          },
+          "fees": {
+            "title": "Fees",
+            "type": "number"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/PositionOut"
+            },
+            "title": "Positions",
+            "type": "array"
+          },
+          "realised_pnl": {
+            "description": "Every sale's P/L, sold-out symbols included",
+            "title": "Realised Pnl",
+            "type": "number"
+          },
+          "transferred_in": {
+            "description": "Cost of the shares that came in without cash",
+            "title": "Transferred In",
+            "type": "number"
+          }
+        },
+        "required": [
+          "cash",
+          "cost_basis",
+          "deposited",
+          "transferred_in",
+          "realised_pnl",
+          "dividends",
+          "fees",
+          "positions"
+        ],
+        "title": "PortfolioOut",
+        "type": "object"
+      },
+      "PositionOut": {
+        "properties": {
+          "avg_cost": {
+            "title": "Avg Cost",
+            "type": "number"
+          },
+          "cost_basis": {
+            "description": "What the shares held cost, fees included",
+            "title": "Cost Basis",
+            "type": "number"
+          },
+          "dividends": {
+            "title": "Dividends",
+            "type": "number"
+          },
+          "realised_pnl": {
+            "description": "Booked by sales of this symbol",
+            "title": "Realised Pnl",
+            "type": "number"
+          },
+          "shares": {
+            "title": "Shares",
+            "type": "number"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "shares",
+          "avg_cost",
+          "cost_basis",
+          "realised_pnl",
+          "dividends"
+        ],
+        "title": "PositionOut",
+        "type": "object"
+      },
       "PriceBarOut": {
         "properties": {
           "close": {
@@ -1464,6 +1559,224 @@
           "mean_alpha_captured"
         ],
         "title": "TrackStatsOut",
+        "type": "object"
+      },
+      "TransactionIn": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 1000000000000.0,
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For DEPOSIT, WITHDRAW, DIVIDEND",
+            "title": "Amount"
+          },
+          "fee": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 1000000000000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Fee"
+          },
+          "kind": {
+            "enum": [
+              "DEPOSIT",
+              "WITHDRAW",
+              "BUY",
+              "SELL",
+              "DIVIDEND",
+              "TRANSFER_IN"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 1000000000000.0,
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Per share; for TRANSFER_IN, the cost per share",
+            "title": "Price"
+          },
+          "shares": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 1000000000000.0,
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shares"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For BUY, SELL, DIVIDEND, TRANSFER_IN",
+            "title": "Symbol"
+          },
+          "trade_date": {
+            "format": "date",
+            "title": "Trade Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trade_date",
+          "kind"
+        ],
+        "title": "TransactionIn",
+        "type": "object"
+      },
+      "TransactionOut": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "fee": {
+            "title": "Fee",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "DEPOSIT",
+              "WITHDRAW",
+              "BUY",
+              "SELL",
+              "DIVIDEND",
+              "TRANSFER_IN"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "shares": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shares"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "trade_date": {
+            "format": "date",
+            "title": "Trade Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trade_date",
+          "kind",
+          "symbol",
+          "shares",
+          "price",
+          "fee",
+          "amount",
+          "note",
+          "created_at"
+        ],
+        "title": "TransactionOut",
         "type": "object"
       },
       "ValidationError": {
@@ -1925,6 +2238,186 @@
         "summary": "Start Pipeline Run",
         "tags": [
           "pipeline"
+        ]
+      }
+    },
+    "/api/v1/portfolio": {
+      "get": {
+        "operationId": "get_portfolio_api_v1_portfolio_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Portfolio",
+        "tags": [
+          "portfolio"
+        ]
+      }
+    },
+    "/api/v1/portfolio/transactions": {
+      "get": {
+        "operationId": "list_transactions_api_v1_portfolio_transactions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TransactionOut"
+                  },
+                  "title": "Response List Transactions Api V1 Portfolio Transactions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List Transactions",
+        "tags": [
+          "portfolio"
+        ]
+      },
+      "post": {
+        "operationId": "add_transaction_api_v1_portfolio_transactions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Breaks a ledger rule, e.g. sells shares not held"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Add Transaction",
+        "tags": [
+          "portfolio"
+        ]
+      }
+    },
+    "/api/v1/portfolio/transactions/{transaction_id}": {
+      "delete": {
+        "operationId": "delete_transaction_api_v1_portfolio_transactions__transaction_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "title": "Transaction Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No such transaction"
+          },
+          "422": {
+            "description": "Breaks a ledger rule, e.g. sells shares not held"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Delete Transaction",
+        "tags": [
+          "portfolio"
+        ]
+      },
+      "put": {
+        "operationId": "update_transaction_api_v1_portfolio_transactions__transaction_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "title": "Transaction Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No such transaction"
+          },
+          "422": {
+            "description": "Breaks a ledger rule, e.g. sells shares not held"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Update Transaction",
+        "tags": [
+          "portfolio"
         ]
       }
     },

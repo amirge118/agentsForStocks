@@ -109,6 +109,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portfolio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portfolio */
+        get: operations["get_portfolio_api_v1_portfolio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolio/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Transactions */
+        get: operations["list_transactions_api_v1_portfolio_transactions_get"];
+        put?: never;
+        /** Add Transaction */
+        post: operations["add_transaction_api_v1_portfolio_transactions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolio/transactions/{transaction_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Transaction */
+        put: operations["update_transaction_api_v1_portfolio_transactions__transaction_id__put"];
+        post?: never;
+        /** Delete Transaction */
+        delete: operations["delete_transaction_api_v1_portfolio_transactions__transaction_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -689,6 +742,58 @@ export interface components {
              */
             symbols?: string[] | null;
         };
+        /** PortfolioOut */
+        PortfolioOut: {
+            /** Cash */
+            cash: number;
+            /**
+             * Cost Basis
+             * @description Cost of the shares held, fees included
+             */
+            cost_basis: number;
+            /**
+             * Deposited
+             * @description Deposits minus withdrawals
+             */
+            deposited: number;
+            /** Dividends */
+            dividends: number;
+            /** Fees */
+            fees: number;
+            /** Positions */
+            positions: components["schemas"]["PositionOut"][];
+            /**
+             * Realised Pnl
+             * @description Every sale's P/L, sold-out symbols included
+             */
+            realised_pnl: number;
+            /**
+             * Transferred In
+             * @description Cost of the shares that came in without cash
+             */
+            transferred_in: number;
+        };
+        /** PositionOut */
+        PositionOut: {
+            /** Avg Cost */
+            avg_cost: number;
+            /**
+             * Cost Basis
+             * @description What the shares held cost, fees included
+             */
+            cost_basis: number;
+            /** Dividends */
+            dividends: number;
+            /**
+             * Realised Pnl
+             * @description Booked by sales of this symbol
+             */
+            realised_pnl: number;
+            /** Shares */
+            shares: number;
+            /** Symbol */
+            symbol: string;
+        };
         /** PriceBarOut */
         PriceBarOut: {
             /** Close */
@@ -863,6 +968,75 @@ export interface components {
              * @description Mean alpha earned by following each call (long, short or out), as a fraction
              */
             mean_alpha_captured: number | null;
+        };
+        /** TransactionIn */
+        TransactionIn: {
+            /**
+             * Amount
+             * @description For DEPOSIT, WITHDRAW, DIVIDEND
+             */
+            amount?: number | string | null;
+            /**
+             * Fee
+             * @default 0
+             */
+            fee: number | string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "DEPOSIT" | "WITHDRAW" | "BUY" | "SELL" | "DIVIDEND" | "TRANSFER_IN";
+            /** Note */
+            note?: string | null;
+            /**
+             * Price
+             * @description Per share; for TRANSFER_IN, the cost per share
+             */
+            price?: number | string | null;
+            /** Shares */
+            shares?: number | string | null;
+            /**
+             * Symbol
+             * @description For BUY, SELL, DIVIDEND, TRANSFER_IN
+             */
+            symbol?: string | null;
+            /**
+             * Trade Date
+             * Format: date
+             */
+            trade_date: string;
+        };
+        /** TransactionOut */
+        TransactionOut: {
+            /** Amount */
+            amount: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Fee */
+            fee: number;
+            /** Id */
+            id: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "DEPOSIT" | "WITHDRAW" | "BUY" | "SELL" | "DIVIDEND" | "TRANSFER_IN";
+            /** Note */
+            note: string | null;
+            /** Price */
+            price: number | null;
+            /** Shares */
+            shares: number | null;
+            /** Symbol */
+            symbol: string | null;
+            /**
+             * Trade Date
+             * Format: date
+             */
+            trade_date: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -1092,6 +1266,151 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    get_portfolio_api_v1_portfolio_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioOut"];
+                };
+            };
+        };
+    };
+    list_transactions_api_v1_portfolio_transactions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionOut"][];
+                };
+            };
+        };
+    };
+    add_transaction_api_v1_portfolio_transactions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransactionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionOut"];
+                };
+            };
+            /** @description Breaks a ledger rule, e.g. sells shares not held */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_transaction_api_v1_portfolio_transactions__transaction_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transaction_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransactionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionOut"];
+                };
+            };
+            /** @description No such transaction */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Breaks a ledger rule, e.g. sells shares not held */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_transaction_api_v1_portfolio_transactions__transaction_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transaction_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such transaction */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Breaks a ledger rule, e.g. sells shares not held */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
