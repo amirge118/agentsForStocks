@@ -150,7 +150,8 @@ def _apply(ledger: Ledger, e: Entry) -> None:
     if e.kind in WITH_AMOUNT:
         _apply_amount(ledger, e, e.amount or ZERO, when)
         return
-    assert e.symbol is not None and e.shares is not None and e.price is not None
+    if e.symbol is None or e.shares is None or e.price is None:  # validate() rules this out
+        raise LedgerError(f"a {e.kind} needs a symbol, shares and a price")
     position = ledger.positions.setdefault(e.symbol, Position())
     shares, price = e.shares, e.price
     if e.kind == "TRANSFER_IN":
@@ -185,7 +186,8 @@ def _apply_amount(ledger: Ledger, e: Entry, amount: Decimal, when: str) -> None:
         _spend(ledger, amount, f"withdraw {amount} on {when}")
         ledger.deposited -= amount
     else:  # DIVIDEND
-        assert e.symbol is not None
+        if e.symbol is None:  # validate() rules this out
+            raise LedgerError("a DIVIDEND needs a symbol")
         ledger.cash += amount
         ledger.positions.setdefault(e.symbol, Position()).dividends += amount
 
