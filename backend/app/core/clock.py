@@ -10,6 +10,7 @@ from datetime import UTC, date, datetime, time
 from zoneinfo import ZoneInfo
 
 MARKET_TZ = ZoneInfo("America/New_York")
+MARKET_OPEN = time(9, 30)
 MARKET_CLOSE = time(16)
 
 
@@ -27,3 +28,9 @@ def market_today(now: datetime | None = None) -> date:
 def market_close(day: date) -> datetime:
     """The regular close on `day`; early closes and holidays aren't known here."""
     return datetime.combine(day, MARKET_CLOSE, tzinfo=MARKET_TZ)
+
+
+def market_is_open(now: datetime | None = None) -> bool:
+    """A weekday between the regular open and close; holidays and early closes aren't known."""
+    local = (now or utcnow()).astimezone(MARKET_TZ)
+    return local.weekday() < 5 and MARKET_OPEN <= local.time() < MARKET_CLOSE

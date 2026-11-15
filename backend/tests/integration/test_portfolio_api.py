@@ -1,6 +1,7 @@
 """/api/v1/portfolio end to end: real container, routers, repositories and SQLite."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
+from datetime import date
 
 import httpx
 import pytest
@@ -8,6 +9,8 @@ import pytest
 from app.container import build_container
 from app.core.config import Settings
 from app.main import app
+from app.providers.yfinance import Quote
+from app.repositories.daily_closes import DailyCloseRepository
 from app.repositories.watchlist import WatchlistRepository
 
 
@@ -19,6 +22,13 @@ async def api(concurrent_session_factory) -> AsyncIterator[httpx.AsyncClient]:
         return {"ZZZZ": False, "OFFLINE": None}.get(symbol, True)
 
     container.ticker_exists = known
+    live: dict[str, Quote] = {}
+
+    async def quotes(symbols: Sequence[str], ttl: float | None) -> dict[str, Quote]:
+        return {s: live[s] for s in symbols if s in live}
+
+    container.quotes = quotes
+    container.live = live  # type: ignore[attr-defined]  # the tests set today's quotes
     app.state.container = container
     async with concurrent_session_factory() as session:
         await WatchlistRepository(session).add("MSFT")
@@ -57,8 +67,11 @@ async def test_a_ledger_adds_up_to_cash_holdings_and_pl(api: httpx.AsyncClient) 
     assert by_symbol["MSFT"]["shares"] == 6
     assert by_symbol["MSFT"]["avg_cost"] == pytest.approx(520.6)
     assert by_symbol["MSFT"]["realised_pnl"] == pytest.approx(4 * 560 - 1 - 4 * 520.6)
-    # Largest cost first: MSFT 6 x 520.6 = 3,123.6, GOOG 3,000
-    assert [p["symbol"] for p in portfolio["positions"]] == ["MSFT", "GOOG"]
+    # Largest value first; without any price (no quotes here) they are listed by symbol
+    assert [p["symbol"] for p in portfolio["positions"]] == ["GOOG", "MSFT"]
+    assert (
+        portfolio["unpriced"] == ["GOOG", "MSFT"] and portfolio["total_value"] == portfolio["cash"]
+    )
 
     listed = (await api.get("/api/v1/portfolio/transactions")).json()
     # Newest first: the latest day, then the latest recorded that day
@@ -112,3 +125,51 @@ async def test_writes_that_break_the_ledger_are_refused_with_the_reason(
         await api.put("/api/v1/portfolio/transactions/999", json=_tx("DEPOSIT", amount=1))
     ).status_code == 404
     assert (await api.get("/api/v1/portfolio")).json()["cash"] == 1000
+
+
+def _quote(symbol: str, price: float, previous: float) -> Quote:
+    closes = ((date(2026, 11, 12), previous), (date(2026, 11, 13), price))
+    return Quote(symbol, price, previous, date(2026, 11, 13), closes)
+
+
+@pytest.mark.integration
+async def test_the_portfolio_at_todays_prices_and_a_stored_close_when_none_comes(
+    api: httpx.AsyncClient,
+) -> None:
+    for body in (
+        _tx("DEPOSIT", amount=10000),
+        _tx("BUY", symbol="MSFT", shares=10, price=500),
+        _tx("TRANSFER_IN", symbol="GOOG", shares=20, price=150),
+        _tx("TRANSFER_IN", symbol="NEWCO", shares=5, price=10),
+    ):
+        assert (await api.post("/api/v1/portfolio/transactions", json=body)).status_code == 201
+    live = app.state.container.live
+    live["MSFT"] = _quote("MSFT", 520, 510)
+    live["GOOG"] = _quote("GOOG", 160, 158)
+
+    portfolio = (await api.get("/api/v1/portfolio")).json()
+    assert portfolio["cash"] == 5000
+    assert portfolio["holdings_value"] == 5200 + 3200
+    assert portfolio["total_value"] == 13400
+    assert portfolio["unrealised_pnl"] == 200 + 200
+    assert portfolio["day_change"] == 100 + 40
+    assert portfolio["day_change_pct"] == pytest.approx(140 / (13400 - 140) * 100)
+    assert portfolio["unpriced"] == ["NEWCO"]  # no quote, no stored close: not valued at 0
+    by_symbol = {p["symbol"]: p for p in portfolio["positions"]}
+    msft = by_symbol["MSFT"]
+    assert (msft["price"], msft["value"], msft["unrealised_pct"]) == (520, 5200, 4.0)
+    assert msft["weight"] == pytest.approx(5200 / 13400 * 100)
+    assert msft["price_as_of"] == "2026-11-13" and msft["price_stale"] is False
+    assert by_symbol["NEWCO"]["value"] is None and by_symbol["NEWCO"]["price"] is None
+
+    # The finished sessions were stored; with the source down, the last one is used
+    live.clear()
+    stale = {p["symbol"]: p for p in (await api.get("/api/v1/portfolio")).json()["positions"]}
+    assert stale["MSFT"]["price"] == 520 and stale["MSFT"]["price_stale"] is True
+    assert stale["MSFT"]["day_change"] is None
+    async with app.state.container.session_factory() as session:
+        stored = await DailyCloseRepository(session).latest(["MSFT", "GOOG"])
+    assert {s: day for s, (day, _) in stored.items()} == {
+        "MSFT": date(2026, 11, 13),
+        "GOOG": date(2026, 11, 13),
+    }

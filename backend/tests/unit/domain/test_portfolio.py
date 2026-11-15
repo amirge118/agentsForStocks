@@ -137,3 +137,40 @@ def test_an_entry_with_the_wrong_fields_for_its_kind_is_refused(entry: Entry, me
 def test_an_empty_ledger_is_all_zero() -> None:
     ledger = replay([])
     assert (ledger.cash, ledger.realised, ledger.cost_basis, ledger.held) == (0, 0, 0, {})
+
+
+@pytest.mark.unit
+def test_the_ledger_at_todays_prices() -> None:
+    from app.domain.portfolio import Price, valuation
+
+    ledger = replay(
+        [
+            deposit("10000"),
+            buy("MSFT", "10", "500"),  # cost 5000
+            buy("EOSE", "100", "5"),  # cost 500
+            Entry(DAY, "TRANSFER_IN", "OLD", D("1"), D("10")),  # no price anywhere
+        ]
+    )
+    prices = {
+        "MSFT": Price(D("520"), D("510"), DAY),
+        "EOSE": Price(D("4"), None, DAY, stale=True),
+    }
+    v = valuation(ledger, prices)
+    assert v.cash == D("4500") and v.holdings_value == D("5600")
+    assert v.total_value == D("10100") and v.unpriced == ["OLD"]
+    assert [h.symbol for h in v.holdings] == ["MSFT", "EOSE", "OLD"]  # largest value first
+    msft, eose, old = v.holdings
+    assert (msft.value, msft.unrealised, msft.day_change) == (D("5200"), D("200"), D("100"))
+    assert msft.weight == D("5200") / D("10100") * 100
+    assert eose.unrealised == D("-100") and eose.day_change is None and eose.price.stale
+    assert (old.value, old.unrealised, old.weight) == (None, None, None)  # not valued at 0
+    assert v.unrealised == D("100") and v.day_change == D("100")
+    assert v.day_change_pct == D("100") / D("10000") * 100
+
+
+@pytest.mark.unit
+def test_an_empty_portfolio_has_no_day_change_percentage() -> None:
+    from app.domain.portfolio import valuation
+
+    v = valuation(replay([]), {})
+    assert v.total_value == 0 and v.day_change_pct is None and v.holdings == []

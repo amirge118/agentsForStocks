@@ -7,7 +7,7 @@ modules decoupled and lets tests swap in fakes (see tests/factories.py).
 
 import logging
 import os
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
 
@@ -45,7 +45,7 @@ from app.providers.fmp import DailyCallBudget, FmpClient
 from app.providers.http import HttpClient
 from app.providers.rate_limit import RateLimiter
 from app.providers.yahoo_chart import YahooChartClient
-from app.providers.yfinance import YFinanceClient
+from app.providers.yfinance import Quote, YFinanceClient
 from app.repositories.provider_calls import StoredCallCounter
 
 logger = logging.getLogger(__name__)
@@ -74,6 +74,8 @@ class Container:
     lock: PipelineLock
     # Does the ticker exist? True / False, or None when the check can't be made now
     ticker_exists: Callable[[str], Awaitable[bool | None]]
+    # Latest prices of several symbols in one request (symbols, how long it stays good)
+    quotes: Callable[[Sequence[str], float | None], Awaitable[dict[str, Quote]]]
     session_factory: async_sessionmaker[AsyncSession]
     http: HttpClient
     llm: LLMRouter
@@ -253,6 +255,7 @@ def build_container(
         launcher=PipelineLauncher(orchestrator, registry, lock),
         lock=lock,
         ticker_exists=chart.symbol_exists,
+        quotes=yahoo.get_quotes,
         session_factory=session_factory,
         http=http,
         llm=llm,

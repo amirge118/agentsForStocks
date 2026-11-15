@@ -196,3 +196,79 @@ def _spend(ledger: Ledger, amount: Decimal, what: str) -> None:
     if amount > ledger.cash:
         raise LedgerError(f"can't {what}: only {ledger.cash} cash then — record a deposit first")
     ledger.cash -= amount
+
+
+# ---------------------------------------------------------------------------
+# Valuation: the ledger at today's prices
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class Price:
+    price: Decimal
+    previous_close: Decimal | None
+    as_of: date
+    stale: bool = False  # the last stored close, because no live quote came back
+
+
+@dataclass(frozen=True)
+class Holding:
+    symbol: str
+    position: Position
+    price: Price | None  # None: no price at all, so no value (never valued at 0)
+    value: Decimal | None
+    unrealised: Decimal | None
+    day_change: Decimal | None  # for the shares held since the previous close
+    weight: Decimal | None  # share of the whole portfolio, cash included
+
+
+@dataclass(frozen=True)
+class Valuation:
+    holdings: list[Holding]
+    cash: Decimal
+    holdings_value: Decimal  # of the holdings with a price
+    total_value: Decimal
+    unrealised: Decimal
+    day_change: Decimal
+    unpriced: list[str]  # held, but no price: left out of the totals
+
+    @property
+    def day_change_pct(self) -> Decimal | None:
+        before = self.total_value - self.day_change
+        return self.day_change / before * 100 if before > 0 else None
+
+
+def valuation(ledger: Ledger, prices: dict[str, Price]) -> Valuation:
+    """Value the holdings at `prices`, largest first; a holding without a price is listed apart."""
+    priced = {s: p for s, p in ledger.held.items() if s in prices}
+    holdings_value = sum((p.shares * prices[s].price for s, p in priced.items()), ZERO)
+    total = ledger.cash + holdings_value
+    holdings = [_holding(s, p, prices.get(s), total) for s, p in ledger.held.items()]
+    holdings.sort(key=lambda h: (h.value is None, -(h.value or ZERO), h.symbol))
+    return Valuation(
+        holdings=holdings,
+        cash=ledger.cash,
+        holdings_value=holdings_value,
+        total_value=total,
+        unrealised=sum((h.unrealised or ZERO for h in holdings), ZERO),
+        day_change=sum((h.day_change or ZERO for h in holdings), ZERO),
+        unpriced=sorted(s for s in ledger.held if s not in prices),
+    )
+
+
+def _holding(symbol: str, position: Position, price: Price | None, total: Decimal) -> Holding:
+    if price is None:
+        return Holding(symbol, position, None, None, None, None, None)
+    value = position.shares * price.price
+    day = (
+        position.shares * (price.price - price.previous_close)
+        if price.previous_close is not None
+        else None
+    )
+    return Holding(
+        symbol=symbol,
+        position=position,
+        price=price,
+        value=value,
+        unrealised=value - position.cost,
+        day_change=day,
+        weight=value / total * 100 if total > 0 else None,
+    )

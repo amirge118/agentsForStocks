@@ -388,14 +388,29 @@ class PositionOut(BaseModel):
     cost_basis: float = Field(description="What the shares held cost, fees included")
     realised_pnl: float = Field(description="Booked by sales of this symbol")
     dividends: float
+    # null: no price at all, so no value (never valued at 0)
+    price: float | None
+    price_as_of: date | None = Field(description="The session of the price")
+    price_stale: bool = Field(description="The last stored close: no live quote came back")
+    value: float | None
+    unrealised_pnl: float | None
+    unrealised_pct: float | None
+    day_change: float | None = Field(description="For the shares held since the previous close")
+    weight: float | None = Field(description="Percent of the whole portfolio, cash included")
 
 
 class PortfolioOut(BaseModel):
     cash: float
+    holdings_value: float = Field(description="The holdings with a price")
+    total_value: float = Field(description="Holdings with a price, plus cash")
+    unrealised_pnl: float
+    day_change: float
+    day_change_pct: float | None
     cost_basis: float = Field(description="Cost of the shares held, fees included")
     deposited: float = Field(description="Deposits minus withdrawals")
     transferred_in: float = Field(description="Cost of the shares that came in without cash")
     realised_pnl: float = Field(description="Every sale's P/L, sold-out symbols included")
     dividends: float
     fees: float
+    unpriced: list[str] = Field(description="Held, but no price: left out of the totals")
     positions: list[PositionOut]

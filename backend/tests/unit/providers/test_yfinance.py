@@ -320,3 +320,60 @@ async def test_with_a_chart_a_failed_history_isnt_retried() -> None:
     yf = _with_fallback(_Failing, _Chart())
     assert list((await yf.get_history("AAPL", period="1y"))["Close"]) == [344.0, 345.0]
     assert calls == ["history"]
+
+
+def _download_frame(closes: dict[str, list[float | None]]) -> pd.DataFrame:
+    days = pd.to_datetime(["2026-11-11", "2026-11-12", "2026-11-13"])
+    columns = pd.MultiIndex.from_product([["Adj Close", "Close"], list(closes)])
+    data = {(field, s): values for field in ("Adj Close", "Close") for s, values in closes.items()}
+    return pd.DataFrame(data, index=days, columns=columns)
+
+
+@pytest.mark.unit
+async def test_quotes_for_every_symbol_come_from_one_request() -> None:
+    requests: list[list[str]] = []
+
+    def download(tickers: list[str], **kwargs: object) -> pd.DataFrame:
+        requests.append(tickers)
+        assert kwargs["auto_adjust"] is False  # dividends are ledger cash, not price
+        return _download_frame({"MSFT": [521.13, 523.0, 523.88], "ZZZZ": [None, None, None]})
+
+    yf = YFinanceClient(
+        rate_limiter=RateLimiter({}, default_rps=1000),
+        cache=TTLCache(60),
+        downloader=download,
+    )
+    quotes = await yf.get_quotes(["msft", "ZZZZ", "MSFT"], ttl=60)
+    assert requests == [["MSFT", "ZZZZ"]]
+    assert set(quotes) == {"MSFT"}  # no prices: left out, never 0
+    msft = quotes["MSFT"]
+    assert (msft.price, msft.previous_close, msft.as_of) == (523.88, 523.0, date(2026, 11, 13))
+    assert msft.closes[0] == (date(2026, 11, 11), 521.13)
+
+    await yf.get_quotes(["MSFT", "ZZZZ"])  # cached
+    assert len(requests) == 1
+    assert await yf.get_quotes([]) == {}
+
+
+@pytest.mark.unit
+async def test_quotes_are_empty_when_the_request_fails() -> None:
+    def broken(tickers: list[str], **kwargs: object) -> pd.DataFrame:
+        raise ConnectionError("Yahoo is down")
+
+    yf = YFinanceClient(
+        rate_limiter=RateLimiter({}, default_rps=1000),
+        cache=TTLCache(60),
+        retry_policy=RetryPolicy(max_attempts=1, timeout_seconds=1.0, base_backoff_seconds=0.0),
+        downloader=broken,
+    )
+    assert await yf.get_quotes(["MSFT"]) == {}
+
+    single = YFinanceClient(
+        rate_limiter=RateLimiter({}, default_rps=1000),
+        cache=TTLCache(60),
+        downloader=lambda tickers, **kw: pd.DataFrame(
+            {"Close": [1.0, 2.0]}, index=pd.to_datetime(["2026-11-12", "2026-11-13"])
+        ),
+    )
+    flat = await single.get_quotes(["MSFT"])  # a frame without the symbol level
+    assert flat["MSFT"].price == 2.0

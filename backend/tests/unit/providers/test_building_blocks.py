@@ -137,3 +137,51 @@ async def test_cache_does_not_store_failures() -> None:
     with pytest.raises(ProviderError):
         await cache.get_or_load("k", fail)
     assert await cache.get_or_load("k", succeed) == "up"
+
+
+@pytest.mark.unit
+async def test_a_call_can_ask_for_its_own_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = {"t": 1000.0}
+    monkeypatch.setattr("app.providers.cache.time.monotonic", lambda: now["t"])
+    cache = TTLCache(ttl_seconds=6 * 3600)
+    calls = {"quote": 0, "statements": 0}
+
+    async def load(name: str) -> int:
+        calls[name] += 1
+        return calls[name]
+
+    await cache.get_or_load("quote", lambda: load("quote"), ttl=60)
+    await cache.get_or_load("statements", lambda: load("statements"))
+    now["t"] += 61  # the quote is stale, the statements aren't
+    assert await cache.get_or_load("quote", lambda: load("quote"), ttl=60) == 2
+    assert await cache.get_or_load("statements", lambda: load("statements")) == 1
+
+
+@pytest.mark.unit
+async def test_the_cache_stays_within_its_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = {"t": 1000.0}
+    monkeypatch.setattr("app.providers.cache.time.monotonic", lambda: now["t"])
+    cache = TTLCache(ttl_seconds=60, max_entries=3)
+
+    async def value() -> str:
+        return "v"
+
+    await cache.get_or_load("expired", value, ttl=1)
+    await cache.get_or_load("soon", value, ttl=30)
+    await cache.get_or_load("late", value, ttl=300)
+    now["t"] += 2
+    await cache.get_or_load("new", value)  # full: the expired entry goes first
+    assert len(cache) == 3
+    await cache.get_or_load("newer", value)  # still full: the one expiring soonest goes
+    assert len(cache) == 3
+
+    loads = 0
+
+    async def counted() -> str:
+        nonlocal loads
+        loads += 1
+        return "v"
+
+    await cache.get_or_load("late", counted)
+    await cache.get_or_load("soon", counted)
+    assert loads == 1  # "late" was kept, "soon" was dropped
