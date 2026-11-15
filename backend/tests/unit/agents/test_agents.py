@@ -197,6 +197,23 @@ def _analyst_results(signal: str, confidence: float = 90.0) -> dict[str, dict]:
 
 
 @pytest.mark.unit
+async def test_recommendation_prompt_quotes_what_each_analyst_found() -> None:
+    """With signals alone the model had no reported risk to name, and made one up."""
+    results = _analyst_results("bullish")
+    results["risk"]["reasoning"] = "Low leverage;\n main risk: China supply chain."
+    results["moat"]["reasoning"] = "x" * 300
+    del results["earnings"]
+    llm = FakeLLM()
+    await _run(RecommendationAgent, llm=llm, results=FakeResults(results))
+
+    prompt = llm.calls[0]["prompt"]
+    assert "- risk: Low leverage; main risk: China supply chain." in prompt
+    assert "- moat: " + "x" * 199 + "…" in prompt  # cut to 200 characters
+    assert "- earnings:" not in prompt  # missing, listed as such instead
+    assert "Missing analysts: earnings" in prompt
+
+
+@pytest.mark.unit
 async def test_recommendation_uses_reasoning_model_and_weights() -> None:
     llm = FakeLLM()
     _, result = await _run(

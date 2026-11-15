@@ -63,6 +63,9 @@ _MIN_AGENTS_FOR_CONVICTION = 4
 TRACK_CALLS = 20
 LESSONS_SAME_SYMBOL = 3
 LESSONS_OTHER_SYMBOLS = 2
+# Each analyst's reasoning in the prompt, cut to this length (on 2026-11-13: median 131
+# characters, 90% within 164, the longest 209)
+FINDING_CHARS = 200
 
 logger = logging.getLogger(__name__)
 
@@ -281,6 +284,24 @@ def _track_record_block(symbol: str, track: TrackRecord) -> str:
     return "\n".join(lines)
 
 
+def _findings(s: WeightedScore) -> str:
+    """
+    Each analyst's own reasoning, shortened: a risk the model names must be one an analyst
+    reported (with signals alone it had none to quote, and made one up).
+    """
+    lines = [
+        f"- {c.agent}: {_shorten(c.reasoning)}"
+        for c in s.contributions
+        if c.signal != "missing" and c.reasoning.strip()
+    ]
+    return "\n".join(lines) or "- none reported"
+
+
+def _shorten(text: str, limit: int = FINDING_CHARS) -> str:
+    flat = " ".join(text.split())
+    return flat if len(flat) <= limit else flat[: limit - 1].rstrip() + "…"
+
+
 def _prompt(symbol: str, s: WeightedScore, track: TrackRecord, memory: list[str]) -> str:
     rows = "\n".join(
         f"{c.agent:<18} | {c.signal:<8} | {c.confidence:>3.0f}% | "
@@ -295,6 +316,9 @@ Risk override applied: {'yes' if s.risk_override_applied else 'no'}
 
 Agent | Signal | Confidence | Weight | Contribution
 {rows}
+
+What each analyst found:
+{_findings(s)}
 
 Missing analysts: {', '.join(s.missing) or 'none'}
 
