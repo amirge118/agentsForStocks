@@ -7,10 +7,6 @@ Format: `- [ ] Description [PRIORITY: HIGH / MED / LOW]`
 in order of work; within a section, top first. New capabilities wait in section 6 until the
 current pipeline is trustworthy and measured. A new idea goes in the section it belongs to.
 
-**2026-11-02 — development paused: stabilise first.** Until the app runs end to end smoothly and
-every WARN in `scripts.verify` is understood, only sections 1–2 (and the data-gap items in 3) are
-worked on. Section 4 (prompt / weight improvements, the agent-journal rounds) waits.
-
 ## 1. Reliability now — the pipeline must not lie or break silently
 - [ ] Protect `main` in GitHub settings: require the CI checks to pass before merging, no direct pushes (a setting, not code) [PRIORITY: HIGH]
 - [x] No silent HOLD: a result built on a fallback (model unavailable or its reply unreadable) carries `needs_review` with the reason, and so does a recommendation that held for lack of analysts or built on an analyst that fell back; shown on the verdict, the breakdown, the panels and the watchlist
@@ -28,7 +24,7 @@ worked on. Section 4 (prompt / weight improvements, the agent-journal rounds) wa
 - [x] Deployment ready in the repo: `docs/deploy.md` (server, firewall, DNS, keys, checks, upgrades, restore), `infra/deploy/init-env.sh` (a production `.env` with fresh secrets), profile `https` (Caddy + Let's Encrypt, the only service on the internet; every other port on 127.0.0.1), profile `backup` (a daily `pg_dump`, kept 14 days) — CI checks the Caddyfile, that no port binds 0.0.0.0, and that a backup is written and readable
 - [x] Full Docker stack checked end to end (2026-10-28, `docker compose up` exactly as `docs/deploy.md`): preflight READY, a 5-symbol run from the dashboard 70/70 completed. It found two defects, fixed: the free tiers' per-minute limits made 47 of 70 judgements fall back with `LLM_QUOTA_MAX_WAIT_SECONDS=5` (0 with 60, the run takes ~6 minutes), and `/health` called runs due before the first install `missed`
 - [x] Stabilisation check: `python -m scripts.verify` on the 5-symbol watchlist (AAPL MSFT NVDA GOOGL AMZN) → PASS, or every WARN explained in this file; then the same from the Docker stack (`sh infra/deploy/verify.sh`). Save `--json` reports to compare later runs. Docker, 2026-11-03: PASS, 70 of 70 agent runs, 0 fallbacks (`docs/evaluation/verify-2026-11-03.json`); the one explained gap is `institutional`, see section 3
-- [ ] A few days of runs in a row (manual, or `SCHEDULER_ENABLED=true` on a test install) with `/health` green, no `missed` / `failed` job, and each `agent_card` free of failures and fallbacks — only then resume section 4. The plan, exit criteria, daily check and log for the 9-symbol watchlist: `docs/plans/stabilization.md` [PRIORITY: HIGH]
+- [x] A few days of runs in a row (manual, or `SCHEDULER_ENABLED=true` on a test install) with `/health` green, no `missed` / `failed` job, and each `agent_card` free of failures and fallbacks — only then resume section 4. The plan, exit criteria, daily check and log for the 9-symbol watchlist: `docs/plans/stabilization.md`. Passed 2026-11-15: five scheduled runs of 126 agent runs, 0 failed, 0 fallbacks, $0, FMP ≤ 46 a day; two nights missed because the laptop slept, not because of the app. Next: `docs/plans/improvement-2026-11.md`
 - [ ] Go live (the person's side): a server, a domain pointed at it, the provider keys; then `docs/deploy.md` steps 2–5 [PRIORITY: HIGH]
 - [ ] Copy the backups off the server (rsync / object storage / provider snapshots) — a dump on the same disk doesn't survive the disk [PRIORITY: MED]
 - [ ] First run with `ANTHROPIC_API_KEY`: preflight confirms a live request on SDK 2.x / API version 2026-10-21, and one `run_pipeline` exercises the chain's last step (Claude Haiku 5.5) and the reasoning model [PRIORITY: HIGH]
@@ -67,7 +63,8 @@ Change a prompt, model, weight or skill only on evidence: an eval report or an o
 - [x] Agent improvement loop: `scripts.agent_card` (runs, data gaps, violations, model calls, track record, eval coverage, where to start), `docs/agent-improvement-loop.md`, `docs/agent-journal.md`
 - [x] First logged round: `recommendation_v2` vs the current prompt — rejected (faithfulness 1/6 vs 2/6 = noise, +16% tokens); both prompts make up a "main risk" when no analyst reports one (`docs/agent-journal.md`)
 - [x] Round 2: `recommendation_v3` (name only a reported risk) — rejected: faithfulness 50% → 50%, and it now attributes the invented risk to the risk analyst; the prompt carries no analyst reasoning at all
-- [ ] Round 3 (paused until the stabilisation check passes): give the recommendation prompt each analyst's short reasoning (data before prompt), and realistic reasoning in the consensus eval case — planned in `docs/agent-journal.md` [PRIORITY: HIGH]
+- [ ] Portfolio weights: an optional share of the portfolio per watchlist symbol (never an amount), shown as exposure by action, sector and co-moving symbols; never in a prompt, a log or the repository — `docs/plans/improvement-2026-11.md` step 2 [PRIORITY: MED]
+- [ ] Round 3 (unpaused 2026-11-15, the stabilisation check passed): give the recommendation prompt each analyst's short reasoning (data before prompt), and realistic reasoning in the consensus eval case — planned in `docs/agent-journal.md` [PRIORITY: HIGH]
 - [ ] More labelled `recommendation` eval cases (only 2 today: consensus, risk_override) — e.g. mixed signals, missing analysts, bearish consensus [PRIORITY: MED]
 - [x] Don't pay twice for the same judgement: the same prompt reuses the model's stored reply for `LLM_REUSE_MAX_DAYS` (default 30, `app/llm/replies.py`); `--force` always asks, fallbacks are never stored, and `/runs` marks a run `reused`
 - [x] Agents don't run while their result is still good: `app/agents/refresh.py` sets per agent how long (`AGENT_REFRESH` overrides, shown on `/agents`); the stored result is copied to today with no data fetched and no model call, marked `reused` on `/runs` and with its real date on the symbol page
@@ -91,6 +88,7 @@ Change a prompt, model, weight or skill only on evidence: an eval report or an o
 - [ ] Track record over time: hit rate per month per agent on `/track-record`, to see whether a change helped — needs a few months of settled calls [PRIORITY: LOW]
 
 ## 5. Operations hygiene
+- [ ] A run delayed past `misfire_grace_time` (1 hour, `app/agents/scheduler.py`) is lost: on a laptop that sleeps, make it a setting and allow ~6 hours (still the same New York market date). On 2026-11-09 and 11-11 the machine woke 1.5–2 hours late, so both nights would have run. Not critical: the next run sees the missed day's prices [PRIORITY: LOW]
 - [ ] Grafana alerts: failed runs, fallbacks, daily LLM cost above a threshold, FMP budget at 80%, a free tier past 90% of its daily limit [PRIORITY: MED]
 - [ ] Give Grafana a read-only Postgres role instead of the app's credentials [PRIORITY: LOW]
 - [ ] Send the observability data to a hosted backend (Grafana Cloud / Honeycomb) for a deployed instance — only OTEL_EXPORTER_OTLP_ENDPOINT/HEADERS change [PRIORITY: LOW]
