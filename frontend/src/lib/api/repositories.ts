@@ -12,7 +12,9 @@ import {
   LLMProviderSchema,
   LLMUsageReportSchema,
   PipelineRunAcceptedSchema,
+  ExposureSchema,
   PerformanceSchema,
+  SectorTargetSchema,
   PortfolioSchema,
   PriceHistorySchema,
   RecommendationSchema,
@@ -29,7 +31,10 @@ import {
   type LLMUsageReport,
   type PipelineRunAccepted,
   type PipelineRunRequest,
+  type Exposure,
   type Performance,
+  type SectorTarget,
+  type SectorTargetIn,
   type Portfolio,
   type PriceHistory,
   type PriceRange,
@@ -69,6 +74,8 @@ export interface WatchlistRepository {
 export interface PortfolioRepository {
   get(): Promise<Portfolio>
   getPerformance(): Promise<Performance>
+  getExposure(): Promise<Exposure>
+  setSectorTargets(targets: SectorTargetIn[]): Promise<SectorTarget[]>
   getTransactions(): Promise<Transaction[]>
   addTransaction(body: TransactionIn): Promise<Transaction>
   updateTransaction(id: number, body: TransactionIn): Promise<Transaction>
@@ -152,6 +159,8 @@ export const llmRepository: LLMRepository = {
 export const portfolioRepository: PortfolioRepository = {
   get: () => get("/portfolio", PortfolioSchema),
   getPerformance: () => get("/portfolio/performance", PerformanceSchema),
+  getExposure: () => get("/portfolio/exposure", ExposureSchema),
+  setSectorTargets: (targets) => put("/portfolio/sector-targets", z.array(SectorTargetSchema), targets),
   getTransactions: () => get("/portfolio/transactions", z.array(TransactionSchema)),
   addTransaction: (body) => post("/portfolio/transactions", TransactionSchema, body),
   updateTransaction: (id, body) => put(`/portfolio/transactions/${id}`, TransactionSchema, body),

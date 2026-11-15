@@ -10,6 +10,7 @@ from app.models.llm_call import LLMCall
 from app.models.llm_reply import LLMReply
 from app.models.portfolio_transaction import PortfolioTransaction
 from app.models.provider_call import ProviderCall
+from app.models.sector_target import SectorTarget
 from app.models.watchlist import WatchlistItem
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     "LLMReply",
     "PortfolioTransaction",
     "ProviderCall",
+    "SectorTarget",
     "WatchlistItem",
 ]

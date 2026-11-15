@@ -1,6 +1,38 @@
 {
   "components": {
     "schemas": {
+      "ActionShareOut": {
+        "properties": {
+          "action": {
+            "description": "BUY / HOLD / SELL, or \"Not analysed yet\"",
+            "title": "Action",
+            "type": "string"
+          },
+          "symbols": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "action",
+          "value",
+          "weight",
+          "symbols"
+        ],
+        "title": "ActionShareOut",
+        "type": "object"
+      },
       "AgentInfo": {
         "properties": {
           "depends_on": {
@@ -309,6 +341,45 @@
         "title": "AgentTrackRecord",
         "type": "object"
       },
+      "CallChangeOut": {
+        "properties": {
+          "action": {
+            "enum": [
+              "BUY",
+              "SELL",
+              "HOLD"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "previous": {
+            "enum": [
+              "BUY",
+              "SELL",
+              "HOLD"
+            ],
+            "title": "Previous",
+            "type": "string"
+          },
+          "run_date": {
+            "format": "date",
+            "title": "Run Date",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "action",
+          "previous",
+          "run_date"
+        ],
+        "title": "CallChangeOut",
+        "type": "object"
+      },
       "ComplianceFindingView": {
         "properties": {
           "phrase": {
@@ -437,6 +508,43 @@
           "reasoning"
         ],
         "title": "ContributionView",
+        "type": "object"
+      },
+      "ExposureOut": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionShareOut"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "changed": {
+            "description": "Holdings whose call changed last run",
+            "items": {
+              "$ref": "#/components/schemas/CallChangeOut"
+            },
+            "title": "Changed",
+            "type": "array"
+          },
+          "risk": {
+            "$ref": "#/components/schemas/RiskOut"
+          },
+          "sectors": {
+            "items": {
+              "$ref": "#/components/schemas/SectorShareOut"
+            },
+            "title": "Sectors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sectors",
+          "risk",
+          "actions",
+          "changed"
+        ],
+        "title": "ExposureOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -954,6 +1062,36 @@
           "benchmark"
         ],
         "title": "OutcomeCallOut",
+        "type": "object"
+      },
+      "PairOut": {
+        "properties": {
+          "correlation": {
+            "description": "Of daily returns, -1 to 1",
+            "title": "Correlation",
+            "type": "number"
+          },
+          "first": {
+            "title": "First",
+            "type": "string"
+          },
+          "second": {
+            "title": "Second",
+            "type": "string"
+          },
+          "sessions": {
+            "description": "The daily returns compared",
+            "title": "Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "first",
+          "second",
+          "correlation",
+          "sessions"
+        ],
+        "title": "PairOut",
         "type": "object"
       },
       "PerformanceOut": {
@@ -1673,6 +1811,191 @@
           "agent_breakdown"
         ],
         "title": "Recommendation",
+        "type": "object"
+      },
+      "RiskOut": {
+        "properties": {
+          "beta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Value-weighted over the holdings with a beta",
+            "title": "Beta"
+          },
+          "beta_coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Percent of the holdings' value with a beta",
+            "title": "Beta Coverage"
+          },
+          "cash_weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash Weight"
+          },
+          "largest_symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Largest Symbol"
+          },
+          "largest_weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Largest Weight"
+          },
+          "together": {
+            "description": "Holdings whose daily returns move together",
+            "items": {
+              "$ref": "#/components/schemas/PairOut"
+            },
+            "title": "Together",
+            "type": "array"
+          }
+        },
+        "required": [
+          "largest_symbol",
+          "largest_weight",
+          "cash_weight",
+          "beta",
+          "beta_coverage",
+          "together"
+        ],
+        "title": "RiskOut",
+        "type": "object"
+      },
+      "SectorShareOut": {
+        "properties": {
+          "drift": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Weight minus target, in percentage points",
+            "title": "Drift"
+          },
+          "sector": {
+            "description": "\"Cash\" for the cash, \"Fund\" for an ETF or mutual fund",
+            "title": "Sector",
+            "type": "string"
+          },
+          "symbols": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The wanted percent; None: no target",
+            "title": "Target"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          },
+          "weight": {
+            "description": "Percent of the whole portfolio",
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "sector",
+          "value",
+          "weight",
+          "target",
+          "drift",
+          "symbols"
+        ],
+        "title": "SectorShareOut",
+        "type": "object"
+      },
+      "SectorTargetIn": {
+        "properties": {
+          "sector": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Sector",
+            "type": "string"
+          },
+          "target_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Target Pct"
+          }
+        },
+        "required": [
+          "sector",
+          "target_pct"
+        ],
+        "title": "SectorTargetIn",
+        "type": "object"
+      },
+      "SectorTargetOut": {
+        "properties": {
+          "sector": {
+            "title": "Sector",
+            "type": "string"
+          },
+          "target_pct": {
+            "title": "Target Pct",
+            "type": "number"
+          }
+        },
+        "required": [
+          "sector",
+          "target_pct"
+        ],
+        "title": "SectorTargetOut",
         "type": "object"
       },
       "SymbolOverview": {
@@ -2589,6 +2912,32 @@
         ]
       }
     },
+    "/api/v1/portfolio/exposure": {
+      "get": {
+        "operationId": "get_exposure_api_v1_portfolio_exposure_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExposureOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Exposure",
+        "tags": [
+          "portfolio"
+        ]
+      }
+    },
     "/api/v1/portfolio/performance": {
       "get": {
         "operationId": "get_performance_api_v1_portfolio_performance_get",
@@ -2610,6 +2959,61 @@
           }
         ],
         "summary": "Get Performance",
+        "tags": [
+          "portfolio"
+        ]
+      }
+    },
+    "/api/v1/portfolio/sector-targets": {
+      "put": {
+        "description": "Replaces every target: a sector left out has none after.",
+        "operationId": "set_sector_targets_api_v1_portfolio_sector_targets_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/SectorTargetIn"
+                },
+                "title": "Body",
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SectorTargetOut"
+                  },
+                  "title": "Response Set Sector Targets Api V1 Portfolio Sector Targets Put",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Set Sector Targets",
         "tags": [
           "portfolio"
         ]

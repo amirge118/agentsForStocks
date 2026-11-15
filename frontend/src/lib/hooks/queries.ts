@@ -11,6 +11,7 @@ import type {
   Horizon,
   PipelineRunRequest,
   PriceRange,
+  SectorTargetIn,
   SymbolOverview,
   TransactionIn,
   UsageGroup,
@@ -33,6 +34,7 @@ export const queryKeys = {
   portfolio: ["portfolio"] as const,
   transactions: ["portfolio", "transactions"] as const,
   performance: ["portfolio", "performance"] as const,
+  exposure: ["portfolio", "exposure"] as const,
 }
 
 /** The newest stored result of each agent (rows arrive newest first). */
@@ -216,6 +218,28 @@ export function usePerformance() {
     queryKey: queryKeys.performance,
     queryFn: () => portfolio.getPerformance(),
     refetchInterval: 60_000,
+  })
+}
+
+/** Sectors against their targets, the risk readings and the agents' calls on the holdings. */
+export function useExposure() {
+  const { portfolio } = useRepositories()
+  return useQuery({
+    queryKey: queryKeys.exposure,
+    queryFn: () => portfolio.getExposure(),
+    refetchInterval: 60_000,
+  })
+}
+
+/** Replace the sector targets; a sector left out has none after. */
+export function useSectorTargets() {
+  const { portfolio } = useRepositories()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (targets: SectorTargetIn[]) => portfolio.setSectorTargets(targets),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.exposure }),
+    onError: (error: Error) =>
+      toast({ variant: "destructive", title: "Could not save the targets", description: error.message }),
   })
 }
 

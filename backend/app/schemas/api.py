@@ -443,3 +443,67 @@ class PerformanceOut(BaseModel):
     gainers: list[MoverOut]
     losers: list[MoverOut]
     series: list[PerformancePointOut]
+
+
+class SectorShareOut(BaseModel):
+    sector: str = Field(description='"Cash" for the cash, "Fund" for an ETF or mutual fund')
+    value: float
+    weight: float = Field(description="Percent of the whole portfolio")
+    target: float | None = Field(description="The wanted percent; None: no target")
+    drift: float | None = Field(description="Weight minus target, in percentage points")
+    symbols: list[str]
+
+
+class PairOut(BaseModel):
+    first: str
+    second: str
+    correlation: float = Field(description="Of daily returns, -1 to 1")
+    sessions: int = Field(description="The daily returns compared")
+
+
+class RiskOut(BaseModel):
+    largest_symbol: str | None
+    largest_weight: float | None
+    cash_weight: float | None
+    beta: float | None = Field(description="Value-weighted over the holdings with a beta")
+    beta_coverage: float | None = Field(description="Percent of the holdings' value with a beta")
+    together: list[PairOut] = Field(description="Holdings whose daily returns move together")
+
+
+class ActionShareOut(BaseModel):
+    action: str = Field(description='BUY / HOLD / SELL, or "Not analysed yet"')
+    value: float
+    weight: float
+    symbols: list[str]
+
+
+class CallChangeOut(BaseModel):
+    symbol: str
+    action: Action
+    previous: Action
+    run_date: date
+
+
+class ExposureOut(BaseModel):
+    sectors: list[SectorShareOut]
+    risk: RiskOut
+    actions: list[ActionShareOut]
+    changed: list[CallChangeOut] = Field(description="Holdings whose call changed last run")
+
+
+class SectorTargetIn(BaseModel):
+    sector: str = Field(min_length=1, max_length=64)
+    target_pct: Decimal = Field(ge=0, le=100, max_digits=5, decimal_places=2)
+
+    @field_validator("sector")
+    @classmethod
+    def _strip(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("a sector needs a name")
+        return value
+
+
+class SectorTargetOut(BaseModel):
+    sector: str
+    target_pct: float

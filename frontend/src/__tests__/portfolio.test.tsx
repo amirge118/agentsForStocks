@@ -1,14 +1,17 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 
+import { AgentsOnPortfolio } from "@/components/features/portfolio/agents-on-portfolio"
 import { HoldingsTable } from "@/components/features/portfolio/holdings-table"
 import { PerformanceChart } from "@/components/features/portfolio/performance-chart"
 import { PortfolioSummary } from "@/components/features/portfolio/portfolio-summary"
+import { RiskSummary } from "@/components/features/portfolio/risk-summary"
+import { parseTargets, SectorWeights } from "@/components/features/portfolio/sector-weights"
 import { TransactionForm } from "@/components/features/portfolio/transaction-form"
 import { cashEffect, TransactionsTable } from "@/components/features/portfolio/transactions-table"
 import { WeeklyMovers } from "@/components/features/portfolio/weekly-movers"
 import { ApiError } from "@/lib/api/client"
 import type { PortfolioRepository, SymbolRepository } from "@/lib/api/repositories"
-import { msftPosition, overview, performance, portfolio, transactions } from "@/test/fixtures"
+import { exposure, msftPosition, overview, performance, portfolio, transactions } from "@/test/fixtures"
 import { pending, renderWithProviders } from "@/test/render"
 import type { Portfolio, TransactionIn } from "@/types/api"
 
@@ -16,6 +19,8 @@ function portfolioRepo(overrides: Partial<PortfolioRepository> = {}): PortfolioR
   return {
     get: async () => portfolio,
     getPerformance: async () => performance,
+    getExposure: async () => exposure,
+    setSectorTargets: jest.fn(async () => []),
     getTransactions: async () => transactions,
     addTransaction: jest.fn(async () => transactions[0]!),
     updateTransaction: jest.fn(),
@@ -141,6 +146,86 @@ describe("WeeklyMovers", () => {
     const since = { ...performance, week_start: "2026-11-06" }
     renderWithProviders(<WeeklyMovers />, { portfolio: portfolioRepo({ getPerformance: async () => since }), symbols })
     expect(await screen.findByText(/Since the close of Nov 6, 2026/)).toBeInTheDocument()
+  })
+})
+
+describe("SectorWeights", () => {
+  it("shows each sector against its target and saves the targets as exact strings", async () => {
+    const setSectorTargets = jest.fn(async () => [])
+    renderWithProviders(<SectorWeights />, { portfolio: portfolioRepo({ setSectorTargets }) })
+    expect(await screen.findByText("Technology")).toBeInTheDocument()
+    expect(screen.getByText("+11.0 pts")).toHaveClass("text-bad")
+    expect(screen.getByText("-10.0 pts")).toBeInTheDocument()
+    expect(screen.getByLabelText("Target for Cash (%)")).toHaveValue("")
+
+    fireEvent.change(screen.getByLabelText("Target for Technology (%)"), { target: { value: "45.5" } })
+    fireEvent.change(screen.getByLabelText("Target for Energy (%)"), { target: { value: "" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save targets" }))
+    await waitFor(() => expect(setSectorTargets).toHaveBeenCalled())
+    expect((setSectorTargets.mock.calls[0] as unknown as [unknown])[0]).toEqual([
+      { sector: "Technology", target_pct: "45.5" },
+    ])
+  })
+
+  it("refuses a target outside 0-100 before sending", async () => {
+    const setSectorTargets = jest.fn(async () => [])
+    renderWithProviders(<SectorWeights />, { portfolio: portfolioRepo({ setSectorTargets }) })
+    fireEvent.change(await screen.findByLabelText("Target for Technology (%)"), { target: { value: "120" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save targets" }))
+    expect(screen.getByRole("alert")).toHaveTextContent("Technology: a percent from 0 to 100.")
+    expect(setSectorTargets).not.toHaveBeenCalled()
+    expect(parseTargets({ A: "1.234" })).toBe("A: a percent from 0 to 100.")
+    expect(parseTargets({ A: " 7 ", B: "" })).toEqual([{ sector: "A", target_pct: "7" }])
+  })
+
+  it("waits for something to be held", async () => {
+    const cashOnly = { ...exposure, sectors: [exposure.sectors[2]!] }
+    renderWithProviders(<SectorWeights />, { portfolio: portfolioRepo({ getExposure: async () => cashOnly }) })
+    expect(await screen.findByText(/once the portfolio holds something/)).toBeInTheDocument()
+  })
+})
+
+describe("RiskSummary", () => {
+  it("reads concentration, beta with its coverage, the fall from the high and the pairs", async () => {
+    renderWithProviders(<RiskSummary />, { portfolio: portfolioRepo() })
+    expect(await screen.findByText("51.0%")).toHaveClass("text-bad") // over 25% in one name
+    expect(screen.getByText("0.91")).toBeInTheDocument()
+    expect(screen.getByText(/Covers 100.0% of the holdings/)).toBeInTheDocument()
+    expect(await screen.findByText(/At a high/)).toBeInTheDocument()
+    const pairs = screen.getByRole("region", { name: "Moving together" })
+    expect(within(pairs).getByRole("link", { name: "QQQ" })).toBeInTheDocument()
+    expect(within(pairs).getByText("0.87")).toBeInTheDocument()
+  })
+
+  it("says so when there is no beta and nothing moves together", async () => {
+    const quiet = { ...exposure, risk: { ...exposure.risk, beta: null, beta_coverage: 0, together: [] } }
+    renderWithProviders(<RiskSummary />, { portfolio: portfolioRepo({ getExposure: async () => quiet }) })
+    expect(await screen.findByText("No beta from the risk agent yet")).toBeInTheDocument()
+    expect(screen.getByText(/No two holdings move closely together/)).toBeInTheDocument()
+  })
+})
+
+describe("AgentsOnPortfolio", () => {
+  it("weighs the portfolio by call, flags SELL and lists the calls that changed", async () => {
+    renderWithProviders(<AgentsOnPortfolio />, { portfolio: portfolioRepo() })
+    expect(await screen.findByRole("img", { name: "SELL 51.0%" })).toBeInTheDocument()
+    expect(screen.getByText(/The agents rate/)).toHaveTextContent("The agents rate MSFT SELL: 51.0% of the portfolio")
+    const changed = screen.getByRole("region", { name: "Calls that changed" })
+    expect(within(changed).getByText("HOLD")).toBeInTheDocument()
+    expect(within(changed).getByText("Nov 13, 2026")).toBeInTheDocument()
+  })
+
+  it("waits for holdings, and shows a load error", async () => {
+    const none = { ...exposure, actions: [], changed: [] }
+    const { unmount } = renderWithProviders(<AgentsOnPortfolio />, {
+      portfolio: portfolioRepo({ getExposure: async () => none }),
+    })
+    expect(await screen.findByText(/once the portfolio holds something/)).toBeInTheDocument()
+    unmount()
+    renderWithProviders(<AgentsOnPortfolio />, {
+      portfolio: portfolioRepo({ getExposure: () => Promise.reject(new Error("down")) }),
+    })
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load the agents' view: down")
   })
 })
 

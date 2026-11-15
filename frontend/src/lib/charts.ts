@@ -188,3 +188,23 @@ export function returnSeries(series: PerformancePoint[], range: ReturnRange): Re
     benchmark: p.benchmark === null || base.benchmark === null ? null : (p.benchmark / base.benchmark - 1) * 100,
   }))
 }
+
+export interface Drawdown {
+  current: number // percent below the highest point so far (0 at a new high)
+  worst: number // the deepest fall from a previous high
+  peak: string | null // the day of the high the current fall is measured from
+}
+
+/** How far the time-weighted value fell from its highs; null before there are two points. */
+export function drawdown(series: PerformancePoint[]): Drawdown | null {
+  if (series.length < 2) return null
+  let high = series[0]!
+  let worst = 0
+  for (const p of series) {
+    if (p.index > high.index) high = p
+    worst = Math.min(worst, (p.index / high.index - 1) * 100)
+  }
+  const last = series.at(-1)!
+  const current = (last.index / high.index - 1) * 100
+  return { current, worst, peak: current < 0 ? high.day : null }
+}

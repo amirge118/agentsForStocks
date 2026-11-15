@@ -1,4 +1,5 @@
 import type {
+  Exposure,
   Performance,
   Portfolio,
   Position,
@@ -283,4 +284,22 @@ export const performance: Performance = {
     { day: "2026-11-03", value: 10050, flow: 0, index: 1.005, benchmark: 1.006 },
     { day: "2026-11-04", value: 10199, flow: 0, index: 1.0199, benchmark: 1.01 },
   ],
+}
+
+export const exposure: Exposure = {
+  sectors: [
+    { sector: "Technology", value: 5200, weight: 50.99, target: 40, drift: 10.99, symbols: ["MSFT"] },
+    { sector: "Energy", value: 0, weight: 0, target: 10, drift: -10, symbols: [] },
+    { sector: "Cash", value: 4999, weight: 49.01, target: null, drift: null, symbols: [] },
+  ],
+  risk: {
+    largest_symbol: "MSFT",
+    largest_weight: 50.99,
+    cash_weight: 49.01,
+    beta: 0.91,
+    beta_coverage: 100,
+    together: [{ first: "MSFT", second: "QQQ", correlation: 0.87, sessions: 60 }],
+  },
+  actions: [{ action: "SELL", value: 5200, weight: 50.99, symbols: ["MSFT"] }],
+  changed: [{ symbol: "MSFT", action: "SELL", previous: "HOLD", run_date: "2026-11-13" }],
 }
