@@ -6,12 +6,14 @@ import {
   agentRepository,
   llmRepository,
   outcomeRepository,
+  portfolioRepository,
   runRepository,
   symbolRepository,
   watchlistRepository,
   type AgentRepository,
   type LLMRepository,
   type OutcomeRepository,
+  type PortfolioRepository,
   type RunRepository,
   type SymbolRepository,
   type WatchlistRepository,
@@ -24,6 +26,7 @@ export interface Repositories {
   llm: LLMRepository
   watchlist: WatchlistRepository
   outcomes: OutcomeRepository
+  portfolio: PortfolioRepository
 }
 
 const defaultRepositories: Repositories = {
@@ -33,6 +36,7 @@ const defaultRepositories: Repositories = {
   llm: llmRepository,
   watchlist: watchlistRepository,
   outcomes: outcomeRepository,
+  portfolio: portfolioRepository,
 }
 
 const RepositoryContext = createContext<Repositories>(defaultRepositories)

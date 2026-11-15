@@ -5,12 +5,21 @@ import {
   formatDateTime,
   formatPercent,
   formatScore,
+  formatShare,
+  formatSignedCurrency,
   toneClasses,
 } from "@/lib/format"
 
 describe("finance formatting", () => {
   it("formats currency in USD", () => {
     expect(formatCurrency(1234.5)).toBe("$1,234.50")
+  })
+
+  it("signs money that moved, and shows a share without a sign", () => {
+    expect(formatSignedCurrency(1234.5)).toBe("+$1,234.50")
+    expect(formatSignedCurrency(-5)).toBe("-$5.00")
+    expect(formatSignedCurrency(0)).toBe("$0.00")
+    expect(formatShare(21.649)).toBe("21.6%")
   })
 
   it("signs percentages and scores", () => {

@@ -6,7 +6,12 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 const LINKS = [
-  { href: "/", label: "Watchlist", match: (path: string) => path === "/" || path.startsWith("/symbols") },
+  { href: "/", label: "Portfolio", match: (path: string) => path === "/" },
+  {
+    href: "/watchlist",
+    label: "Watchlist",
+    match: (path: string) => path.startsWith("/watchlist") || path.startsWith("/symbols"),
+  },
   { href: "/runs", label: "Runs", match: (path: string) => path.startsWith("/runs") },
   { href: "/agents", label: "Agents", match: (path: string) => path.startsWith("/agents") },
   {

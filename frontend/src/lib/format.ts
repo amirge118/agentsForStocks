@@ -4,6 +4,17 @@ export function formatCurrency(n: number): string {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD" })
 }
 
+/** Money with an explicit sign: 12.3 → "+$12.30", -5 → "-$5.00", 0 → "$0.00". */
+export function formatSignedCurrency(n: number): string {
+  const sign = n > 0 ? "+" : n < 0 ? "-" : ""
+  return `${sign}${formatCurrency(Math.abs(n))}`
+}
+
+/** A share of a whole, no sign: 21.64 → "21.6%". */
+export function formatShare(n: number): string {
+  return `${n.toFixed(1)}%`
+}
+
 /** Percentage with an explicit sign: 12.3 → "+12.30%". */
 export function formatPercent(n: number): string {
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`
