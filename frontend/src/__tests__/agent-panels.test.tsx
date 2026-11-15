@@ -57,11 +57,16 @@ describe("AgentPanels", () => {
 
     const moat = screen.getByRole("article", { name: "moat analysis" })
     expect(within(moat).getByText("80%")).toBeInTheDocument() // newest run, not the older 10%
-    expect(within(moat).getByText("No data from: edgar")).toBeInTheDocument()
-    expect(
-      within(moat).getByText("Needs review: model unavailable for 1 judgement: a rule-based fallback was used"),
-    ).toBeInTheDocument()
-    expect(within(moat).getByText("Broke its own rules: bullish without a moat")).toBeInTheDocument()
+    const note = (label: string) => within(moat).getByText(`${label}:`, { exact: false }).closest("div")
+    expect(note("Missing data")).toHaveTextContent("Missing data: edgar")
+    expect(note("Check before trusting")).toHaveTextContent(
+      "Check before trusting: model unavailable for 1 judgement: a rule-based fallback was used",
+    )
+    expect(note("Rule check")).toHaveTextContent("Rule check: bullish without a moat")
+    // Its share of today's score, from the recommendation's breakdown
+    expect(within(moat).getByText(/Weighs/).closest("p")).toHaveTextContent("Weighs 15 of 100 in the score · added +12.0")
+    expect(within(moat).getByText("+12.0")).toHaveClass("text-ok")
+    expect(within(screen.getByRole("article", { name: "risk analysis" })).getByText("-6.0")).toHaveClass("text-bad")
 
     const valuation = screen.getByRole("article", { name: "valuation analysis" })
     expect(within(valuation).getByText("+12.00%")).toHaveClass("text-ok")
@@ -78,6 +83,22 @@ describe("AgentPanels", () => {
     // A payload that doesn't match falls back instead of breaking the page
     const earnings = screen.getByRole("article", { name: "earnings analysis" })
     expect(within(earnings).getByText(/unexpected shape/)).toBeInTheDocument()
+  })
+})
+
+describe("AgentPanels groups", () => {
+  it("splits the analysts that count toward the score from those that only give context", async () => {
+    const weighted: AgentRepository = {
+      getAll: async () =>
+        (await agents.getAll()).map((a) => ({ ...a, recommendation_weight: a.name === "technicals" ? 0 : 10 })),
+    }
+    renderWithProviders(<AgentPanels symbol="AAPL" />, { symbols: symbols(async () => agentResults), agents: weighted })
+
+    const counting = await screen.findByRole("heading", { name: /Count toward the score/ })
+    const context = screen.getByRole("heading", { name: /Context only/ })
+    expect(counting.parentElement).not.toContainElement(screen.getByRole("article", { name: "technicals analysis" }))
+    expect(context.parentElement).toContainElement(screen.getByRole("article", { name: "technicals analysis" }))
+    expect(context.parentElement).not.toContainElement(screen.getByRole("article", { name: "moat analysis" }))
   })
 })
 
@@ -118,6 +139,59 @@ describe("AgentPanels variants", () => {
     expect(within(earnings).getByText("75%")).toHaveClass("text-ok")
     expect(within(earnings).getByText("+4.20%")).toBeInTheDocument()
     expect(within(earnings).getByText("2026-10-29")).toBeInTheDocument()
+  })
+
+  it("gives every analyst its own figures, with N/A for what wasn't reported", async () => {
+    const row = (agent_type: string, result: Record<string, unknown>) => ({
+      ...agentResults[1]!,
+      agent_type,
+      run_id: agent_type,
+      result: { signal: "bullish", confidence: 60, reasoning: `${agent_type} reasoning`, ...result },
+    })
+    const rows = [
+      row("financial_history", { revenue_cagr: 0.137, net_income_cagr: 0.164, fcf_cagr: -0.02 }),
+      row("moat", { avg_gross_margin: 0.688, gross_margin_variance: 0.0001, intangibles_pct: 0.18, moat_keywords: ["switching costs"] }),
+      row("institutional", { institutional_pct: 0.757, net_share_change: 33_774_968, direction: "accumulating", top5_concentration: null }),
+      row("growth", { analyst_coverage: 5, transcript_available: false, earnings_release_used: true }),
+      row("broad_analysis", { company_name: "Microsoft", sector: "Technology", industry: "Software", market_cap_b: 3868.9 }),
+      row("market_scanner", { observations: ["Volume near average"], risk_level: "low", metrics: { price_vs_sma20_pct: -1.04 } }),
+      row("outcome_review", { lessons: [] }),
+    ]
+    const all: AgentRepository = {
+      getAll: async () => {
+        const [template] = await agents.getAll()
+        return rows.map((r) => ({ ...template!, name: r.agent_type, description: "d" }))
+      },
+    }
+    renderWithProviders(<AgentPanels symbol="AAPL" />, { symbols: symbols(async () => rows), agents: all })
+
+    const history = await screen.findByRole("article", { name: "financial history analysis" })
+    expect(within(history).getByText("financial_history reasoning")).toBeVisible() // not behind a toggle
+    expect(within(history).getByText("+13.70%/yr")).toHaveClass("text-ok")
+    expect(within(history).getByText("-2.00%/yr")).toHaveClass("text-bad")
+
+    const moat = screen.getByRole("article", { name: "moat analysis" })
+    expect(within(moat).getByText("68.8%")).toBeInTheDocument()
+    expect(within(moat).getByText("±1.0 pts")).toBeInTheDocument()
+    expect(within(moat).getByText("switching costs")).toBeInTheDocument()
+
+    const institutional = screen.getByRole("article", { name: "institutional analysis" })
+    expect(within(institutional).getByText("75.7%")).toBeInTheDocument()
+    expect(within(institutional).getByText("N/A")).toBeInTheDocument()
+    expect(within(institutional).getByText("+33.8M sh")).toHaveClass("text-ok")
+
+    const growth = screen.getByRole("article", { name: "growth analysis" })
+    expect(within(growth).getByText("Earnings release")).toBeInTheDocument()
+
+    const broad = screen.getByRole("article", { name: "broad analysis analysis" })
+    expect(within(broad).getByText("$3,868.9B")).toBeInTheDocument()
+
+    const scanner = screen.getByRole("article", { name: "market scanner analysis" })
+    expect(within(scanner).getByText("-1.04%")).toHaveClass("text-bad")
+    expect(within(scanner).getByText("Volume near average")).toBeInTheDocument()
+
+    const review = screen.getByRole("article", { name: "outcome review analysis" })
+    expect(within(review).getByText(/nothing to learn from/)).toBeInTheDocument()
   })
 
   it("shows N/A, not 0, for risk figures the sources didn't report", async () => {
