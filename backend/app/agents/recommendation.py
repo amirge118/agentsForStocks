@@ -30,6 +30,7 @@ from app.agents.base import (
     quant_fallback,
 )
 from app.agents.formatting import knowledge_block
+from app.agents.refresh import has_no_evidence
 from app.agents.registry import register_agent, registry
 from app.domain.compliance import DISCLAIMER, review_recommendation
 from app.domain.outcomes import REVIEW_HORIZON, TrackRecord
@@ -59,6 +60,9 @@ INPUT_AGENTS = (
     "earnings",
 )
 _MIN_AGENTS_FOR_CONVICTION = 4
+# Analysts with nothing to judge holding this share of the weight or more: review
+# (one of the two heaviest analysts, or financial_history and earnings on 2026-11-04)
+NO_EVIDENCE_REVIEW_SHARE = 0.2
 # Track record in the prompt: settled calls counted, lessons quoted
 TRACK_CALLS = 20
 LESSONS_SAME_SYMBOL = 3
@@ -162,18 +166,32 @@ class RecommendationAgent(Agent[RecommendationData, RecommendationResult]):
             disclaimer=DISCLAIMER,
             summary=f"RECOMMENDATION: {action} ({judgement.confidence:.0f}%) "
             f"score={score.score:+.1f} — {reasoning}",
-            needs_review=_review_reasons(score, available),
+            needs_review=_review_reasons(score, available, data.results),
         )
 
 
-def _review_reasons(score: WeightedScore, available: int) -> list[str]:
+def _review_reasons(
+    score: WeightedScore, available: int, results: dict[str, dict[str, Any]]
+) -> list[str]:
     """
     Why this call should be checked before it is trusted: a HOLD for lack of
     analysts is not a view on the stock, and an analyst's fallback is not a judgement.
+    An analyst with nothing to judge adds 0 to the score, so when enough of the
+    weight has no evidence the score leans to HOLD whatever the stock is.
     """
     reasons = []
     if available < _MIN_AGENTS_FOR_CONVICTION:
         reasons.append(f"only {available}/{len(INPUT_AGENTS)} analysts reported")
+    else:
+        empty = [
+            c
+            for c in score.contributions
+            if c.weight > 0 and (c.signal == "missing" or has_no_evidence(results[c.agent]))
+        ]
+        share = sum(c.weight for c in empty) / sum(c.weight for c in score.contributions)
+        if share >= NO_EVIDENCE_REVIEW_SHARE:
+            names = ", ".join(c.agent for c in empty)
+            reasons.append(f"no evidence from {names} ({share:.0%} of the weight)")
     fell_back = [c.agent for c in score.contributions if c.needs_review and c.weight > 0]
     if fell_back:
         reasons.append(f"analysts needing review: {', '.join(fell_back)}")

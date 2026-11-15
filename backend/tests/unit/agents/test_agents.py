@@ -238,6 +238,44 @@ async def test_recommendation_holds_without_enough_analysts() -> None:
     assert result.needs_review == ["only 2/8 analysts reported"]
 
 
+NO_EVIDENCE = {"signal": "neutral", "confidence": 0.0, "data_gaps": ["income"], "reasoning": "-"}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("empty", "missing", "expected"),
+    [
+        # 2026-11-04: the score can't move by a quarter of its weight
+        (
+            ["financial_history", "earnings"],
+            [],
+            ["no evidence from earnings, financial_history (25% of the weight)"],
+        ),
+        (["valuation"], [], ["no evidence from valuation (20% of the weight)"]),
+        (["institutional"], ["earnings"], []),  # 10%: a small part of the score
+        (["institutional"], ["moat"], ["no evidence from institutional, moat (20% of the weight)"]),
+        ([], [], []),
+    ],
+)
+async def test_recommendation_flags_a_score_held_back_by_analysts_with_nothing_to_judge(
+    empty: list[str], missing: list[str], expected: list[str]
+) -> None:
+    results = _analyst_results("bearish")
+    results.update({name: dict(NO_EVIDENCE) for name in empty})
+    for name in missing:
+        del results[name]
+    _, result = await _run(RecommendationAgent, llm=FakeLLM(), results=FakeResults(results))
+    assert result.needs_review == expected
+
+
+@pytest.mark.unit
+async def test_a_neutral_analyst_that_had_its_data_is_evidence() -> None:
+    results = _analyst_results("bullish")
+    results["valuation"] = {"signal": "neutral", "confidence": 0.0, "data_gaps": []}
+    _, result = await _run(RecommendationAgent, llm=FakeLLM(), results=FakeResults(results))
+    assert result.needs_review == []
+
+
 @pytest.mark.unit
 async def test_recommendation_names_analysts_that_fell_back() -> None:
     results = _analyst_results("bullish")

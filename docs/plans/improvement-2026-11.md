@@ -12,8 +12,9 @@ Each step is its own PR. Items refer to `FUTURE_IMPROVEMENTS.md`.
 
 **1a. Mark a recommendation built on thin evidence.** When several analysts come back neutral at 0%
 with data gaps, the recommendation gets `needs_review` with the reason (section 3: "A recommendation
-built on many no-evidence analysts"). A contract rule in `app/agents/contracts.py`, tests through
-`AgentRunner`.
+built on many no-evidence analysts"). In the recommendation's own review reasons
+(`app/agents/recommendation.py`): analysts with nothing to judge, or missing, holding 20% of the
+weight or more. Done 2026-11-15.
 
 **1b. Round 3 of the recommendation.** The prompt gets each analyst's short reasoning, not only its
 signal (planned in `docs/agent-journal.md`). Ships only with an eval report: current vs new
