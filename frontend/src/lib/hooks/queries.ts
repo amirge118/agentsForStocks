@@ -6,7 +6,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRepositories } from "@/lib/api/repository-context"
 import type { RunFilters } from "@/lib/api/repositories"
 import { toast } from "@/lib/hooks/use-toast"
-import type { AgentResult, Horizon, PipelineRunRequest, PriceRange, SymbolOverview, UsageGroup } from "@/types/api"
+import type {
+  AgentResult,
+  Horizon,
+  PipelineRunRequest,
+  PriceRange,
+  SymbolOverview,
+  TransactionIn,
+  UsageGroup,
+} from "@/types/api"
 
 export const queryKeys = {
   symbols: ["symbols"] as const,
@@ -22,6 +30,8 @@ export const queryKeys = {
   symbolOutcomes: (symbol: string, horizon: Horizon) =>
     ["symbols", symbol, "outcomes", horizon] as const,
   trackRecord: (horizon: Horizon) => ["outcomes", "track-record", horizon] as const,
+  portfolio: ["portfolio"] as const,
+  transactions: ["portfolio", "transactions"] as const,
 }
 
 /** The newest stored result of each agent (rows arrive newest first). */
@@ -186,4 +196,51 @@ export function useTrackRecord(horizon: Horizon) {
     queryKey: queryKeys.trackRecord(horizon),
     queryFn: () => outcomes.getTrackRecord(horizon),
   })
+}
+
+/** The portfolio at today's prices; quotes refresh every minute while the page is open. */
+export function usePortfolio() {
+  const { portfolio } = useRepositories()
+  return useQuery({
+    queryKey: queryKeys.portfolio,
+    queryFn: () => portfolio.get(),
+    refetchInterval: 60_000,
+  })
+}
+
+export function useTransactions() {
+  const { portfolio } = useRepositories()
+  return useQuery({ queryKey: queryKeys.transactions, queryFn: () => portfolio.getTransactions() })
+}
+
+/**
+ * Record, change or remove a ledger entry. The API refuses one that breaks the ledger
+ * (selling shares not held, spending cash not there) and says why; that reason is the
+ * error shown. A symbol bought joins the watchlist, so the overview refreshes too.
+ */
+export function usePortfolioMutations() {
+  const { portfolio } = useRepositories()
+  const queryClient = useQueryClient()
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.portfolio })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.symbols })
+  }
+  const fail = (title: string) => (error: Error) => toast({ variant: "destructive", title, description: error.message })
+  return {
+    add: useMutation({
+      mutationFn: (body: TransactionIn) => portfolio.addTransaction(body),
+      onSuccess: refresh,
+      onError: fail("Could not record the transaction"),
+    }),
+    update: useMutation({
+      mutationFn: ({ id, body }: { id: number; body: TransactionIn }) => portfolio.updateTransaction(id, body),
+      onSuccess: refresh,
+      onError: fail("Could not change the transaction"),
+    }),
+    remove: useMutation({
+      mutationFn: (id: number) => portfolio.deleteTransaction(id),
+      onSuccess: refresh,
+      onError: fail("Could not delete the transaction"),
+    }),
+  }
 }

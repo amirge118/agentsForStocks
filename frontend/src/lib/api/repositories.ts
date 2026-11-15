@@ -12,12 +12,14 @@ import {
   LLMProviderSchema,
   LLMUsageReportSchema,
   PipelineRunAcceptedSchema,
+  PortfolioSchema,
   PriceHistorySchema,
   RecommendationSchema,
   SymbolOverviewSchema,
   WatchlistItemSchema,
   SymbolTrackRecordSchema,
   TrackRecordReportSchema,
+  TransactionSchema,
   type AgentInfo,
   type AgentResult,
   type AgentRun,
@@ -26,6 +28,7 @@ import {
   type LLMUsageReport,
   type PipelineRunAccepted,
   type PipelineRunRequest,
+  type Portfolio,
   type PriceHistory,
   type PriceRange,
   type Recommendation,
@@ -34,6 +37,8 @@ import {
   type SymbolOverview,
   type SymbolTrackRecord,
   type TrackRecordReport,
+  type Transaction,
+  type TransactionIn,
   type UsageGroup,
   type WatchlistItem,
 } from "@/types/api"
@@ -57,6 +62,14 @@ export interface WatchlistRepository {
   add(symbol: string): Promise<WatchlistItem>
   remove(symbol: string): Promise<void>
   reorder(symbols: string[]): Promise<WatchlistItem[]>
+}
+
+export interface PortfolioRepository {
+  get(): Promise<Portfolio>
+  getTransactions(): Promise<Transaction[]>
+  addTransaction(body: TransactionIn): Promise<Transaction>
+  updateTransaction(id: number, body: TransactionIn): Promise<Transaction>
+  deleteTransaction(id: number): Promise<void>
 }
 
 export interface AgentRepository {
@@ -131,4 +144,12 @@ export const llmRepository: LLMRepository = {
   getRunCalls: (runId) =>
     get(`/runs/${encodeURIComponent(runId)}/llm-calls`, z.array(LLMCallSchema)),
   getProviders: () => get("/llm/providers", z.array(LLMProviderSchema)),
+}
+
+export const portfolioRepository: PortfolioRepository = {
+  get: () => get("/portfolio", PortfolioSchema),
+  getTransactions: () => get("/portfolio/transactions", z.array(TransactionSchema)),
+  addTransaction: (body) => post("/portfolio/transactions", TransactionSchema, body),
+  updateTransaction: (id, body) => put(`/portfolio/transactions/${id}`, TransactionSchema, body),
+  deleteTransaction: (id) => del(`/portfolio/transactions/${id}`, z.undefined()),
 }

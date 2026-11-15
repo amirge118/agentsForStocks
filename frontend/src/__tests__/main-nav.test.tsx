@@ -7,7 +7,8 @@ jest.mock("next/navigation", () => ({ usePathname: () => usePathname() }))
 
 describe("MainNav", () => {
   it.each([
-    ["/", "Watchlist"],
+    ["/", "Portfolio"],
+    ["/watchlist", "Watchlist"],
     ["/symbols/AAPL", "Watchlist"],
     ["/runs/p1", "Runs"],
     ["/agents", "Agents"],
@@ -23,9 +24,9 @@ describe("MainNav", () => {
     others.forEach((link) => expect(link).not.toHaveAttribute("aria-current"))
   })
 
-  it("falls back to the watchlist when the path is unknown", () => {
+  it("falls back to the portfolio, the first page, when the path is unknown", () => {
     usePathname.mockReturnValue(null)
     render(<MainNav />)
-    expect(screen.getByRole("link", { name: "Watchlist" })).toHaveAttribute("aria-current", "page")
+    expect(screen.getByRole("link", { name: "Portfolio" })).toHaveAttribute("aria-current", "page")
   })
 })

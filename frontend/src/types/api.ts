@@ -244,6 +244,59 @@ export const WatchlistItemSchema = z.object({
 })
 
 // ---------------------------------------------------------------------------
+// Portfolio ledger. The API replays the ledger in exact decimals and answers numbers.
+// A position without any price has null price, value and P/L: never shown as 0.
+// ---------------------------------------------------------------------------
+export const TransactionKindSchema = z.enum(["DEPOSIT", "WITHDRAW", "BUY", "SELL", "DIVIDEND", "TRANSFER_IN"])
+
+export const TransactionSchema = z.object({
+  id: z.number().int(),
+  trade_date: z.string(),
+  kind: TransactionKindSchema,
+  symbol: z.string().nullable(),
+  shares: z.number().nullable(),
+  price: z.number().nullable(),
+  fee: z.number(),
+  amount: z.number().nullable(),
+  note: z.string().nullable(),
+  created_at: z.string(),
+})
+
+export const PositionSchema = z.object({
+  symbol: z.string(),
+  shares: z.number(),
+  avg_cost: z.number(),
+  cost_basis: z.number(),
+  realised_pnl: z.number(),
+  dividends: z.number(),
+  price: z.number().nullable(),
+  price_as_of: z.string().nullable(),
+  price_stale: z.boolean(),
+  value: z.number().nullable(),
+  unrealised_pnl: z.number().nullable(),
+  unrealised_pct: z.number().nullable(),
+  day_change: z.number().nullable(),
+  weight: z.number().nullable(),
+})
+
+export const PortfolioSchema = z.object({
+  cash: z.number(),
+  holdings_value: z.number(),
+  total_value: z.number(),
+  unrealised_pnl: z.number(),
+  day_change: z.number(),
+  day_change_pct: z.number().nullable(),
+  cost_basis: z.number(),
+  deposited: z.number(),
+  transferred_in: z.number(),
+  realised_pnl: z.number(),
+  dividends: z.number(),
+  fees: z.number(),
+  unpriced: z.array(z.string()),
+  positions: z.array(PositionSchema),
+})
+
+// ---------------------------------------------------------------------------
 // Agent result payloads. /results returns each agent's stored result as a loose
 // record; panels parse it with these (safeParse) and fall back to the generic
 // panel when a payload does not match, so a changed agent never breaks the page.
@@ -396,6 +449,11 @@ export type PriceRange = z.infer<typeof PriceRangeSchema>
 export type WatchlistItem = z.infer<typeof WatchlistItemSchema>
 export type PriceBar = z.infer<typeof PriceBarSchema>
 export type PriceHistory = z.infer<typeof PriceHistorySchema>
+export type TransactionKind = z.infer<typeof TransactionKindSchema>
+export type Transaction = z.infer<typeof TransactionSchema>
+export type TransactionIn = Schemas["TransactionIn"]
+export type Position = z.infer<typeof PositionSchema>
+export type Portfolio = z.infer<typeof PortfolioSchema>
 export type BaseAgentResult = z.infer<typeof BaseAgentResultSchema>
 export type ValuationResult = z.infer<typeof ValuationResultSchema>
 export type TechnicalsResult = z.infer<typeof TechnicalsResultSchema>
@@ -433,4 +491,7 @@ export type ContractChecks = [
   Assert<Exact<PriceBar, Schemas["PriceBarOut"]>>,
   Assert<Exact<PriceHistory, Schemas["PriceHistory"]>>,
   Assert<Exact<WatchlistItem, Schemas["WatchlistItemOut"]>>,
+  Assert<Exact<Transaction, Schemas["TransactionOut"]>>,
+  Assert<Exact<Position, Schemas["PositionOut"]>>,
+  Assert<Exact<Portfolio, Schemas["PortfolioOut"]>>,
 ]

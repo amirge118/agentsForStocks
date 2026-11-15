@@ -111,7 +111,8 @@ public. PR screenshots use the E2E mocks.
    the TTL per kind, the bounded cache, the batched quote with a stale fallback. Most of the tests
    live here: table-driven ledgers with known results, every refused write, a round trip.
 2. **The page.** Summary (total, P/L, today), positions with the agents' view, the transaction form
-   and list; the watchlist moves to `/watchlist`.
+   and list; the watchlist moves to `/watchlist`. Done 2026-11-15; editing an entry from the page waits
+   (delete and record it again).
 3. **Performance.** The week, this week's movers, time-weighted return, the chart against SPY.
 4. **Sectors, risk and the agents' view.** Sector weights and targets (`sector_targets`), the risk
    figures, the action exposure, the "moves together" groups from daily returns.

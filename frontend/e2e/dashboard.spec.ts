@@ -6,11 +6,13 @@ import {
   llmProviders,
   llmUsage,
   overview,
+  portfolio,
   priceHistory,
   recommendation,
   runs,
   symbolTrackRecord,
   trackRecord,
+  transactions,
 } from "../src/test/fixtures"
 
 const API = "**/api/backend"
@@ -43,6 +45,8 @@ async function mockApi(page: Page): Promise<string[]> {
   await page.route(`${API}/llm/usage**`, (route) => json(route, llmUsage))
   await page.route(`${API}/llm/providers`, (route) => json(route, llmProviders))
   await page.route(`${API}/outcomes/track-record**`, (route) => json(route, trackRecord))
+  await page.route(`${API}/portfolio`, (route) => json(route, portfolio))
+  await page.route(`${API}/portfolio/transactions`, (route) => json(route, transactions))
   await page.route(`${API}/symbols/*/outcomes**`, (route) => json(route, symbolTrackRecord))
   await page.route(`${API}/pipeline/runs`, async (route) => {
     posted.push(route.request().postData() ?? "")
@@ -57,7 +61,7 @@ async function mockApi(page: Page): Promise<string[]> {
 
 test("watchlist links through to the recommendation detail", async ({ page }) => {
   await mockApi(page)
-  await page.goto("/")
+  await page.goto("/watchlist")
 
   await expect(page.getByRole("link", { name: "AAPL" })).toBeVisible()
   await expect(page.getByText("Not analysed yet")).toBeVisible()
@@ -95,7 +99,7 @@ test("symbol without a recommendation explains what to do", async ({ page }) => 
 
 test("starting an analysis confirms with a toast", async ({ page }) => {
   const posted = await mockApi(page)
-  await page.goto("/")
+  await page.goto("/watchlist")
   // The button is server-rendered: wait for client data (proves React hydrated) before clicking
   await expect(page.getByRole("link", { name: "AAPL" })).toBeVisible()
   await page.getByRole("button", { name: "Run analysis" }).click()
@@ -161,7 +165,7 @@ async function mockWatchlist(page: Page): Promise<string[]> {
 test("adding, reordering and removing watchlist symbols", async ({ page }) => {
   await mockApi(page)
   const calls = await mockWatchlist(page)
-  await page.goto("/")
+  await page.goto("/watchlist")
 
   await page.getByLabel("Ticker symbol").fill("nvda")
   await page.getByRole("button", { name: "Add", exact: true }).click()
@@ -193,7 +197,7 @@ test("the analysis reads as a story that ends on the verdict", async ({ page }) 
 
 test("track record page and a symbol's past calls", async ({ page }) => {
   await mockApi(page)
-  await page.goto("/")
+  await page.goto("/watchlist")
   await page.getByRole("link", { name: "Track record" }).click()
   await expect(page).toHaveURL(/\/track-record$/)
   const table = page.getByRole("table", { name: "Track record" })
@@ -212,7 +216,7 @@ test("on a phone, each row's actions are in one menu", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await mockApi(page)
   const calls = await mockWatchlist(page)
-  await page.goto("/")
+  await page.goto("/watchlist")
 
   await expect(page.getByRole("button", { name: "Move MSFT up" })).toBeHidden()
   await page.getByRole("button", { name: "Actions for MSFT" }).click()
@@ -224,7 +228,7 @@ test("on a phone, each row's actions are in one menu", async ({ page }) => {
 test("a row can be dragged into place with the keyboard", async ({ page }) => {
   await mockApi(page)
   const calls = await mockWatchlist(page)
-  await page.goto("/")
+  await page.goto("/watchlist")
 
   const handle = page.getByRole("button", { name: "Reorder AAPL" })
   const announced = page.locator('[id^="DndLiveRegion"]')
@@ -249,4 +253,35 @@ test("the story keeps a running score beside the act being read", async ({ page 
 
   await page.getByRole("region", { name: "The verdict" }).evaluate((el) => el.scrollIntoView({ block: "center" }))
   await expect(total).toHaveText("+6.0")
+})
+
+test("the portfolio is the first page: holdings, the agents' call, and a new entry", async ({ page }) => {
+  await mockApi(page)
+  const posted: unknown[] = []
+  // Registered after mockApi, so it wins for the transactions
+  await page.route(`${API}/portfolio/transactions`, async (route) => {
+    if (route.request().method() === "POST") {
+      expect(route.request().headers()["content-type"]).toBe("application/json")
+      posted.push(route.request().postDataJSON())
+      return json(route, { ...transactions[1], id: 3, note: null }, 201)
+    }
+    return json(route, transactions)
+  })
+  await page.goto("/")
+
+  await expect(page.getByRole("link", { name: "Portfolio" })).toHaveAttribute("aria-current", "page")
+  const summary = page.getByRole("region", { name: "Portfolio summary" })
+  await expect(summary).toContainText("$10,199.00")
+  await expect(summary).toContainText("+$100.00")
+  await expect(page.getByRole("link", { name: "MSFT" })).toBeVisible()
+  await expect(page.getByText("opening cash")).toBeVisible()
+
+  await page.getByLabel("Amount ($)").fill("2500")
+  await page.getByRole("button", { name: "Record deposit" }).click()
+  await expect.poll(() => posted.length).toBe(1)
+  expect(posted[0]).toMatchObject({ kind: "DEPOSIT", amount: "2500", symbol: null })
+
+  await page.getByRole("link", { name: "Watchlist" }).click()
+  await expect(page).toHaveURL(/\/watchlist$/)
+  await expect(page.getByRole("link", { name: "AAPL" })).toBeVisible()
 })

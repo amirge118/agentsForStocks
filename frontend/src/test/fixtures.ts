@@ -1,4 +1,7 @@
 import type {
+  Portfolio,
+  Position,
+  Transaction,
   AgentResult,
   AgentRun,
   LLMCall,
@@ -201,4 +204,65 @@ export const agentResults: AgentResult[] = [
   resultRow("moat", base("neutral", 10, "older run"), "2026-10-22"),
   resultRow("recommendation", { ...recommendation, weighted_score: 3, action: "HOLD" }, "2026-10-22"),
   resultRow("recommendation", { ...recommendation, weighted_score: -20, action: "SELL" }, "2026-10-21"),
+]
+
+export const msftPosition: Position = {
+  symbol: "MSFT",
+  shares: 10,
+  avg_cost: 500.1,
+  cost_basis: 5001,
+  realised_pnl: 0,
+  dividends: 0,
+  price: 520,
+  price_as_of: "2026-11-13",
+  price_stale: false,
+  value: 5200,
+  unrealised_pnl: 199,
+  unrealised_pct: 3.979,
+  day_change: 100,
+  weight: 52,
+}
+
+export const portfolio: Portfolio = {
+  cash: 4999,
+  holdings_value: 5200,
+  total_value: 10199,
+  unrealised_pnl: 199,
+  day_change: 100,
+  day_change_pct: 0.99,
+  cost_basis: 5001,
+  deposited: 10000,
+  transferred_in: 0,
+  realised_pnl: 0,
+  dividends: 0,
+  fees: 1,
+  unpriced: [],
+  positions: [msftPosition],
+}
+
+export const transactions: Transaction[] = [
+  {
+    id: 2,
+    trade_date: "2026-11-03",
+    kind: "BUY",
+    symbol: "MSFT",
+    shares: 10,
+    price: 500,
+    fee: 1,
+    amount: null,
+    note: null,
+    created_at: "2026-11-03T10:00:00Z",
+  },
+  {
+    id: 1,
+    trade_date: "2026-11-02",
+    kind: "DEPOSIT",
+    symbol: null,
+    shares: null,
+    price: null,
+    fee: 0,
+    amount: 10000,
+    note: "opening cash",
+    created_at: "2026-11-02T10:00:00Z",
+  },
 ]
