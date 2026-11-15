@@ -11,6 +11,7 @@ from app.container import build_container
 from app.core.config import Settings
 from app.main import app
 from app.providers.yfinance import Quote
+from app.repositories.agent_results import AgentResultRepository
 from app.repositories.daily_closes import DailyCloseRepository
 from app.repositories.watchlist import WatchlistRepository
 
@@ -235,3 +236,67 @@ async def test_performance_fetches_the_missing_closes_once_and_beats_spy_or_not(
     # The closes are stored now: the next view fetches nothing
     await api.get("/api/v1/portfolio/performance")
     assert len(app.state.container.history) == 1
+
+
+async def _store(agent: str, symbol: str, day: date, result: dict) -> None:
+    async with app.state.container.session_factory() as session:
+        await AgentResultRepository(session).upsert(
+            agent_type=agent, symbol=symbol, run_date=day, run_id="r", result=result
+        )
+        await session.commit()
+
+
+@pytest.mark.integration
+async def test_exposure_sectors_risk_and_the_agents_calls(api: httpx.AsyncClient) -> None:
+    for body in (
+        _tx("DEPOSIT", amount=10000),
+        _tx("BUY", symbol="MSFT", shares=10, price=500),
+        _tx("TRANSFER_IN", symbol="SPY", shares=4, price=500),
+    ):
+        assert (await api.post("/api/v1/portfolio/transactions", json=body)).status_code == 201
+    live = app.state.container.live
+    live["MSFT"] = _quote("MSFT", 520, 510)
+    live["SPY"] = _quote("SPY", 500, 500)
+    earlier, later = date(2026, 11, 12), date(2026, 11, 13)
+    await _store("broad_analysis", "MSFT", later, {"sector": "Technology"})
+    await _store("risk", "MSFT", later, {"beta": 1.2})
+    await _store("recommendation", "MSFT", earlier, {"action": "HOLD"})
+    await _store("recommendation", "MSFT", later, {"action": "BUY"})
+    await _store("technicals", "SPY", later, {"signal": "neutral"})  # no company agents: a fund
+
+    targets = [{"sector": " Technology ", "target_pct": 40}, {"sector": "Energy", "target_pct": 5}]
+    saved = await api.put("/api/v1/portfolio/sector-targets", json=targets)
+    assert saved.status_code == 200
+    assert [t["sector"] for t in saved.json()] == ["Energy", "Technology"]
+
+    out = (await api.get("/api/v1/portfolio/exposure")).json()
+    total = 5000 + 5200 + 2000
+    sectors = {s["sector"]: s for s in out["sectors"]}
+    assert [s["sector"] for s in out["sectors"]] == ["Technology", "Fund", "Energy", "Cash"]
+    assert sectors["Technology"]["weight"] == pytest.approx(5200 / total * 100)
+    assert sectors["Technology"]["drift"] == pytest.approx(5200 / total * 100 - 40)
+    assert sectors["Energy"]["weight"] == 0 and sectors["Energy"]["drift"] == -5
+    risk = out["risk"]
+    assert risk["largest_symbol"] == "MSFT" and risk["beta"] == pytest.approx(1.2)
+    assert risk["beta_coverage"] == pytest.approx(5200 / 7200 * 100)  # SPY has no beta
+    assert [(a["action"], a["symbols"]) for a in out["actions"]] == [
+        ("BUY", ["MSFT"]),
+        ("Not analysed yet", ["SPY"]),
+    ]
+    assert out["changed"] == [
+        {"symbol": "MSFT", "action": "BUY", "previous": "HOLD", "run_date": "2026-11-13"}
+    ]
+
+
+@pytest.mark.integration
+async def test_sector_targets_are_checked(api: httpx.AsyncClient) -> None:
+    put = "/api/v1/portfolio/sector-targets"
+    assert (await api.put(put, json=[{"sector": "A", "target_pct": 101}])).status_code == 422
+    assert (await api.put(put, json=[{"sector": "  ", "target_pct": 5}])).status_code == 422
+    twice = [{"sector": "A", "target_pct": 5}, {"sector": "A", "target_pct": 6}]
+    assert (await api.put(put, json=twice)).status_code == 422
+    many = [{"sector": f"S{i}", "target_pct": 1} for i in range(51)]
+    assert (await api.put(put, json=many)).status_code == 422
+    assert (await api.put(put, json=[])).json() == []
+    empty = (await api.get("/api/v1/portfolio/exposure")).json()
+    assert [s["sector"] for s in empty["sectors"]] == ["Cash"] and empty["actions"] == []

@@ -1,6 +1,7 @@
 import {
   actionMarkers,
   consensus,
+  drawdown,
   isStale,
   marketDaysBetween,
   priceSeries,
@@ -106,5 +107,22 @@ describe("returnSeries", () => {
     expect(rangeStart("3M", "2026-11-04")).toBe("2026-08-04")
     expect(rangeStart("YTD", "2026-11-04")).toBe("2026-01-01")
     expect(rangeStart("All", "2026-11-04")).toBe("")
+  })
+})
+
+describe("drawdown", () => {
+  const point = (day: string, index: number) => ({ day, value: 1, flow: 0, index, benchmark: null })
+
+  it("measures the fall from the highest point so far, and the worst one", () => {
+    const series = [point("d1", 1), point("d2", 1.2), point("d3", 0.9), point("d4", 1.08)]
+    const fall = drawdown(series)!
+    expect(fall.current).toBeCloseTo(-10)
+    expect(fall.worst).toBeCloseTo(-25)
+    expect(fall.peak).toBe("d2")
+  })
+
+  it("is 0 at a new high, and needs two points", () => {
+    expect(drawdown([point("d1", 1), point("d2", 1.1)])).toEqual({ current: 0, worst: 0, peak: null })
+    expect(drawdown([point("d1", 1)])).toBeNull()
   })
 })

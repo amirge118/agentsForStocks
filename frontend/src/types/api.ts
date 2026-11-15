@@ -311,6 +311,55 @@ export const MoverSchema = z.object({
   change_pct: z.number(),
 })
 
+// Exposure: sectors against targets, risk readings, and the agents' calls on the holdings.
+export const SectorShareSchema = z.object({
+  sector: z.string(),
+  value: z.number(),
+  weight: z.number(),
+  target: z.number().nullable(),
+  drift: z.number().nullable(),
+  symbols: z.array(z.string()),
+})
+
+export const PairSchema = z.object({
+  first: z.string(),
+  second: z.string(),
+  correlation: z.number(),
+  sessions: z.number().int(),
+})
+
+export const RiskSchema = z.object({
+  largest_symbol: z.string().nullable(),
+  largest_weight: z.number().nullable(),
+  cash_weight: z.number().nullable(),
+  beta: z.number().nullable(),
+  beta_coverage: z.number().nullable(),
+  together: z.array(PairSchema),
+})
+
+export const ActionShareSchema = z.object({
+  action: z.string(),
+  value: z.number(),
+  weight: z.number(),
+  symbols: z.array(z.string()),
+})
+
+export const CallChangeSchema = z.object({
+  symbol: z.string(),
+  action: ActionSchema,
+  previous: ActionSchema,
+  run_date: z.string(),
+})
+
+export const ExposureSchema = z.object({
+  sectors: z.array(SectorShareSchema),
+  risk: RiskSchema,
+  actions: z.array(ActionShareSchema),
+  changed: z.array(CallChangeSchema),
+})
+
+export const SectorTargetSchema = z.object({ sector: z.string(), target_pct: z.number() })
+
 export const PerformanceSchema = z.object({
   benchmark: z.string(),
   since: z.string().nullable(),
@@ -485,6 +534,14 @@ export type Portfolio = z.infer<typeof PortfolioSchema>
 export type PerformancePoint = z.infer<typeof PerformancePointSchema>
 export type Mover = z.infer<typeof MoverSchema>
 export type Performance = z.infer<typeof PerformanceSchema>
+export type SectorShare = z.infer<typeof SectorShareSchema>
+export type Pair = z.infer<typeof PairSchema>
+export type Risk = z.infer<typeof RiskSchema>
+export type ActionShare = z.infer<typeof ActionShareSchema>
+export type CallChange = z.infer<typeof CallChangeSchema>
+export type Exposure = z.infer<typeof ExposureSchema>
+export type SectorTarget = z.infer<typeof SectorTargetSchema>
+export type SectorTargetIn = Schemas["SectorTargetIn"]
 export type BaseAgentResult = z.infer<typeof BaseAgentResultSchema>
 export type ValuationResult = z.infer<typeof ValuationResultSchema>
 export type TechnicalsResult = z.infer<typeof TechnicalsResultSchema>
@@ -528,4 +585,11 @@ export type ContractChecks = [
   Assert<Exact<PerformancePoint, Schemas["PerformancePointOut"]>>,
   Assert<Exact<Mover, Schemas["MoverOut"]>>,
   Assert<Exact<Performance, Schemas["PerformanceOut"]>>,
+  Assert<Exact<SectorShare, Schemas["SectorShareOut"]>>,
+  Assert<Exact<Pair, Schemas["PairOut"]>>,
+  Assert<Exact<Risk, Schemas["RiskOut"]>>,
+  Assert<Exact<ActionShare, Schemas["ActionShareOut"]>>,
+  Assert<Exact<CallChange, Schemas["CallChangeOut"]>>,
+  Assert<Exact<Exposure, Schemas["ExposureOut"]>>,
+  Assert<Exact<SectorTarget, Schemas["SectorTargetOut"]>>,
 ]

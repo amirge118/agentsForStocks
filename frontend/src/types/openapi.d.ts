@@ -126,6 +126,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portfolio/exposure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Exposure */
+        get: operations["get_exposure_api_v1_portfolio_exposure_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portfolio/performance": {
         parameters: {
             query?: never;
@@ -136,6 +153,26 @@ export interface paths {
         /** Get Performance */
         get: operations["get_performance_api_v1_portfolio_performance_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolio/sector-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Sector Targets
+         * @description Replaces every target: a sector left out has none after.
+         */
+        put: operations["set_sector_targets_api_v1_portfolio_sector_targets_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -378,6 +415,20 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActionShareOut */
+        ActionShareOut: {
+            /**
+             * Action
+             * @description BUY / HOLD / SELL, or "Not analysed yet"
+             */
+            action: string;
+            /** Symbols */
+            symbols: string[];
+            /** Value */
+            value: number;
+            /** Weight */
+            weight: number;
+        };
         /** AgentInfo */
         AgentInfo: {
             /** Depends On */
@@ -497,6 +548,26 @@ export interface components {
             by_signal: components["schemas"]["TrackGroupOut"][];
             overall: components["schemas"]["TrackStatsOut"];
         };
+        /** CallChangeOut */
+        CallChangeOut: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "BUY" | "SELL" | "HOLD";
+            /**
+             * Previous
+             * @enum {string}
+             */
+            previous: "BUY" | "SELL" | "HOLD";
+            /**
+             * Run Date
+             * Format: date
+             */
+            run_date: string;
+            /** Symbol */
+            symbol: string;
+        };
         /** ComplianceFindingView */
         ComplianceFindingView: {
             /** Phrase */
@@ -544,6 +615,19 @@ export interface components {
             signal: string;
             /** Weight */
             weight: number;
+        };
+        /** ExposureOut */
+        ExposureOut: {
+            /** Actions */
+            actions: components["schemas"]["ActionShareOut"][];
+            /**
+             * Changed
+             * @description Holdings whose call changed last run
+             */
+            changed: components["schemas"]["CallChangeOut"][];
+            risk: components["schemas"]["RiskOut"];
+            /** Sectors */
+            sectors: components["schemas"]["SectorShareOut"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -735,6 +819,23 @@ export interface components {
              * @enum {string}
              */
             signal: "bullish" | "bearish" | "neutral";
+        };
+        /** PairOut */
+        PairOut: {
+            /**
+             * Correlation
+             * @description Of daily returns, -1 to 1
+             */
+            correlation: number;
+            /** First */
+            first: string;
+            /** Second */
+            second: string;
+            /**
+             * Sessions
+             * @description The daily returns compared
+             */
+            sessions: number;
         };
         /** PerformanceOut */
         PerformanceOut: {
@@ -1022,6 +1123,71 @@ export interface components {
             updated_at: string;
             /** Weighted Score */
             weighted_score: number;
+        };
+        /** RiskOut */
+        RiskOut: {
+            /**
+             * Beta
+             * @description Value-weighted over the holdings with a beta
+             */
+            beta: number | null;
+            /**
+             * Beta Coverage
+             * @description Percent of the holdings' value with a beta
+             */
+            beta_coverage: number | null;
+            /** Cash Weight */
+            cash_weight: number | null;
+            /** Largest Symbol */
+            largest_symbol: string | null;
+            /** Largest Weight */
+            largest_weight: number | null;
+            /**
+             * Together
+             * @description Holdings whose daily returns move together
+             */
+            together: components["schemas"]["PairOut"][];
+        };
+        /** SectorShareOut */
+        SectorShareOut: {
+            /**
+             * Drift
+             * @description Weight minus target, in percentage points
+             */
+            drift: number | null;
+            /**
+             * Sector
+             * @description "Cash" for the cash, "Fund" for an ETF or mutual fund
+             */
+            sector: string;
+            /** Symbols */
+            symbols: string[];
+            /**
+             * Target
+             * @description The wanted percent; None: no target
+             */
+            target: number | null;
+            /** Value */
+            value: number;
+            /**
+             * Weight
+             * @description Percent of the whole portfolio
+             */
+            weight: number;
+        };
+        /** SectorTargetIn */
+        SectorTargetIn: {
+            /** Sector */
+            sector: string;
+            /** Target Pct */
+            target_pct: number | string;
+        };
+        /** SectorTargetOut */
+        SectorTargetOut: {
+            /** Sector */
+            sector: string;
+            /** Target Pct */
+            target_pct: number;
         };
         /** SymbolOverview */
         SymbolOverview: {
@@ -1433,6 +1599,26 @@ export interface operations {
             };
         };
     };
+    get_exposure_api_v1_portfolio_exposure_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExposureOut"];
+                };
+            };
+        };
+    };
     get_performance_api_v1_portfolio_performance_get: {
         parameters: {
             query?: never;
@@ -1449,6 +1635,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PerformanceOut"];
+                };
+            };
+        };
+    };
+    set_sector_targets_api_v1_portfolio_sector_targets_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SectorTargetIn"][];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SectorTargetOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

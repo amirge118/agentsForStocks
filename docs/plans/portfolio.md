@@ -120,6 +120,12 @@ public. PR screenshots use the E2E mocks.
    table. The week's movers value the move for the shares held now.
 4. **Sectors, risk and the agents' view.** Sector weights and targets (`sector_targets`), the risk
    figures, the action exposure, the "moves together" groups from daily returns.
+   Done 2026-11-15: `GET /api/v1/portfolio/exposure`, `PUT /api/v1/portfolio/sector-targets`
+   (`app/domain/exposure.py`). Everything comes from what the agents already stored (sector from
+   `broad_analysis`, beta from `risk`, the call and the one before from `recommendation`; a symbol
+   with technicals but no recommendation is a fund) and from `daily_closes` (pairs correlating at
+   0.8 or more over the last 60 sessions); no extra model or FMP call. A missing beta is left out
+   and its coverage shown, never counted as 0. The drawdown is read from the performance series.
 5. **A server,** once this has worked locally for a few weeks: `docs/deploy.md` with the daily
    backup on and copied off the machine. From then on the ledger is the one thing that must not be
    lost.

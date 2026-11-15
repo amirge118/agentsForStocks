@@ -2,6 +2,7 @@ import { expect, test, type Page, type Route } from "@playwright/test"
 
 import {
   agentResults,
+  exposure,
   llmCalls,
   llmProviders,
   llmUsage,
@@ -49,6 +50,7 @@ async function mockApi(page: Page): Promise<string[]> {
   await page.route(`${API}/portfolio`, (route) => json(route, portfolio))
   await page.route(`${API}/portfolio/transactions`, (route) => json(route, transactions))
   await page.route(`${API}/portfolio/performance`, (route) => json(route, performance))
+  await page.route(`${API}/portfolio/exposure`, (route) => json(route, exposure))
   await page.route(`${API}/symbols/*/outcomes**`, (route) => json(route, symbolTrackRecord))
   await page.route(`${API}/pipeline/runs`, async (route) => {
     posted.push(route.request().postData() ?? "")
@@ -279,6 +281,9 @@ test("the portfolio is the first page: holdings, the agents' call, and a new ent
   await expect(page.getByRole("table").first().getByRole("link", { name: "MSFT" })).toBeVisible()
   await expect(page.getByRole("figure", { name: "Return against the market" })).toContainText("+1.99%")
   await expect(page.getByRole("region", { name: "Gainers" })).toContainText("MSFT")
+  await expect(page.getByLabel("Target for Technology (%)")).toHaveValue("40")
+  await expect(page.getByRole("region", { name: "Moving together" })).toContainText("QQQ")
+  await expect(page.getByRole("region", { name: "Calls that changed" })).toContainText("MSFT")
   await expect(page.getByText("opening cash")).toBeVisible()
 
   await page.getByLabel("Amount ($)").fill("2500")

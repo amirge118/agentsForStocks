@@ -2,6 +2,8 @@
 Portfolio endpoints — the ledger and what it adds up to (app/domain/portfolio.py):
   GET    /portfolio                     — value at today's prices, cash, P/L, today's change
   GET    /portfolio/performance         — value over time, return vs the benchmark, the week
+  GET    /portfolio/exposure            — sectors vs targets, risk, the agents' calls on it
+  PUT    /portfolio/sector-targets      — replace the sector targets
   GET    /portfolio/transactions        — the ledger, newest first
   POST   /portfolio/transactions        — record one entry
   PUT    /portfolio/transactions/{id}   — change an entry
@@ -29,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_container, get_session
 from app.container import Container
 from app.core.clock import market_close, market_is_open, market_today, utcnow
+from app.domain import exposure
 from app.domain.performance import EMPTY, Mover, Performance, performance
 from app.domain.portfolio import (
     WITH_SHARES,
@@ -43,19 +46,29 @@ from app.domain.portfolio import (
 )
 from app.models.portfolio_transaction import PortfolioTransaction
 from app.providers.yfinance import Quote
+from app.repositories.agent_results import AgentResultRepository
 from app.repositories.daily_closes import DailyCloseRepository
 from app.repositories.portfolio import PortfolioRepository, TransactionNotFoundError
+from app.repositories.sector_targets import SectorTargetRepository
 from app.repositories.watchlist import (
     DuplicateSymbolError,
     WatchlistFullError,
     WatchlistRepository,
 )
 from app.schemas.api import (
+    ActionShareOut,
+    CallChangeOut,
+    ExposureOut,
     MoverOut,
+    PairOut,
     PerformanceOut,
     PerformancePointOut,
     PortfolioOut,
     PositionOut,
+    RiskOut,
+    SectorShareOut,
+    SectorTargetIn,
+    SectorTargetOut,
     TransactionIn,
     TransactionOut,
 )
@@ -68,6 +81,9 @@ QUOTE_TTL_OPEN = 60.0
 QUOTE_TTL_CLOSED = 30 * 60.0
 BACKFILL_MARGIN = timedelta(days=7)  # a benchmark close before the first entry, to start from
 MAX_CLOSURE = timedelta(days=5)  # more days than this without a close: a hole to fetch
+CORRELATION_LOOKBACK = timedelta(days=100)  # enough calendar days for 60 sessions
+MAX_SECTOR_TARGETS = 50
+ACTIONS = ("BUY", "HOLD", "SELL")
 _REFUSED = {422: {"description": "Breaks a ledger rule, e.g. sells shares not held"}}
 _MISSING = {404: {"description": "No such transaction"}}
 
@@ -102,6 +118,82 @@ async def get_performance(
             closes.setdefault(symbol, {})[price.as_of] = price.price
     sessions = closes.get(benchmark) or {d for c in closes.values() for d in c}
     return _performance_out(benchmark, performance(entries, closes, sessions, benchmark, today))
+
+
+@router.get("/exposure", response_model=ExposureOut)
+async def get_exposure(
+    session: AsyncSession = Depends(get_session),
+    container: Container = Depends(get_container),
+) -> ExposureOut:
+    ledger = await PortfolioRepository(session).ledger()
+    v = valuation(ledger, await _prices(_quoted(ledger, container), session, container))
+    held = list(ledger.held)
+    sector_of, beta_of, calls = await _agents_on(held, session)
+    today = market_today()
+    closes = await _closes(held, today - CORRELATION_LOOKBACK, today, session, container)
+    targets = await SectorTargetRepository(session).all()
+    r = exposure.risk(v, beta_of, closes)
+    return ExposureOut(
+        sectors=[
+            SectorShareOut(
+                sector=s.sector,
+                value=_num(s.value),
+                weight=_num(s.weight),
+                target=_maybe(s.target),
+                drift=_maybe(s.drift),
+                symbols=s.symbols,
+            )
+            for s in exposure.sectors(v, sector_of, targets)
+        ],
+        risk=RiskOut(
+            largest_symbol=r.largest[0] if r.largest else None,
+            largest_weight=_num(r.largest[1]) if r.largest else None,
+            cash_weight=_maybe(r.cash_weight),
+            beta=_maybe(r.beta),
+            beta_coverage=_maybe(r.beta_coverage),
+            together=[
+                PairOut(
+                    first=p.first,
+                    second=p.second,
+                    correlation=round(p.correlation, 4),
+                    sessions=p.sessions,
+                )
+                for p in r.together
+            ],
+        ),
+        actions=[
+            ActionShareOut(
+                action=a.action, value=_num(a.value), weight=_num(a.weight), symbols=a.symbols
+            )
+            for a in exposure.actions(v, calls)
+        ],
+        changed=[
+            CallChangeOut(
+                symbol=c.symbol,
+                action=c.action,  # type: ignore[arg-type]  # one of ACTIONS (_agents_on)
+                previous=c.previous,  # type: ignore[arg-type]  # same
+                run_date=c.run_date,
+            )
+            for c in exposure.changed(calls)
+        ],
+    )
+
+
+@router.put("/sector-targets", response_model=list[SectorTargetOut])
+async def set_sector_targets(
+    body: list[SectorTargetIn], session: AsyncSession = Depends(get_session)
+) -> list[SectorTargetOut]:
+    """Replaces every target: a sector left out has none after."""
+    if len(body) > MAX_SECTOR_TARGETS:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, f"at most {MAX_SECTOR_TARGETS} sector targets"
+        )
+    targets = {t.sector: t.target_pct for t in body}
+    if len(targets) != len(body):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "a sector is listed twice")
+    saved = await SectorTargetRepository(session).replace(targets)
+    await session.commit()
+    return [SectorTargetOut(sector=s, target_pct=_num(p)) for s, p in sorted(saved.items())]
 
 
 @router.get("/transactions", response_model=list[TransactionOut])
@@ -223,6 +315,46 @@ async def _closes(
     if fetched:
         logger.info("Closes backfilled", extra={"symbols": sorted(fetched)})
     return await repo.between(symbols, start, today)
+
+
+async def _agents_on(
+    symbols: list[str], session: AsyncSession
+) -> tuple[dict[str, str], dict[str, float | None], dict[str, exposure.Call]]:
+    """
+    Each holding's sector (broad_analysis), beta (risk) and latest call with the one before
+    (recommendation), from what the agents stored. A symbol the company agents never ran on,
+    but the others did, is a fund. One query per agent, plus one per call for the previous.
+    """
+    repo = AgentResultRepository(session)
+    broad = await repo.latest_per_symbol("broad_analysis", symbols)
+    risk = await repo.latest_per_symbol("risk", symbols)
+    recs = await repo.latest_per_symbol("recommendation", symbols)
+    techs = await repo.latest_per_symbol("technicals", symbols)
+    sector_of: dict[str, str] = {}
+    for symbol in symbols:
+        sector = broad[symbol].result_json.get("sector") if symbol in broad else None
+        if isinstance(sector, str) and sector.strip():
+            sector_of[symbol] = sector.strip()[:64]
+        elif symbol in techs and symbol not in recs:
+            sector_of[symbol] = exposure.FUND
+    beta_of = {s: _number(row.result_json.get("beta")) for s, row in risk.items()}
+    calls: dict[str, exposure.Call] = {}
+    for symbol, row in recs.items():
+        action = row.result_json.get("action")
+        if action not in ACTIONS:
+            continue
+        before = await repo.latest_before("recommendation", symbol, row.run_date)
+        previous = before[1].get("action") if before else None
+        calls[symbol] = exposure.Call(
+            symbol, action, row.run_date, previous if previous in ACTIONS else None
+        )
+    return sector_of, beta_of, calls
+
+
+def _number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return float(value)
 
 
 def _first_hole(days: Iterable[date], start: date, today: date) -> date | None:
