@@ -208,6 +208,7 @@ A fund has no 10-K, statements, earnings or moat. `@register_agent(company_only=
 | Remote MCP data sources (FactSet, S&P, ...) | `backend/app/llm/mcp.py` → `Agent.judge(mcp_servers=...)` |
 | DB access | `backend/app/repositories/` |
 | Watchlist (DB table; `WATCHLIST` env only seeds it once, migration 0005) | `backend/app/repositories/watchlist.py`, `backend/app/api/v1/endpoints/watchlist.py` |
+| Portfolio ledger (transactions → cash, holdings, P/L; amounts never in a prompt, a log or the repo) | `backend/app/domain/portfolio.py`, `backend/app/repositories/portfolio.py`, `backend/app/api/v1/endpoints/portfolio.py`, `docs/plans/portfolio.md` |
 | Dependency wiring | `backend/app/container.py` |
 | Migrations | `backend/alembic/` (`alembic upgrade head`) |
 | Server deployment (runbook, Caddy, backups, `.env` generator) | `docs/deploy.md`, `infra/caddy/`, `infra/backup/`, `infra/deploy/init-env.sh` |

@@ -105,7 +105,7 @@ public. PR screenshots use the E2E mocks.
 
 ## Steps (each its own PR)
 
-1. **Ledger, cash and market data.** Migration, model, repository, the replay (pure functions in
+1. **Ledger, cash and market data** (two PRs: 1a the ledger and its API, 1b the market data). Migration, model, repository, the replay (pure functions in
    `app/domain/portfolio.py`: positions, cash, realised P/L, the write rules), and
    `GET/POST/PUT/DELETE /api/v1/portfolio/transactions`, `GET /api/v1/portfolio`; `daily_closes`,
    the TTL per kind, the bounded cache, the batched quote with a stale fallback. Most of the tests

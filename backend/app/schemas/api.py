@@ -1,13 +1,16 @@
 """Response/request models for /api/v1 — the contract the frontend is generated from."""
 
 from datetime import date, datetime
-from typing import Any, Literal
+from decimal import Decimal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.agents.recommendation import ComplianceView, ContributionView, RecommendationResult
+from app.core.clock import market_today
 from app.core.symbols import validate_symbol
 from app.domain.outcomes import AgentTrack, SettledCall, TrackStats
+from app.domain.portfolio import Kind
 from app.domain.scoring import Action
 from app.domain.signals import SignalLabel
 from app.repositories.llm_calls import GroupBy
@@ -329,3 +332,70 @@ class SymbolTrackRecord(BaseModel):
     overall: TrackStatsOut
     pending: int
     calls: list[OutcomeCallOut] = Field(description="Settled recommendations, newest first")
+
+
+# ---------------------------------------------------------------------------
+# Portfolio ledger (app/domain/portfolio.py). Requests take exact decimals; responses
+# give numbers (JSON floats) for display — the ledger itself is replayed in Decimal.
+# ---------------------------------------------------------------------------
+_Quantity = Annotated[Decimal, Field(gt=0, lt=Decimal("1e12"), max_digits=18, decimal_places=6)]
+
+
+class TransactionIn(BaseModel):
+    trade_date: date
+    kind: Kind
+    symbol: str | None = Field(default=None, description="For BUY, SELL, DIVIDEND, TRANSFER_IN")
+    shares: _Quantity | None = None
+    price: _Quantity | None = Field(
+        default=None, description="Per share; for TRANSFER_IN, the cost per share"
+    )
+    fee: Annotated[Decimal, Field(ge=0, lt=Decimal("1e12"), max_digits=18, decimal_places=6)] = (
+        Decimal(0)
+    )
+    amount: _Quantity | None = Field(default=None, description="For DEPOSIT, WITHDRAW, DIVIDEND")
+    note: str | None = Field(default=None, max_length=200)
+
+    @field_validator("symbol")
+    @classmethod
+    def _valid_symbol(cls, value: str | None) -> str | None:
+        return None if value is None else validate_symbol(value)
+
+    @field_validator("trade_date")
+    @classmethod
+    def _not_in_the_future(cls, value: date) -> date:
+        if value > market_today():
+            raise ValueError("the trade date can't be in the future")
+        return value
+
+
+class TransactionOut(BaseModel):
+    id: int
+    trade_date: date
+    kind: Kind
+    symbol: str | None
+    shares: float | None
+    price: float | None
+    fee: float
+    amount: float | None
+    note: str | None
+    created_at: datetime
+
+
+class PositionOut(BaseModel):
+    symbol: str
+    shares: float
+    avg_cost: float
+    cost_basis: float = Field(description="What the shares held cost, fees included")
+    realised_pnl: float = Field(description="Booked by sales of this symbol")
+    dividends: float
+
+
+class PortfolioOut(BaseModel):
+    cash: float
+    cost_basis: float = Field(description="Cost of the shares held, fees included")
+    deposited: float = Field(description="Deposits minus withdrawals")
+    transferred_in: float = Field(description="Cost of the shares that came in without cash")
+    realised_pnl: float = Field(description="Every sale's P/L, sold-out symbols included")
+    dividends: float
+    fees: float
+    positions: list[PositionOut]
