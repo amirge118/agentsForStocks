@@ -377,3 +377,37 @@ async def test_quotes_are_empty_when_the_request_fails() -> None:
     )
     flat = await single.get_quotes(["MSFT"])  # a frame without the symbol level
     assert flat["MSFT"].price == 2.0
+
+
+@pytest.mark.unit
+async def test_daily_closes_of_every_symbol_come_from_one_dated_request() -> None:
+    requests: list[tuple[list[str], dict]] = []
+
+    def download(tickers: list[str], **kwargs: object) -> pd.DataFrame:
+        requests.append((tickers, kwargs))
+        return _download_frame({"MSFT": [521.13, None, 523.88], "ZZZZ": [None, None, None]})
+
+    yf = YFinanceClient(
+        rate_limiter=RateLimiter({}, default_rps=1000),
+        cache=TTLCache(60),
+        retry_policy=RetryPolicy(max_attempts=1, timeout_seconds=1.0, base_backoff_seconds=0.0),
+        downloader=download,
+    )
+    closes = await yf.get_daily_closes(["msft", "ZZZZ"], date(2026, 11, 1), date(2026, 11, 14))
+    assert closes == {"MSFT": ((date(2026, 11, 11), 521.13), (date(2026, 11, 13), 523.88))}
+    tickers, kwargs = requests[0]
+    assert tickers == ["MSFT", "ZZZZ"]
+    assert (kwargs["start"], kwargs["end"], kwargs["auto_adjust"]) == (
+        "2026-11-01",
+        "2026-11-14",
+        False,
+    )
+    assert await yf.get_daily_closes([], date(2026, 11, 1), date(2026, 11, 14)) == {}
+    assert await yf.get_daily_closes(["MSFT"], date(2026, 11, 14), date(2026, 11, 14)) == {}
+    assert len(requests) == 1
+
+    def broken(tickers: list[str], **kwargs: object) -> pd.DataFrame:
+        raise ConnectionError("Yahoo is down")
+
+    yf._download = broken
+    assert await yf.get_daily_closes(["SPY"], date(2026, 11, 1), date(2026, 11, 14)) == {}

@@ -1,4 +1,5 @@
 import type {
+  Performance,
   Portfolio,
   Position,
   Transaction,
@@ -266,3 +267,20 @@ export const transactions: Transaction[] = [
     created_at: "2026-11-02T10:00:00Z",
   },
 ]
+
+export const performance: Performance = {
+  benchmark: "SPY",
+  since: "2026-11-02",
+  total_return_pct: 1.99,
+  benchmark_return_pct: 1,
+  week_start: null,
+  week_change: 150,
+  week_change_pct: 1.5,
+  gainers: [{ symbol: "MSFT", change: 99, change_pct: 1.94 }],
+  losers: [],
+  series: [
+    { day: "2026-11-02", value: 10000, flow: 10000, index: 1, benchmark: 1.002 },
+    { day: "2026-11-03", value: 10050, flow: 0, index: 1.005, benchmark: 1.006 },
+    { day: "2026-11-04", value: 10199, flow: 0, index: 1.0199, benchmark: 1.01 },
+  ],
+}

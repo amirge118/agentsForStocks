@@ -296,6 +296,34 @@ export const PortfolioSchema = z.object({
   positions: z.array(PositionSchema),
 })
 
+// Performance: each session's value and time-weighted growth of 1, against the benchmark.
+export const PerformancePointSchema = z.object({
+  day: z.string(),
+  value: z.number(),
+  flow: z.number(),
+  index: z.number(),
+  benchmark: z.number().nullable(),
+})
+
+export const MoverSchema = z.object({
+  symbol: z.string(),
+  change: z.number(),
+  change_pct: z.number(),
+})
+
+export const PerformanceSchema = z.object({
+  benchmark: z.string(),
+  since: z.string().nullable(),
+  total_return_pct: z.number().nullable(),
+  benchmark_return_pct: z.number().nullable(),
+  week_start: z.string().nullable(),
+  week_change: z.number().nullable(),
+  week_change_pct: z.number().nullable(),
+  gainers: z.array(MoverSchema),
+  losers: z.array(MoverSchema),
+  series: z.array(PerformancePointSchema),
+})
+
 // ---------------------------------------------------------------------------
 // Agent result payloads. /results returns each agent's stored result as a loose
 // record; panels parse it with these (safeParse) and fall back to the generic
@@ -454,6 +482,9 @@ export type Transaction = z.infer<typeof TransactionSchema>
 export type TransactionIn = Schemas["TransactionIn"]
 export type Position = z.infer<typeof PositionSchema>
 export type Portfolio = z.infer<typeof PortfolioSchema>
+export type PerformancePoint = z.infer<typeof PerformancePointSchema>
+export type Mover = z.infer<typeof MoverSchema>
+export type Performance = z.infer<typeof PerformanceSchema>
 export type BaseAgentResult = z.infer<typeof BaseAgentResultSchema>
 export type ValuationResult = z.infer<typeof ValuationResultSchema>
 export type TechnicalsResult = z.infer<typeof TechnicalsResultSchema>
@@ -494,4 +525,7 @@ export type ContractChecks = [
   Assert<Exact<Transaction, Schemas["TransactionOut"]>>,
   Assert<Exact<Position, Schemas["PositionOut"]>>,
   Assert<Exact<Portfolio, Schemas["PortfolioOut"]>>,
+  Assert<Exact<PerformancePoint, Schemas["PerformancePointOut"]>>,
+  Assert<Exact<Mover, Schemas["MoverOut"]>>,
+  Assert<Exact<Performance, Schemas["PerformanceOut"]>>,
 ]

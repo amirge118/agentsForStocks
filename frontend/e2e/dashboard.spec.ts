@@ -6,6 +6,7 @@ import {
   llmProviders,
   llmUsage,
   overview,
+  performance,
   portfolio,
   priceHistory,
   recommendation,
@@ -47,6 +48,7 @@ async function mockApi(page: Page): Promise<string[]> {
   await page.route(`${API}/outcomes/track-record**`, (route) => json(route, trackRecord))
   await page.route(`${API}/portfolio`, (route) => json(route, portfolio))
   await page.route(`${API}/portfolio/transactions`, (route) => json(route, transactions))
+  await page.route(`${API}/portfolio/performance`, (route) => json(route, performance))
   await page.route(`${API}/symbols/*/outcomes**`, (route) => json(route, symbolTrackRecord))
   await page.route(`${API}/pipeline/runs`, async (route) => {
     posted.push(route.request().postData() ?? "")
@@ -273,7 +275,10 @@ test("the portfolio is the first page: holdings, the agents' call, and a new ent
   const summary = page.getByRole("region", { name: "Portfolio summary" })
   await expect(summary).toContainText("$10,199.00")
   await expect(summary).toContainText("+$100.00")
-  await expect(page.getByRole("link", { name: "MSFT" })).toBeVisible()
+  await expect(summary).toContainText("+$150.00") // this week
+  await expect(page.getByRole("table").first().getByRole("link", { name: "MSFT" })).toBeVisible()
+  await expect(page.getByRole("figure", { name: "Return against the market" })).toContainText("+1.99%")
+  await expect(page.getByRole("region", { name: "Gainers" })).toContainText("MSFT")
   await expect(page.getByText("opening cash")).toBeVisible()
 
   await page.getByLabel("Amount ($)").fill("2500")

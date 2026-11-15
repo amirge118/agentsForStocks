@@ -1,18 +1,21 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 
 import { HoldingsTable } from "@/components/features/portfolio/holdings-table"
+import { PerformanceChart } from "@/components/features/portfolio/performance-chart"
 import { PortfolioSummary } from "@/components/features/portfolio/portfolio-summary"
 import { TransactionForm } from "@/components/features/portfolio/transaction-form"
 import { cashEffect, TransactionsTable } from "@/components/features/portfolio/transactions-table"
+import { WeeklyMovers } from "@/components/features/portfolio/weekly-movers"
 import { ApiError } from "@/lib/api/client"
 import type { PortfolioRepository, SymbolRepository } from "@/lib/api/repositories"
-import { msftPosition, overview, portfolio, transactions } from "@/test/fixtures"
+import { msftPosition, overview, performance, portfolio, transactions } from "@/test/fixtures"
 import { pending, renderWithProviders } from "@/test/render"
 import type { Portfolio, TransactionIn } from "@/types/api"
 
 function portfolioRepo(overrides: Partial<PortfolioRepository> = {}): PortfolioRepository {
   return {
     get: async () => portfolio,
+    getPerformance: async () => performance,
     getTransactions: async () => transactions,
     addTransaction: jest.fn(async () => transactions[0]!),
     updateTransaction: jest.fn(),
@@ -49,6 +52,8 @@ describe("PortfolioSummary", () => {
     expect(within(summary).getByText("+$199.00")).toHaveClass("text-ok")
     expect(within(summary).getByText("+3.98% on cost")).toBeInTheDocument()
     expect(within(summary).getByText("49.0% of the portfolio")).toBeInTheDocument()
+    expect(await within(summary).findByText("+$150.00")).toHaveClass("text-ok")
+    expect(within(summary).getByText("+1.50%, deposits left out")).toBeInTheDocument()
   })
 
   it("names the holdings left out for lack of a price", async () => {
@@ -92,6 +97,50 @@ describe("HoldingsTable", () => {
       symbols,
     })
     expect(await screen.findByText(/No holdings yet/)).toBeInTheDocument()
+  })
+})
+
+describe("PerformanceChart", () => {
+  it("compares the time-weighted return with the benchmark, and switches range", async () => {
+    renderWithProviders(<PerformanceChart />, { portfolio: portfolioRepo() })
+    const chart = await screen.findByRole("figure", { name: "Return against the market" })
+    expect(within(chart).getByText("+1.99%")).toHaveClass("text-ok")
+    expect(within(chart).getByText("+0.80%")).toBeInTheDocument()
+    expect(within(chart).getByText(/pts ahead of SPY/)).toBeInTheDocument()
+    const month = within(chart).getByRole("button", { name: "1M" })
+    fireEvent.click(month)
+    expect(month).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("waits for a second session before drawing", async () => {
+    const one = { ...performance, series: performance.series.slice(0, 1) }
+    renderWithProviders(<PerformanceChart />, { portfolio: portfolioRepo({ getPerformance: async () => one }) })
+    expect(await screen.findByText(/second trading session/)).toBeInTheDocument()
+  })
+
+  it("shows the error when the performance can't load", async () => {
+    renderWithProviders(<PerformanceChart />, {
+      portfolio: portfolioRepo({ getPerformance: () => Promise.reject(new Error("down")) }),
+    })
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load the performance: down")
+  })
+})
+
+describe("WeeklyMovers", () => {
+  it("lists the week's gainers and losers with the agents' call", async () => {
+    renderWithProviders(<WeeklyMovers />, { portfolio: portfolioRepo(), symbols })
+    const gainers = await screen.findByRole("region", { name: "Gainers" })
+    expect(within(gainers).getByRole("link", { name: "MSFT" })).toBeInTheDocument()
+    expect(within(gainers).getByText("+$99.00")).toBeInTheDocument()
+    expect(await within(gainers).findByText("BUY")).toBeInTheDocument()
+    expect(screen.getByText("Nothing down this week.")).toBeInTheDocument()
+    expect(screen.getByText(/Since each came in this week/)).toBeInTheDocument()
+  })
+
+  it("names the close the week is measured from", async () => {
+    const since = { ...performance, week_start: "2026-11-06" }
+    renderWithProviders(<WeeklyMovers />, { portfolio: portfolioRepo({ getPerformance: async () => since }), symbols })
+    expect(await screen.findByText(/Since the close of Nov 6, 2026/)).toBeInTheDocument()
   })
 })
 

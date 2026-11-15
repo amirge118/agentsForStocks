@@ -2,12 +2,13 @@
 
 import { LoadError, Loading } from "@/components/features/common/query-states"
 import { formatCurrency, formatPercent, formatShare, formatSignedCurrency } from "@/lib/format"
-import { usePortfolio } from "@/lib/hooks/queries"
+import { usePerformance, usePortfolio } from "@/lib/hooks/queries"
 import { cn } from "@/lib/utils"
 
-/** The headline figures: what everything is worth, how it moved today, the P/L, the cash. */
+/** The headline figures: what everything is worth, how it moved today and this week, the P/L, the cash. */
 export function PortfolioSummary() {
   const { data, isPending, isError, error } = usePortfolio()
+  const week = usePerformance().data
   if (isPending) return <Loading label="Loading the portfolio" className="h-28" />
   if (isError) return <LoadError what="the portfolio" error={error} />
 
@@ -15,13 +16,23 @@ export function PortfolioSummary() {
   const cashShare = data.total_value > 0 ? (data.cash / data.total_value) * 100 : null
   return (
     <section aria-label="Portfolio summary" className="space-y-2">
-      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-rule bg-rule md:grid-cols-5">
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-rule bg-rule md:grid-cols-3 xl:grid-cols-6">
         <Figure label="Total value" value={formatCurrency(data.total_value)} note="Holdings and cash" big />
         <Figure
           label="Today"
           value={formatSignedCurrency(data.day_change)}
           note={data.day_change_pct === null ? "—" : formatPercent(data.day_change_pct)}
           tone={data.day_change}
+        />
+        <Figure
+          label="This week"
+          value={week?.week_change == null ? "—" : formatSignedCurrency(week.week_change)}
+          note={
+            week?.week_change_pct == null
+              ? "Deposits left out"
+              : `${formatPercent(week.week_change_pct)}, deposits left out`
+          }
+          tone={week?.week_change ?? undefined}
         />
         <Figure
           label="Unrealised P/L"
@@ -36,7 +47,6 @@ export function PortfolioSummary() {
           tone={data.realised_pnl}
         />
         <Figure
-          wide
           label="Cash"
           value={formatCurrency(data.cash)}
           note={cashShare === null ? "—" : `${formatShare(cashShare)} of the portfolio`}
@@ -57,17 +67,15 @@ function Figure({
   note,
   tone,
   big,
-  wide,
 }: {
   label: string
   value: string
   note: string
   tone?: number
   big?: boolean
-  wide?: boolean // the odd one out on a two-column phone grid spans both columns
 }) {
   return (
-    <div className={cn("bg-paper-2 p-4", wide && "col-span-2 md:col-span-1")}>
+    <div className="bg-paper-2 p-4">
       <dt className="text-xs text-muted">{label}</dt>
       <dd
         className={cn(

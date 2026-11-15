@@ -250,6 +250,37 @@ class YFinanceClient:
             return {}
         return {q.symbol: q for t in tickers if (q := _quote(frame, t)) is not None}
 
+    async def get_daily_closes(
+        self, symbols: Sequence[str], start: date, end: date
+    ) -> dict[str, tuple[tuple[date, float], ...]]:
+        """
+        Daily closes of every symbol for the sessions in [start, end), in one request,
+        adjusted as in `get_quotes`. A symbol with none is left out; {} when the request fails.
+        """
+        tickers = sorted({validate_symbol(s) for s in symbols})
+        if not tickers or start >= end:
+            return {}
+
+        def _fetch() -> pd.DataFrame:
+            frame = self._download(
+                tickers,
+                start=start.isoformat(),
+                end=end.isoformat(),
+                interval="1d",
+                auto_adjust=False,
+                progress=False,
+                threads=False,
+            )
+            return frame if frame is not None else pd.DataFrame()
+
+        key = ("daily_closes", ",".join(tickers), start.isoformat(), end.isoformat())
+        try:
+            frame = await self._call(key, _fetch)
+        except ProviderError as exc:
+            logger.warning("Daily closes unavailable", extra={"error": str(exc)})
+            return {}
+        return {t: bars for t in tickers if (bars := _bars(frame, t))}
+
     async def get_earnings_dates(self, symbol: str) -> pd.DataFrame:
         ticker = validate_symbol(symbol)
 
@@ -312,18 +343,23 @@ class YFinanceClient:
         return feed
 
 
-def _quote(frame: pd.DataFrame, ticker: str) -> Quote | None:
+def _bars(frame: pd.DataFrame, ticker: str) -> tuple[tuple[date, float], ...]:
+    """One symbol's daily closes from a `yf.download` frame, oldest first."""
     if frame.empty or "Close" not in frame.columns.get_level_values(0):
-        return None
+        return ()
     closes = frame["Close"]
     if isinstance(closes, pd.Series):  # a flat frame: one symbol
         closes = closes.to_frame(ticker)
     if ticker not in closes.columns:
-        return None
+        return ()
     series = closes[ticker].dropna()
-    if series.empty:
+    return tuple((pd.Timestamp(day).date(), float(close)) for day, close in series.items())
+
+
+def _quote(frame: pd.DataFrame, ticker: str) -> Quote | None:
+    bars = _bars(frame, ticker)
+    if not bars:
         return None
-    bars = tuple((pd.Timestamp(day).date(), float(close)) for day, close in series.items())
     return Quote(
         symbol=ticker,
         price=bars[-1][1],

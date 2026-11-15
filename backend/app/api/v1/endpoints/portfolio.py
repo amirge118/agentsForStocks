@@ -1,6 +1,7 @@
 """
 Portfolio endpoints — the ledger and what it adds up to (app/domain/portfolio.py):
   GET    /portfolio                     — value at today's prices, cash, P/L, today's change
+  GET    /portfolio/performance         — value over time, return vs the benchmark, the week
   GET    /portfolio/transactions        — the ledger, newest first
   POST   /portfolio/transactions        — record one entry
   PUT    /portfolio/transactions/{id}   — change an entry
@@ -9,6 +10,7 @@ Portfolio endpoints — the ledger and what it adds up to (app/domain/portfolio.
 Prices: one request for every holding, good for a minute while the market is open
 and half an hour while it is closed. Each finished session's close is stored once
 (daily_closes); when no quote comes back, the last stored close is used and marked stale.
+The performance view reads those stored closes; only a missing stretch is fetched.
 
 A write that would ever sell shares not held, or spend cash not there, is refused (422)
 and nothing changes. A symbol bought joins the watchlist, so the agents analyse it.
@@ -16,8 +18,10 @@ Amounts are the person's own: they are never logged or sent to a model.
 """
 
 import logging
-from datetime import date
+from collections.abc import Iterable
+from datetime import date, timedelta
 from decimal import Decimal
+from itertools import pairwise
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_container, get_session
 from app.container import Container
 from app.core.clock import market_close, market_is_open, market_today, utcnow
+from app.domain.performance import EMPTY, Mover, Performance, performance
 from app.domain.portfolio import (
     WITH_SHARES,
     Entry,
@@ -33,6 +38,7 @@ from app.domain.portfolio import (
     LedgerError,
     Price,
     Valuation,
+    replay,
     valuation,
 )
 from app.models.portfolio_transaction import PortfolioTransaction
@@ -44,7 +50,15 @@ from app.repositories.watchlist import (
     WatchlistFullError,
     WatchlistRepository,
 )
-from app.schemas.api import PortfolioOut, PositionOut, TransactionIn, TransactionOut
+from app.schemas.api import (
+    MoverOut,
+    PerformanceOut,
+    PerformancePointOut,
+    PortfolioOut,
+    PositionOut,
+    TransactionIn,
+    TransactionOut,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +66,8 @@ router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
 QUOTE_TTL_OPEN = 60.0
 QUOTE_TTL_CLOSED = 30 * 60.0
+BACKFILL_MARGIN = timedelta(days=7)  # a benchmark close before the first entry, to start from
+MAX_CLOSURE = timedelta(days=5)  # more days than this without a close: a hole to fetch
 _REFUSED = {422: {"description": "Breaks a ledger rule, e.g. sells shares not held"}}
 _MISSING = {404: {"description": "No such transaction"}}
 
@@ -62,8 +78,30 @@ async def get_portfolio(
     container: Container = Depends(get_container),
 ) -> PortfolioOut:
     ledger = await PortfolioRepository(session).ledger()
-    prices = await _prices(list(ledger.held), session, container)
+    prices = await _prices(_quoted(ledger, container), session, container)
     return _portfolio_out(ledger, valuation(ledger, prices))
+
+
+@router.get("/performance", response_model=PerformanceOut)
+async def get_performance(
+    session: AsyncSession = Depends(get_session),
+    container: Container = Depends(get_container),
+) -> PerformanceOut:
+    entries = await PortfolioRepository(session).entries()
+    benchmark = container.settings.outcome_benchmark
+    if not entries:
+        return _performance_out(benchmark, EMPTY)
+    today = market_today()
+    start = min(e.trade_date for e in entries) - BACKFILL_MARGIN
+    traded = {e.symbol for e in entries if e.kind in WITH_SHARES and e.symbol}
+    symbols = sorted(traded | {benchmark})
+    live = await _prices(_quoted(replay(entries), container), session, container)
+    closes = await _closes(symbols, start, today, session, container)
+    for symbol, price in live.items():
+        if not price.stale:
+            closes.setdefault(symbol, {})[price.as_of] = price.price
+    sessions = closes.get(benchmark) or {d for c in closes.values() for d in c}
+    return _performance_out(benchmark, performance(entries, closes, sessions, benchmark, today))
 
 
 @router.get("/transactions", response_model=list[TransactionOut])
@@ -135,6 +173,15 @@ async def delete_transaction(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+def _quoted(ledger: Ledger, container: Container) -> list[str]:
+    """
+    The holdings and the benchmark: the summary and the performance view ask for the same
+    set, so they share one cached request a minute.
+    """
+    held = set(ledger.held)
+    return sorted(held | {container.settings.outcome_benchmark}) if held else []
+
+
 async def _prices(
     symbols: list[str], session: AsyncSession, container: Container
 ) -> dict[str, Price]:
@@ -154,6 +201,33 @@ async def _prices(
     if missing:
         logger.warning("No live quote: using the last stored close", extra={"symbols": missing})
     return prices
+
+
+async def _closes(
+    symbols: list[str], start: date, today: date, session: AsyncSession, container: Container
+) -> dict[str, dict[date, Decimal]]:
+    """
+    The stored closes since `start`; a symbol with a hole longer than any market closure
+    is fetched first, in one request for all of them, and stored. A failed fetch leaves
+    the holes (the series carries the last close across them).
+    """
+    repo = DailyCloseRepository(session)
+    stored = await repo.between(symbols, start, today)
+    holes = {s: day for s in symbols if (day := _first_hole(stored.get(s, {}), start, today))}
+    if not holes:
+        return stored
+    fetched = await container.daily_closes(list(holes), min(holes.values()), today)
+    for symbol, bars in fetched.items():
+        await repo.save(symbol, _finished(bars))
+    await session.commit()
+    if fetched:
+        logger.info("Closes backfilled", extra={"symbols": sorted(fetched)})
+    return await repo.between(symbols, start, today)
+
+
+def _first_hole(days: Iterable[date], start: date, today: date) -> date | None:
+    points = [start, *sorted(days), today]
+    return next((a for a, b in pairwise(points) if b - a > MAX_CLOSURE), None)
 
 
 def _finished(closes: tuple[tuple[date, float], ...]) -> list[tuple[date, float]]:
@@ -255,6 +329,34 @@ def _portfolio_out(ledger: Ledger, v: Valuation) -> PortfolioOut:
         unpriced=v.unpriced,
         positions=[_position_out(h) for h in v.holdings],
     )
+
+
+def _performance_out(benchmark: str, p: Performance) -> PerformanceOut:
+    return PerformanceOut(
+        benchmark=benchmark,
+        since=p.series[0].day if p.series else None,
+        total_return_pct=_maybe(p.total_return_pct),
+        benchmark_return_pct=_maybe(p.benchmark_return_pct),
+        week_start=p.week_start,
+        week_change=_maybe(p.week_change),
+        week_change_pct=_maybe(p.week_change_pct),
+        gainers=[_mover_out(m) for m in p.gainers],
+        losers=[_mover_out(m) for m in p.losers],
+        series=[
+            PerformancePointOut(
+                day=v.day,
+                value=_num(v.value),
+                flow=_num(v.flow),
+                index=_num(v.index),
+                benchmark=_maybe(v.benchmark),
+            )
+            for v in p.series
+        ],
+    )
+
+
+def _mover_out(m: Mover) -> MoverOut:
+    return MoverOut(symbol=m.symbol, change=_num(m.change), change_pct=_num(m.change_pct))
 
 
 def _position_out(h: Holding) -> PositionOut:

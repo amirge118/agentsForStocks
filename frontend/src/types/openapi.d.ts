@@ -126,6 +126,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portfolio/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Performance */
+        get: operations["get_performance_api_v1_portfolio_performance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portfolio/transactions": {
         parameters: {
             query?: never;
@@ -677,6 +694,18 @@ export interface components {
             /** Output Tokens */
             output_tokens: number;
         };
+        /** MoverOut */
+        MoverOut: {
+            /**
+             * Change
+             * @description This week, for the shares held now
+             */
+            change: number;
+            /** Change Pct */
+            change_pct: number;
+            /** Symbol */
+            symbol: string;
+        };
         /** OutcomeCallOut */
         OutcomeCallOut: {
             /** Alpha */
@@ -706,6 +735,72 @@ export interface components {
              * @enum {string}
              */
             signal: "bullish" | "bearish" | "neutral";
+        };
+        /** PerformanceOut */
+        PerformanceOut: {
+            /** Benchmark */
+            benchmark: string;
+            /** Benchmark Return Pct */
+            benchmark_return_pct: number | null;
+            /** Gainers */
+            gainers: components["schemas"]["MoverOut"][];
+            /** Losers */
+            losers: components["schemas"]["MoverOut"][];
+            /** Series */
+            series: components["schemas"]["PerformancePointOut"][];
+            /**
+             * Since
+             * @description The first session valued; None: no entries yet
+             */
+            since: string | null;
+            /**
+             * Total Return Pct
+             * @description Time-weighted, since `since`
+             */
+            total_return_pct: number | null;
+            /**
+             * Week Change
+             * @description Value change this week, money put in left out
+             */
+            week_change: number | null;
+            /**
+             * Week Change Pct
+             * @description Time-weighted, this week
+             */
+            week_change_pct: number | null;
+            /**
+             * Week Start
+             * @description The close the week is measured from; None: the ledger began this week
+             */
+            week_start: string | null;
+        };
+        /** PerformancePointOut */
+        PerformancePointOut: {
+            /**
+             * Benchmark
+             * @description The benchmark's growth of 1, same sessions
+             */
+            benchmark: number | null;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /**
+             * Flow
+             * @description Money put in that session (taken out: negative)
+             */
+            flow: number;
+            /**
+             * Index
+             * @description Growth of 1 since the start, time-weighted
+             */
+            index: number;
+            /**
+             * Value
+             * @description Cash and holdings at that session's closes
+             */
+            value: number;
         };
         /** PipelineRunAccepted */
         PipelineRunAccepted: {
@@ -1334,6 +1429,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortfolioOut"];
+                };
+            };
+        };
+    };
+    get_performance_api_v1_portfolio_performance_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceOut"];
                 };
             };
         };

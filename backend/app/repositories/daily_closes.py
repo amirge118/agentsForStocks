@@ -29,6 +29,21 @@ class DailyCloseRepository:
         await self._session.flush()
         return len(new)
 
+    async def between(
+        self, symbols: Iterable[str], start: date, end: date
+    ) -> dict[str, dict[date, Decimal]]:
+        """Each symbol's stored closes in [start, end]; a symbol with none is left out."""
+        wanted = list(set(symbols))
+        if not wanted:
+            return {}
+        stmt = select(DailyClose).where(
+            DailyClose.symbol.in_(wanted), DailyClose.day >= start, DailyClose.day <= end
+        )
+        out: dict[str, dict[date, Decimal]] = {}
+        for row in (await self._session.execute(stmt)).scalars():
+            out.setdefault(row.symbol, {})[row.day] = row.close
+        return out
+
     async def latest(self, symbols: Iterable[str]) -> dict[str, tuple[date, Decimal]]:
         """Each symbol's most recent stored close (symbols with none are left out)."""
         wanted = list(set(symbols))
