@@ -284,7 +284,6 @@ test("the portfolio is the first page: holdings, the agents' call, and a new ent
   await expect(summary).toContainText("+$100.00")
   await expect(summary).toContainText("+$150.00") // this week
   await expect(page.getByRole("table").first().getByRole("link", { name: "MSFT" })).toBeVisible()
-  await expect(page.getByRole("figure", { name: "Return against the market" })).toContainText("+1.99%")
   await expect(page.getByRole("region", { name: "Gainers" })).toContainText("MSFT")
   await expect(page.getByLabel("Target for Technology (%)")).toHaveValue("40")
   await expect(page.getByRole("region", { name: "Moving together" })).toContainText("QQQ")

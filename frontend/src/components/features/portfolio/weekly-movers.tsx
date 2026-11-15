@@ -21,80 +21,92 @@ export function sessionMovers(positions: Position[]): Mover[] {
 }
 
 /**
- * The biggest gainers and losers among the holdings this week, with the agents' call. Before
- * the portfolio has a session of its own, the last session's moves stand in.
+ * The biggest gainers and losers among the holdings this week, side by side, with the
+ * agents' call. Before the portfolio has a session of its own, the last session's moves
+ * stand in. Each bar is the move against the largest one shown.
  */
 export function WeeklyMovers() {
   const performance = usePerformance()
   const portfolio = usePortfolio()
   const symbols = useSymbols()
 
-  if (performance.isPending || portfolio.isPending) return <Loading label="Loading movers" className="h-32" />
+  if (performance.isPending || portfolio.isPending) return <Loading label="Loading movers" className="h-36" />
   if (performance.isError) return <LoadError what="the movers" error={performance.error} />
   if (portfolio.isError) return <LoadError what="the movers" error={portfolio.error} />
+  if (portfolio.data.positions.length === 0) return null
 
   const weekly = performance.data.series.length > 0
   const movers = weekly
     ? [...performance.data.gainers, ...performance.data.losers]
     : sessionMovers(portfolio.data.positions)
-  const gainers = movers.filter((m) => m.change_pct > 0).sort((a, b) => b.change_pct - a.change_pct)
-  const losers = movers.filter((m) => m.change_pct < 0).sort((a, b) => a.change_pct - b.change_pct)
+  const gainers = movers
+    .filter((m) => m.change_pct > 0)
+    .sort((a, b) => b.change_pct - a.change_pct)
+    .slice(0, SHOWN)
+  const losers = movers
+    .filter((m) => m.change_pct < 0)
+    .sort((a, b) => a.change_pct - b.change_pct)
+    .slice(0, SHOWN)
+  const largest = Math.max(...[...gainers, ...losers].map((m) => Math.abs(m.change_pct)), 0)
   const asOf = portfolio.data.positions.find((p) => p.price_as_of)?.price_as_of
   const calls = new Map(symbols.data?.map((s) => [s.symbol, s.recommendation]) ?? [])
-  const since = weekly
+  const period = weekly
     ? performance.data.week_start
-      ? `This week, since the close of ${formatDate(performance.data.week_start)}`
-      : "This week, since each came in"
-    : `Last session${asOf ? ` (${formatDate(asOf)})` : ""}: the week starts after your first session`
+      ? `This week · since the close of ${formatDate(performance.data.week_start)}`
+      : "This week · since each came in"
+    : `Last session${asOf ? ` · ${formatDate(asOf)}` : ""}`
 
   return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted">{since}</p>
-      {gainers.length + losers.length === 0 ? (
-        <p className="text-sm text-muted">No moves yet.</p>
-      ) : (
-        <div className="space-y-3">
-          <MoverList title="Gainers" movers={gainers.slice(0, SHOWN)} calls={calls} />
-          <MoverList title="Losers" movers={losers.slice(0, SHOWN)} calls={calls} />
-        </div>
-      )}
-    </div>
+    <section aria-label="Movers" className="rounded-card border border-rule bg-paper-2">
+      <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 pt-3 pb-2">
+        <h2 className="text-base font-medium">Movers</h2>
+        <p className="text-xs text-muted">{period}</p>
+      </header>
+      <div className="grid grid-cols-1 border-t border-rule md:grid-cols-2 md:divide-x md:divide-rule">
+        <MoverList title="Gainers" movers={gainers} largest={largest} calls={calls} />
+        <MoverList title="Losers" movers={losers} largest={largest} calls={calls} />
+      </div>
+    </section>
   )
 }
 
 function MoverList({
   title,
   movers,
+  largest,
   calls,
 }: {
   title: string
   movers: Mover[]
+  largest: number
   calls: Map<string, Recommendation | null>
 }) {
   return (
-    <section aria-label={title}>
-      <h3 className="mb-1 text-xs text-muted">{title}</h3>
+    <section aria-label={title} className="px-4 py-2">
+      <h3 className="py-1 text-xs text-muted">{title}</h3>
       {movers.length === 0 ? (
-        <p className="text-sm text-muted">None.</p>
+        <p className="py-1.5 text-sm text-muted">None.</p>
       ) : (
-        <ul className="divide-y divide-rule">
+        <ul>
           {movers.map((m) => {
             const call = calls.get(m.symbol)
+            const up = m.change_pct >= 0
             return (
-              <li key={m.symbol} className="flex items-center gap-2 py-1.5 text-sm">
-                <Link href={`/symbols/${m.symbol}`} className="w-14 font-mono font-medium hover:underline">
+              <li key={m.symbol} className="grid grid-cols-[3.5rem_3.5rem_minmax(0,1fr)_4.5rem_5rem] items-center gap-2 py-1.5 text-sm">
+                <Link href={`/symbols/${m.symbol}`} className="font-mono font-medium hover:underline">
                   {m.symbol}
                 </Link>
-                <span className="w-12">{call && <ActionBadge action={call.action} />}</span>
-                <span
-                  className={cn(
-                    "ml-auto text-right font-mono tabular-nums",
-                    m.change_pct >= 0 ? "text-ok" : "text-bad",
-                  )}
-                >
+                <span>{call && <ActionBadge action={call.action} />}</span>
+                <span aria-hidden className="h-1.5 overflow-hidden rounded-chip bg-paper-3">
+                  <span
+                    className={cn("block h-full rounded-chip", up ? "bg-ok" : "bg-bad")}
+                    style={{ width: `${largest > 0 ? (Math.abs(m.change_pct) / largest) * 100 : 0}%` }}
+                  />
+                </span>
+                <span className={cn("text-right font-mono tabular-nums", up ? "text-ok" : "text-bad")}>
                   {formatPercent(m.change_pct)}
                 </span>
-                <span className="w-20 text-right font-mono text-xs tabular-nums text-muted">
+                <span className="text-right font-mono text-xs tabular-nums text-muted">
                   {formatSignedCurrency(m.change)}
                 </span>
               </li>

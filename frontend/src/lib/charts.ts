@@ -154,41 +154,6 @@ export function rangeChange(bars: { close: number }[]): number | null {
   return first === 0 ? null : ((last - first) / first) * 100
 }
 
-export const RETURN_RANGES = ["1M", "3M", "YTD", "All"] as const
-export type ReturnRange = (typeof RETURN_RANGES)[number]
-
-export interface ReturnPoint {
-  day: string
-  portfolio: number // percent since the range's first session
-  benchmark: number | null
-}
-
-/** The first day a range covers, counted back from `last` (an ISO date). */
-export function rangeStart(range: ReturnRange, last: string): string {
-  if (range === "All") return ""
-  const d = new Date(`${last}T00:00:00Z`)
-  if (range === "YTD") return `${d.getUTCFullYear()}-01-01`
-  d.setUTCMonth(d.getUTCMonth() - (range === "1M" ? 1 : 3))
-  return d.toISOString().slice(0, 10)
-}
-
-/**
- * The time-weighted return and the benchmark's over a range, both starting at 0% on its
- * first session (growth-of-1 indexes divide, so any session can be the base).
- */
-export function returnSeries(series: PerformancePoint[], range: ReturnRange): ReturnPoint[] {
-  const last = series.at(-1)
-  if (!last) return []
-  const from = rangeStart(range, last.day)
-  const points = series.filter((p) => p.day >= from)
-  const base = points[0]!
-  return points.map((p) => ({
-    day: p.day,
-    portfolio: (p.index / base.index - 1) * 100,
-    benchmark: p.benchmark === null || base.benchmark === null ? null : (p.benchmark / base.benchmark - 1) * 100,
-  }))
-}
-
 export interface Drawdown {
   current: number // percent below the highest point so far (0 at a new high)
   worst: number // the deepest fall from a previous high
