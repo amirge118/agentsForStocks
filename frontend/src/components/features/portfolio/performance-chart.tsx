@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
-import { Empty, LoadError, Loading } from "@/components/features/common/query-states"
+import { LoadError, Loading } from "@/components/features/common/query-states"
 import { RETURN_RANGES, returnSeries, type ReturnRange } from "@/lib/charts"
 import { formatDate, formatPercent } from "@/lib/format"
 import { usePerformance } from "@/lib/hooks/queries"
@@ -19,11 +19,16 @@ export function PerformanceChart() {
   const [range, setRange] = useState<ReturnRange>("All")
   const { data, isPending, isError, error } = usePerformance()
 
-  if (isPending) return <Loading label="Loading performance" className="h-64" />
+  if (isPending) return <Loading label="Loading performance" className="h-48" />
   if (isError) return <LoadError what="the performance" error={error} />
   const points = returnSeries(data.series, range)
   if (points.length < 2) {
-    return <Empty>The chart starts after the portfolio&apos;s second trading session.</Empty>
+    return (
+      <p className="text-sm text-muted">
+        Your return against {data.benchmark}, without the money you put in or took out. The line starts once the
+        portfolio has two trading sessions{data.since ? ` (from ${formatDate(data.since)})` : ""}.
+      </p>
+    )
   }
   const first = points[0]!
   const last = points[points.length - 1]!
@@ -43,7 +48,7 @@ export function PerformanceChart() {
             </span>
             {last.benchmark !== null && (
               <>
-                <span className="text-muted"> · {data.benchmark} </span>
+                <span className="text-muted"> · {data.benchmark} (dashed) </span>
                 <span className="font-mono text-ink-2">{formatPercent(last.benchmark)}</span>
               </>
             )}
@@ -76,7 +81,7 @@ export function PerformanceChart() {
           ))}
         </div>
       </figcaption>
-      <div role="img" aria-label={summary} className="h-64">
+      <div role="img" aria-label={summary} className="h-48">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={points} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
             <CartesianGrid stroke={colors.rule} vertical={false} />
@@ -123,9 +128,6 @@ export function PerformanceChart() {
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-xs text-muted">
-        Time-weighted: money put in or taken out doesn&apos;t move the line. Dashed: {data.benchmark}.
-      </p>
     </figure>
   )
 }

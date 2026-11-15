@@ -121,3 +121,13 @@ def test_the_week_starts_at_the_last_session_before_monday() -> None:
     assert (
         week_start(sessions, date(2026, 11, 1)) == friday_before
     )  # a Sunday: the week just traded
+
+
+@pytest.mark.unit
+def test_a_transfer_in_moves_from_the_market_price_not_its_old_cost() -> None:
+    # Came in on Monday at an old cost of 50; the stock closed at 100 that day, 103 today
+    entries = [Entry(MON, "TRANSFER_IN", "X", D("10"), D("50"))]
+    p = run(entries, {"X": {MON: D("100"), TUE: D("103")}})
+    assert [(m.symbol, m.change, m.change_pct) for m in p.gainers] == [("X", D("30"), D("3"))]
+    # With no close at all, a transfer's move can't be known: left out
+    assert run(entries, {}).gainers == []
